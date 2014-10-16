@@ -31,24 +31,32 @@ nan = float('NaN')
 # To access within a member function, 
 # import the global variable with 'global soundbank'
 
-vizact.onkeydown( 'm', viz.window.screenCapture, 'image.bmp' )
+#vizact.onkeydown( 'm', viz.window.screenCapture, 'image.bmp' )
+
 
 class soundBank():
 	def __init__(self):
+		 
+		################################################################
+		################################################################
 		
-		################################################################
-		################################################################
 		## Register sounds.  It makes sense to do it once per experiment.
+		self.bounce =  '/Resources/bounce.wav'
+		self.buzzer =  '/Resources/BUZZER.wav'
+		self.bubblePop =  '/Resources/bubblePop3.wav'
+		self.highDrip =  '/Resources/highdrip.wav'
+		self.cowbell =  '/Resources/cowbell.wav'
+		self.gong =  '/Resources/gong.wav'
 		
-		self.bounce = viz.addAudio('/Resources/bounce.wav')
-		self.buzzer = viz.addAudio('/Resources/BUZZER.wav')
-		self.bubblePop = viz.addAudio('/Resources/bubblePop3.wav')
-		self.cowbell = viz.addAudio('/Resources/cowbell.wav')
-		self.highdrip = viz.addAudio('/Resources/highdrip.wav')
-		self.gong = viz.addAudio('/Resources/gong.wav')
-		#return soundBank
-
+		viz.playSound(self.bounce,viz.SOUND_PRELOAD)
+		viz.playSound(self.buzzer,viz.SOUND_PRELOAD)
+		viz.playSound(self.bubblePop,viz.SOUND_PRELOAD)
+		viz.playSound(self.highDrip,viz.SOUND_PRELOAD)
+		viz.playSound(self.cowbell,viz.SOUND_PRELOAD)
+		viz.playSound(self.cowbell,viz.SOUND_PRELOAD)
+		
 soundBank = soundBank()
+
 
 class Experiment(viz.EventClass):
 	
@@ -249,15 +257,15 @@ class Experiment(viz.EventClass):
 					self.currentTrial.ballOnPaddlePos_XYZ = bouncePos_XYZ
 					
 					#print 'Ball has hit the ground.'
-					soundBank.bounce.play()
+					viz.playSound(soundBank.bounce)
 					
 					# Compare pre-bounce flight dur with predicted pre-bounce flight dur
 					actualPreBounceFlightDur =  float(viz.getFrameTime()) - self.currentTrial.launchTime
 					durationError = self.currentTrial.predictedPreBounceFlightDur - actualPreBounceFlightDur
 					self.currentTrial.flightDurationError = durationError 
 					
-					print 'Predicted: ' + str(self.currentTrial.predictedPreBounceFlightDur)
-					print 'Actual   : ' + str(actualPreBounceFlightDur)
+					#print 'Predicted: ' + str(self.currentTrial.predictedPreBounceFlightDur)
+					#print 'Actual   : ' + str(actualPreBounceFlightDur)
 					
 					print 'Flight duration error: ' + str(durationError)
 					
@@ -269,7 +277,7 @@ class Experiment(viz.EventClass):
 					self.eventFlag.setStatus(4)
 					self.currentTrial.ballHasHitPaddle = True
 					
-					soundBank.cowbell.play()
+					viz.playSound(soundBank.cowbell)
 					
 					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
 					if( theBall.physNode.queryStickyState(thePaddle.physNode) ):
@@ -293,8 +301,7 @@ class Experiment(viz.EventClass):
 					self.eventFlag.setStatus(5)
 					#print 'Ball has hit the back wall.'
 					
-					#currentTrial.removeBall()
-					soundBank.bounce.play()
+					viz.playSound(soundBank.bounce)
 
 	def start(self):
 		
@@ -462,7 +469,8 @@ class Experiment(viz.EventClass):
 				if( triggerDuration <= self.minLaunchTriggerDuration ):
 				
 					# Trigger not held long enough for a launch
-					soundBank.cowbell.play()
+
+					viz.playSound(soundBank.cowbell)
 					self.room.standingBox.visible( viz.TOGGLE )
 					self.currentTrial.removeBall()
 					#print 'Launch aborted'
@@ -849,7 +857,7 @@ class Experiment(viz.EventClass):
 			recalAfterTrial_idx = self.blocks_bl[self.blockNumber].recalAfterTrial_idx
 			
 			if( recalAfterTrial_idx.count(self.trialNumber ) > 0):
-				soundBank.gong.play()
+				viz.playSound(soundBank.gong)
 				vizact.ontimer2(0,0,self.toggleEyeCalib)
 
 			# Increment trial 
@@ -930,7 +938,7 @@ class Experiment(viz.EventClass):
 		#end experiment
 		print 'end experiment'
 		self.inProgress = False
-		soundBank.gong.play()
+		viz.playSound(soundBank.gong)
 		
 	def printQuats(self):
 		
@@ -1305,7 +1313,7 @@ class trial(viz.EventClass):
 	def placeBall(self,room):
 	
 		
-		print self.initialPos_XYZ
+		#print self.initialPos_XYZ
 		
 		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.initialPos_XYZ,self.ballColor_RGB)
 

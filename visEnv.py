@@ -294,7 +294,7 @@ class visObj(viz.EventClass):
         
     def __del__(self):
         
-        print viz.getFrameNumber()
+        #print viz.getFrameNumber()
         
         # Remove physical component
         self.physNode.remove()
@@ -502,12 +502,12 @@ class visObj(viz.EventClass):
         
         # Update with physics    
         if( self.updatingWithPhys == False ):
-            print 'Now updating with physics'
+            #print 'Now updating with physics'
             self.updatingWithPhys = True
             self.updateAction = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE, self.applyPhysToVis)
             #self.physNode.enableMovement()
         else:
-            print 'No longer updating with physics'
+            #print 'No longer updating with physics'
             self.updatingWithPhys = False
             self.physNode.disableMovement() #If you don't disble the physics component, it will keep on moving in the physworld
         
@@ -623,11 +623,12 @@ def drawMarkerSpheres(room,mocap):
      ##  Create mocap marker spheres - 1 per LED
     markerVisObjList_idx = []
     
-    for idx in range(0,29):
-            
-            print 'visEnv.mocapMarkerSphere: Drawing marker ' + str(idx)
-            markerVisObjList_idx.append(mocapMarkerSphere(mocap,room,idx))
+    for mNum in range(0,len(mocap.alPSMarkers_midx)):
 
+            markerVisObjList_idx.append(mocapMarkerSphere(mocap,room,mNum))
+
+    print 'visEnv.mocapMarkerSphere: Drawing ' + str(len(markerVisObjList_idx)) + ' markers.'
+    
 if __name__ == "__main__":
 
     import vizact
@@ -641,7 +642,7 @@ if __name__ == "__main__":
         # This also enables mocap tracking of markers and 
         # rigid bodies specified in config expConfigName
         
-        expConfigName = 'bayesBallRac.cfg'
+        expConfigName = 'badmintonTest.cfg'
         import vrlabConfig
         config = vrlabConfig.VRLabConfig(expConfigName)
         room = room(config )

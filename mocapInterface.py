@@ -417,8 +417,6 @@ class phasespaceInterface(viz.EventClass):
 			else:
 				rigidAvgMarkerList_mId  = self.rigidAvgMarkerList_rIdx_mId[rigidIdx]
 			
-			
-			
 			self.allRigidBodyObjects.append( rigidObject(rigidIdx,self.phaseSpaceFilePath,self.rigidFileNames_ridx[rigidIdx],rigidAvgMarkerList_mId,rigidOffsetMM_WorldXYZ ))
 			
 		### Track markers not on rigid bodies 
@@ -466,25 +464,6 @@ class phasespaceInterface(viz.EventClass):
 				pass
 				#print 'Mocap: marker: ' + str(markerNum) + ' is attached to a rigid body'
 				
-#		self.markerTrackerIdx = len(self.allRigidBodyObjects)
-#		
-#		owlTrackeri(self.markerTrackerIdx, OWL_CREATE, OWL_POINT_TRACKER)
-#		
-#		markerCount = 0;
-#		for i in xrange(self.owlParamMarkerCount):
-#			
-#			# if marker not already used in rigid...
-#			if self.markersUsedInRigid.count(i) == 0: 
-#				
-#				owlMarkeri(markerNumToID(self.markerTrackerIdx,i), OWL_SET_LED, i)
-#				self.markerServerID_mIdx.append( markerNumToID(self.markerTrackerIdx,markerCount) )
-#				
-#				print 'Mocap: marker: ' + str(i) + ' is unattached, and was added to a tracker.'
-#				markerCount += 1;
-#			else:
-#				pass
-#				#print 'Mocap: marker: ' + str(i) + ' is attached to a rigid body'
-		
 		owlTracker(self.markerTrackerIdx, OWL_ENABLE);
 	
 		if not owlGetStatus():
