@@ -11,7 +11,7 @@ class physEnv(viz.EventClass):
 		
 		print 'physEnv.init(): Frame-rate hardcoded at 1/60!'
 		
-		self.frameRate = 1.0/60
+		self.frameRate = 1.0/75
 		
 		if( type(self.frameRate) is not float ):
 			print 'physEnv.init(): frame-rate must be a float!'

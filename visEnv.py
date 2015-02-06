@@ -297,7 +297,8 @@ class visObj(viz.EventClass):
         #print viz.getFrameNumber()
         
         # Remove physical component
-        self.physNode.remove()
+        if( self.physNode ):
+            self.physNode.remove()
         
         # Stop updating visNode
         if( self.updateAction ):
@@ -511,17 +512,6 @@ class visObj(viz.EventClass):
             self.updatingWithPhys = False
             self.physNode.disableMovement() #If you don't disble the physics component, it will keep on moving in the physworld
         
-   
-    def disableUpdateWithPhys(self):
-        
-        if( self.updateAction and self.updatingWithPhys ):
-            
-            #self.physNode.disableMovement() #If you don't disble the physics component, it will keep on moving in the physworld
-            self.updateAction.remove()
-            #self.updateAction.remove()
-            self.updateAction = 0
-            self.updatingWithPhys = False
-    
     def toggleUpdatePhysWithVis(self):
         
         #self.removeUpdateAction()
@@ -579,7 +569,8 @@ class visObj(viz.EventClass):
         
         if( self.rigidBodyFile ):
            
-            transformViz = self.rigidBodyFile.transformViz 
+            transformViz = self.rigidBodyFile.get_transform()
+            
             #print transformViz
             #self.visNode.setMatrix(transformViz)
             
@@ -601,7 +592,17 @@ class visObj(viz.EventClass):
             self.updatingPhysWithVis = False
             self.updatingWithMocap = False
             self.updatingWithPhys = False
+    
+    def disableUpdateWithPhys(self):
         
+        if( self.updateAction and self.updatingWithPhys ):
+            
+            #self.physNode.disableMovement() #If you don't disble the physics component, it will keep on moving in the physworld
+            self.updateAction.remove()
+            #self.updateAction.remove()
+            self.updateAction = 0
+            self.updatingWithPhys = False
+            
 class mocapMarkerSphere(visObj):
     def __init__(self,mocap,room,markerNum):
         #super(visObj,self).__init__(room,'sphere',.04,[0,0,0],[.5,0,0],1)

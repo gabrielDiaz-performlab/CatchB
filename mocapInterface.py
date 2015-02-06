@@ -1,817 +1,802 @@
+'''Classes for fetching and handling data from phasespace.'''
+
+import collections
+import logging
+import OWL
+import random
+import threading
+import time
 import viz
-import vizshape
-import vizact
-
-# not a vizard module.  My own.
-
-import math
-from OWL import *
-
-from os import rename
 
 
-## marker index is the standard marker number
-## When identifying a marker that has been registered on the server,
-# use Marker ID.  Marker ID is a function of index and tracker number.
+ERROR_MAP = {
+    OWL.OWL_NO_ERROR: 'No Error',
+    OWL.OWL_INVALID_VALUE: 'Invalid Value',
+    OWL.OWL_INVALID_ENUM: 'Invalid Enum',
+    OWL.OWL_INVALID_OPERATION: 'Invalid Operation',
+}
+
+class Error(Exception):
+    pass
+
+class OwlError(Error):
+    def __init__(self, msg):
+        self.msg = 'setting up {}'.format(msg)
+        self.err = OWL.owlGetError()
+
+    def __str__(self):
+        return '{}: OWL error {} (0x{:04x})'.format(
+            self.msg, ERROR_MAP.get(self.err, self.err), self.err)
 
 
+Marker = collections.namedtuple('Marker', 'pos cond')
+Pose = collections.namedtuple('Pose', 'pos quat cond')
 
-def markerNumToID(tracker, index):
-	'''# The markerNumToID macro takes a tracker and an index and produces a marker 
-	# ID. The index is generally a sequential number sequence starting at 0, 
-	# with a new number for each marker defined. Remember that the 
-	# MARKER macro merely produces a marker ID.
-	# this BIT SHIFTs LEFT BY 12 BITS IS BINARY MULTIPLICATION BY (2 ** 12)'''
-	
-	return ( ( tracker << 12 ) | (index) );
 
-class rigidObject(viz.EventClass):
-	
-	def __init__(self,trackerIdx,filePath,fileName,avgMarkerList_midx = [0],rigidOffset_worldXYZ = [0,0,0]):
-		
-		self.filePath = filePath
-		self.fileName = fileName
-		
-		self.trackerIdx = trackerIdx
-		self.markerID_midx = []
-		self.markerPos_midx_localXYZ = []
+class PointTracker(viz.EventClass):
+    '''Track a set of markers on the phasespace server.'''
 
-		self.serverData = False
-		
-		# List of markers to be averaged over
-		self.avgMarkerList_midx = avgMarkerList_midx
-		
-		# Used to pre-translate rigid body by a set amount
-		# Here, it is converted from vizard to phasespace coordinates
-		self.rigidOffset_worldXYZ = [-rigidOffset_worldXYZ[2],rigidOffset_worldXYZ[1],-rigidOffset_worldXYZ[0]]
-		
-		# B/C Phasespace has a flipped Z axis
-		# transform mats must be converted.  
-		# Be sure to explicitly keep track of the format
-		# transformViz or transformPS
-		
-		self.transformViz = 0
-		
-		# Create rigid tracker		
-		self._loadDefaults()
-		
-		# Create rigidTracker
-		owlTrackeri( self.trackerIdx, OWL_CREATE, OWL_RIGID_TRACKER );
-		
-		# Populate rigidTracker 
-		for i in range( len(self.markerID_midx) ):
-			
-			# set markers
-			owlMarkeri(  markerNumToID(self.trackerIdx, i), OWL_SET_LED, self.markerID_midx[i] )
-			# set marker positions
-			owlMarkerfv( markerNumToID(self.trackerIdx, i), OWL_SET_POSITION, self.markerPos_midx_localXYZ[i])
-		
-		# Activate tracking for rigidTracker
-		owlTracker( self.trackerIdx, OWL_ENABLE )
-		print 'Enabling ' + self.fileName
-			
-		# Flush requests and check for errors
-		if not owlGetStatus():    
-			#owl_print_error("error in point tracker setup", owlGetError())
-			errorCode = owlGetError();
-			print("Error in point tracker setup.", errorCode)
-			return 0
+    def __init__(self, index, marker_ids):
+        super(PointTracker, self).__init__()
 
-	def _loadDefaults(self):
+        self.marker_ids = marker_ids
+        self._index = index
+        self._lock = threading.Lock()
+        self._raw_markers = [Marker(pos=(0, 0, 0), cond=-1) for _ in marker_ids]
+        self._markers = [Marker(pos=(0, 0, 0), cond=-1) for _ in marker_ids]
+        self._targets = [None for _ in marker_ids]
 
-		import os.path
-		openfile = [];
-		openfile = open( self.filePath + self.fileName, 'r' );
-		
-		lineData = openfile.readlines();
+        # schedule an update event for following marker data.
+        def update(event):
+            paired = None
+            with self._lock:
+                paired = zip(self._markers, self._targets)
+            for marker, target in paired:
+                if target is not None and 0 < marker.cond < 100:
+                    target.setPosition(marker.pos)
+        self.callback(viz.UPDATE_EVENT, update)
 
-		parsedData = [];
+    def get_markers(self):
+        '''Get a dictionary of all tracked markers.
 
-		markerID = [];
-		markerPos = [];
-		
-		count = 0;
-		
-		for currentLine in lineData:
-			
-			tempLineDataList = currentLine.split(',');
-			
-			markerID.append( int(tempLineDataList[0]) );
-			
-			markerPos.append( map( float, tempLineDataList[1].split() ) );
-			
-			count += 1;
-			
-		#rof
-			
-		self.markerID_midx = markerID
-		self.markerPos_midx_localXYZ = markerPos
-		
-		openfile.close()
-		
-		print 'Mocap: Read ' + str(count) + ' lines from the rigid body file.'
-		if count == 0: print 'This is likely to cause OWL.init() to fail'
-	
-	def getMarkerPositions(self,alPSMarkers_midx):
-		
-		# Build list of updated marker positions in newPosWorldCoords
-		newPos_midx_GlobalXYZ = [];
-		
-		for oldMarkerIdx in range( 0, len(self.markerID_midx), 1 ):
+        Returns
+        -------
+        {int: Marker} :
+            A dictionary mapping phasespace marker ids to marker information.
+        '''
+        with self._lock:
+            return dict(zip(self.marker_ids, self._markers))
 
-			for newMarkerIdx in range( 0, len(alPSMarkers_midx), 1 ):
-				
-				# Confused?  See markerNumToID macro at top!
-				oldRigidIDConverted = markerNumToID( self.trackerIdx, oldMarkerIdx );
-				
-				if( alPSMarkers_midx[newMarkerIdx].id == oldRigidIDConverted ):
-					
-					newPos_midx_GlobalXYZ.append( [ alPSMarkers_midx[newMarkerIdx].x, 
-												alPSMarkers_midx[newMarkerIdx].y,
-												alPSMarkers_midx[newMarkerIdx].z ] );
-												
-				#fi
-				
-			#rof
-			
-		#rof
-		
-		if( len(newPos_midx_GlobalXYZ) < len(self.markerID_midx ) ):
-			
-			print "getMarkerPositions:  Error. Could not see all markers."
-			
-			for i in range(len(alPSMarkers_midx)):
-				print ("  Visible Marker IDs: " + str(alPSMarkers_midx[i].id) );
-			
-			return -1
-			#rof
-		else:
-			return newPos_midx_GlobalXYZ
-	
-	def saveNewDefaults(self):
-		
-		fileObject = open(self.filePath + 'temp.rb','w')#self.fileName , 'w')
-		
-		# Get old marker id's and new positions
-		oldRigidID_midx = self.markerID_midx
-		newRigidPos_midx_xyz = self.markerPos_midx_localXYZ
-		
-		for idx in range(len(newRigidPos_midx_xyz )):
-			posString = str(newRigidPos_midx_xyz[idx][0]) + ' ' + str(newRigidPos_midx_xyz[idx][1]) + ' ' + str(newRigidPos_midx_xyz[idx][2]);
-			newLine = str(oldRigidID_midx[idx]) + ', ' + posString + '\n'
-			fileObject.write(newLine);
-			
-		fileObject.close();
-		
-		#from shutil import move
-		#move(self.filePath + 'temp.rb', self.filePath + self.fileName)
+    def get_marker(self, marker_id):
+        '''Get a marker tuple for the current state of the given marker_id.
 
-		from os import remove
-		from shutil import move
+        Parameters
+        ----------
+        marker_id : int
+            The phasespace marker id to get.
 
-		remove(self.filePath + self.fileName)
-		move(self.filePath + 'temp.rb', self.filePath + self.fileName)
+        Raises
+        ------
+        ValueError :
+            If the given marker_id is not in this tracker.
 
-		print "Rigid body definition written to file"	
-		
-	def resetRigid( self, alPSMarkers_midx  ):
-		
-		# Build list of updated marker positions in newPosWorldCoords
-		newPos_midx_GlobalXYZ = [];
-		
-		# Find markers that belong to the rigid tracker.
-		# Their most position sensed on this frame is stored in newPos_midx_GlobalXYZH
-		for oldMarkerIdx in range( 0, len(self.markerID_midx), 1 ):
-			for newMarkerIdx in range( 0, len(alPSMarkers_midx), 1 ):
-				
-				# markerNumToID macro defined at top of file!
-				oldRigidIDConverted = markerNumToID( self.trackerIdx, oldMarkerIdx );
-				
-				if( alPSMarkers_midx[newMarkerIdx].id == oldRigidIDConverted ):
-					
-					newPos_midx_GlobalXYZ.append( [ alPSMarkers_midx[newMarkerIdx].x, 
-												alPSMarkers_midx[newMarkerIdx].y,
-												alPSMarkers_midx[newMarkerIdx].z ] );
+        Returns
+        -------
+        Marker :
+            A marker tuple with current location information. The marker tuple
+            has .pos and .cond attributes.
+        '''
+        with self._lock:
+            return self._markers[self.marker_ids.index(marker_id)]
 
-		# Check to make sure all markers were seen
-		if( len(newPos_midx_GlobalXYZ) < len(self.markerID_midx ) ):
-			
-			print "ResetRigid:  Error. Could not see all markers."
-			
-			for i in range(len(alPSMarkers_midx)):
-				print ("  Visible Marker IDs: " + str(alPSMarkers_midx[i].id) );
-			#rof
-			
-			return
-			
-		##################################################################################
-		#  Here's where we set the origin and frame of reference for a rigid body
-		# The origin is set by averaging over markers in avgMarkerList_midx
-		
-		markerCount = 0;
-		center_GlobalXYZ = [0,0,0]
-		
-		for mIdx in range(len(self.avgMarkerList_midx)):
-			mNum = self.avgMarkerList_midx[mIdx]
-			center_GlobalXYZ[0] = center_GlobalXYZ[0] + newPos_midx_GlobalXYZ[mNum][0]
-			center_GlobalXYZ[1] = center_GlobalXYZ[1] + newPos_midx_GlobalXYZ[mNum][1]
-			center_GlobalXYZ[2] = center_GlobalXYZ[2] + newPos_midx_GlobalXYZ[mNum][2]
-		
-		center_GlobalXYZ[0] = center_GlobalXYZ[0] / len(self.avgMarkerList_midx)
-		center_GlobalXYZ[1] = center_GlobalXYZ[1] / len(self.avgMarkerList_midx)
-		center_GlobalXYZ[2] = center_GlobalXYZ[2] / len(self.avgMarkerList_midx)
-				
-		# Convert from world-based to rigid-body based frame of reference
-		newPosRigidCoords_mIdx_LocalXYZ = []
-		
-		for i in range( 0, len(newPos_midx_GlobalXYZ), 1 ):
-			# ... also, offset origin by self.rigidOffset_worldXYZ ( in world coordinates ) 
-			newPosRigidCoords_mIdx_LocalXYZ.append( [ newPos_midx_GlobalXYZ[i][0]-center_GlobalXYZ[0] + self.rigidOffset_worldXYZ[0],
-										newPos_midx_GlobalXYZ[i][1]-center_GlobalXYZ[1] + self.rigidOffset_worldXYZ[1],
-										newPos_midx_GlobalXYZ[i][2]-center_GlobalXYZ[2] + self.rigidOffset_worldXYZ[2], ] );
-										
-		#rof
-			
-		# Update rigid body definition on the owl server
-		# and in this rigid body
-		owlTracker( self.trackerIdx, OWL_DISABLE );
-		
-		for i in range( 0, len(newPosRigidCoords_mIdx_LocalXYZ), 1 ):
-			
-			owlMarkerfv( markerNumToID(self.trackerIdx, i), OWL_SET_POSITION, newPosRigidCoords_mIdx_LocalXYZ[i] )
-			self.markerPos_midx_localXYZ[i] = newPosRigidCoords_mIdx_LocalXYZ[i];
-			
-		#rof
-			
-		owlTracker( self.trackerIdx, OWL_ENABLE );
-		
-		if not owlGetStatus():
-			
-			print ( "ResetRigid: Could not enable rigid body. OwlGetStatus returned: ", owlGetError() );
-			
-			exit();
-		
-		#fi
-		
-		print "Rigid body definition updated on server."
-	
-	def rotateRigid(self,rotateByDegs_XYZ):
+    def update_markers(self, offset, marker, raw_marker):
+        '''Update the state of the given marker for this tracker.
 
-		# create a temp vizard 3d object 
-		# rotate, use vertices to redefine rigid object
-		
-		viz.startLayer(viz.POINTS)
-		for idx in range(len(self.markerPos_midx_localXYZ)):
-			viz.vertex(self.markerPos_midx_localXYZ[idx][0],self.markerPos_midx_localXYZ[idx][1],self.markerPos_midx_localXYZ[idx][2])
-		
-		tempRigidObject = viz.endLayer()
-		tempRigidObject.visible( viz.OFF ) #Make the object invisible.
-		
-		# Update rigid body definition on the owl server
-		tempRigidObject.setEuler( rotateByDegs_XYZ,viz.RELATIVE)		
-		
-		owlTracker(self.trackerIdx,OWL_DISABLE)
+        This should really only be called by the Phasespace object.
 
-		count = 0
-		for i in xrange(len(self.markerID_midx)):
-			owlMarkerfv(markerNumToID(self.trackerIdx, i), OWL_SET_POSITION, tempRigidObject.getVertex(i,viz.RELATIVE))
-			self.markerPos_midx_localXYZ[count] = tempRigidObject.getVertex(i,viz.RELATIVE)
-			count +=1
-			
-		owlTracker(self.trackerIdx, OWL_ENABLE);
-		
-		tempRigidObject.remove() #Remove the object.
-		
-	
+        Parameters
+        ----------
+        offset : int
+            The offset (within this tracker) of the marker to update.
+        marker : Marker
+            A marker tuple with updated location information.
+        raw_marker : Marker
+            A marker tuple with unscaled phasespace data.
+        '''
+        with self._lock:
+            self._markers[offset] = marker
+            self._raw_markers[offset] = raw_marker
+
+    def link_marker(self, marker_id, target):
+        '''Link an object to a particular marker for continual updates.
+
+        Parameters
+        ----------
+        marker_id : int
+            Phasespace ID of a marker to link.
+        target : any
+            An object to link to the given marker.
+
+        Raises
+        ------
+        ValueError :
+            If the given marker_id is not in this tracker.
+        '''
+        with self._lock:
+            self._targets[self.marker_ids.index(marker_id)] = target
+
+
+class RigidTracker(PointTracker):
+    '''Track a rigid body on the phasespace server.'''
+
+    def __init__(self, index, marker_ids, center_marker_ids, localOffest_xyz):
+        super(RigidTracker, self).__init__(index, marker_ids)
+
+
+        self.center_marker_ids = center_marker_ids
+        
+        self._pose = Pose(pos=(0, 0, 0), quat=(1, 0, 0, 0), cond=-1)
+        self._transform = viz.Transform()
+        self._localOffset = [0,0,0]
+        
+        self.filepath = []
+        self.filename = []
+    
+    def _loadPoseFromFile(self):
+        ''' Set marker positions to positions contained in a specific *.rb file
+        '''
+        import os.path
+        openfile = [];
+        openfile = open( self.filepath + self.filename, 'r' );
+        
+        lineData = openfile.readlines();
+
+        parsedData = [];
+
+        markerID = [];
+        markerPos = [];
+        
+        count = 0;
+        
+        for currentLine in lineData:
+            
+            tempLineDataList = currentLine.split(',');
+            
+            markerID.append( int(tempLineDataList[0]) );
+            
+            markerPos.append( map( float, tempLineDataList[1].split() ) );
+            
+            count += 1;
+            
+        #rof
+            
+        self.markerID_midx = markerID
+        self.markerPos_midx_localXYZ = markerPos
+        
+        openfile.close()
+        
+        print 'Mocap: Read ' + str(count) + ' lines from the rigid body file.'
+        if count == 0: print 'This is likely to cause OWL.init() to fail'
+
+    def _getLocalPositions(self):
+        
+        ''' Returns markerPositions within a local frame of reference
+        Returns
+        -------
+        A list of tuples
+        '''
+        
+        logging.info('Getting local marker positions %s', self.marker_ids)
+        
+        globalPositions = []
+        localPositions = []
+        com = []
+        
+        with self._lock:
+            
+            for mIdx in range(len(self.marker_ids)):
+
+                #mID = self.marker_ids(m)
+                marker = self._raw_markers[mIdx]
+
+                if marker is None or not 0 < marker.cond : #or not 0 < marker.cond < 100:
+                    logging.error('missing marker %d for reset', m)
+                    print 'missing marker %d for reset'  %m
+                    return -1
+                    
+                globalPositions.append(marker.pos)
+
+                if mIdx in self.center_marker_ids:
+                    com.append(marker.pos)
+        
+        # compute center of mass
+        cx = sum(x for x, _, _ in com) / len(com)
+        cy = sum(y for _, y, _ in com) / len(com)
+        cz = sum(z for _, _, z in com) / len(com)
+        logging.info('body center: (%s, %s, %s)', cx, cy, cz)
+    
+
+        # Construct marker_map, a dictionary of pos tuples
+        # using marker ID's as keys
+        localPositions = []
+        for i, (x, y, z) in enumerate(globalPositions):
+            localPositions.append((x - cx, y - cy, z - cz))
+            
+        return localPositions
+            
+    def get_pose(self):
+        '''Return the current pose for our rigid body.
+
+        Returns
+        -------
+        Pose :
+            A pose tuple for our body. The pose tuple contains .pos, .quat, and
+            .cond attributes.
+        '''
+        with self._lock:
+            return self._pose
+
+    def get_transform(self):
+        '''Get a Vizard-compatible transform matrix for this rigid body.
+
+        Returns
+        -------
+        matrix :
+            A transform that can be applied to vizard objects.
+        '''
+        with self._lock:
+            return self._transform
+    
+    def get_position(self):
+        '''Get a Vizard-compatible position for this rigid body.
+
+        Returns
+        -------
+        matrix :
+            A transform that can be applied to vizard objects.
+        '''
+        
+        with self._lock:
+            return self._transform.getPosition()
+    
+    def get_euler(self):
+        '''Get a Vizard-compatible position for this rigid body.
+
+        Returns
+        -------
+        matrix :
+            A transform that can be applied to vizard objects.
+        '''
+
+        with self._lock:
+            return self._transform.getEuler()
+            
+    def link_position(self, target):
+        '''Link an object's position to this rigid body for continual updates.
+
+        Parameters
+        ----------
+        target : viz.Object
+            An object to link to this rigid tracker.
+        '''
+        
+        self.callback(
+            viz.UPDATE_EVENT, lambda e: target.setPosition(self.get_position()))
+    
+    def link_euler(self, target):
+        '''Link an object's position to this rigid body for continual updates.
+
+        Parameters
+        ----------
+        target : viz.Object
+            An object to link to this rigid tracker.
+        '''
+        
+        self.callback(
+            viz.UPDATE_EVENT, lambda e: target.setEuler(self.get_euler()))        
+            
+    def link_pose(self, target):
+        '''Link an object to this rigid body for continual updates.
+
+        Parameters
+        ----------
+        target : viz.Object
+            An object to link to this rigid tracker.
+        '''
+        self.callback(
+            viz.UPDATE_EVENT, lambda e: target.setMatrix(self.get_transform()))
+
+    def update_pose(self, pose):
+        '''Update the pose (and transform) for this rigid body.
+        Note that self._localOffset is implemented here.
+        This should really only be called by the Phasespace object.
+
+        Parameters
+        ----------
+        pose : Pose
+            The new pose information for this rigid body.
+        '''
+        with self._lock:
+            self._pose = pose
+
+            # update the vizard transform matrix. 
+            # The pose has already been converted into the Vizard coordinate system
+            self._transform.makeIdent()
+            self._transform.setQuat(pose.quat)
+            
+            # Implement offset
+            newPos = tuple(sum(t) for t in zip(pose.pos , tuple(self._localOffset) ) )
+            
+            self._transform.postTrans(newPos)
+            
+    def save(self):
+        
+        '''Save rigid body out to *.rb file
+        '''
+        
+        fileObject = open(self.filepath + 'temp.rb','w')
+        
+        #localPositions = self._getLocalPositions()
+                            
+        # Get old marker id's and new positions
+        oldRigidID_midx = self._getLocalPositions()
+        
+        for idx in range(len(oldRigidID_midx)):
+            posString = str(oldRigidID_midx[idx][0]) + ' ' + str(oldRigidID_midx[idx][1]) + ' ' + str(oldRigidID_midx[idx][2]);
+            newLine = str(self.marker_ids[idx]) + ', ' + posString + '\n'
+            fileObject.write(newLine);
+            
+        fileObject.close();
+        
+        #from shutil import move
+        #move(self.filePath + 'temp.rb', self.filePath + self.fileName)
+
+        from os import remove
+        from shutil import move
+
+        remove(self.filepath + self.filename)
+        move(self.filepath + 'temp.rb', self.filepath + self.filename)
+
+        print "Rigid body definition written to file"
+         # reset phasespace marker positions
+        
+    def reset(self):
+        
+        '''Reset this rigid body based on the current locations of its markers.
+        '''
+
+        logging.info('resetting rigid body %s', self.marker_ids)
+
+        localPositions = self._getLocalPositions()
+        
+        if (localPositions == -1):
+            return
+            
+        OWL.owlTracker(self._index, OWL.OWL_DISABLE)
+        
+        for i, (x, y, z) in enumerate(localPositions):
+        
+            OWL.owlMarkerfv(OWL.MARKER(self._index, i),
+                            OWL.OWL_SET_POSITION,
+                            [x,y,z])
+                            
+        OWL.owlTracker(self._index, OWL.OWL_ENABLE)
+
 
 class phasespaceInterface(viz.EventClass):
-	
-	def __init__(self, config=None):
-		''' Initializes an interface to the phasespace server. 
-		Also sets up rigid body and marker tracker objects. '''
-		
-		viz.EventClass.__init__(self)
-		
-		self.config = config;
-		self.origin = []
-		self.scale = []
-		self.serverAddress = []
-		self.showEyePosition = 0
-		self.updateActionPaused = 0
-		self.markerSeenThisRound = [];
-		
-		self.allRigidBodyObjects = [];
-		self.alPSMarkers_midx = []; # Note that these are vectors of Phasespace marker objects
-		
-		# a list of marker IDs on the server.
-		# These ID's are converted to server ID's using the macro
-		# markerNumToID.  
-		self.markerServerID_mIdx = [] 
-		
-		# the index of the tracker used for free-floating markers
-		self.markerTrackerIdx = 0 
-		
-		self.frame 			   		= 0
-		self.last_tick 		   		= 0
-		self.off 			   		= True
-		self.markersUsedInRigid 	= [];
-		
-		self.mainViewUpdateAction = False
-		self.rigidHMDIdx = -1
-		#self.mainViewLinkedToHead 	= False
-		
-		if config==None:
-			print('***Debug mode***')
-			self.phaseSpaceFilePath = 'Resources/'
-			self.origin 	= [0,0,0];
-			self.scale 		= [0.001,0.001,0.001];
-			self.serverAddress = '192.168.1.230';
-			
-			self.rigidFileNames_ridx= ['hmd-nvisMount.rb','paddle-hand.rb']
-			self.rigidAvgMarkerList_rIdx_mId = '[1,2],[3,5]'
-			self.rigidOffsetMM_ridx_WorldXYZ = '[0,0,0],[0,0,0]'
-			
-			#self.rigidBodyShapes_ridx = ['sphere','cylinder']
-			#self.rigidBodySizes_ridx = [[.1],[.03,.09]]
-			#self.rigidBodyToggleVisibility_ridx = [0,1]
-			
-			self.owlParamMarkerCount = 20
-			self.owlParamFrequ = OWL_MAX_FREQUENCY
-			self.owlParamInterp = 0
-			self.owlParamMarkerCondThresh = 50
-			self.owlParamPostProcess = 0
-			self.owlParamModeNum = 3
-			
-		else:
-			
-			self.phaseSpaceFilePath 	= 'Resources/'
-			self.origin 				= self.config['phasespace']['origin']
-			self.scale 					= self.config['phasespace']['scale']
-			self.serverAddress 			= self.config['phasespace']['phaseSpaceIP']
-			self.rigidFileNames_ridx	= self.config['phasespace']['rigidBodyList']
+    '''Handle the details of getting mocap data from phasespace.
 
-			self.rigidOffsetMM_ridx_WorldXYZ = eval(self.config['phasespace']['rigidOffsetMM_ridx_WorldXYZ'])
-			self.rigidAvgMarkerList_rIdx_mId = eval(self.config['phasespace']['rigidAvgMarkerList_rIdx_mId'])
-			
-			self.owlParamModeNum	= self.config['phasespace']['owlParamModeNum']
-			
-			self.owlParamMarkerCount = self.config['phasespace']['owlParamMarkerCount']
-			self.owlParamFrequ = self.config['phasespace']['owlParamFrequ'] 
-			self.owlParamInterp = self.config['phasespace']['owlParamInterp']
-			self.owlParamMarkerCondThresh = self.config['phasespace']['owlParamMarkerCondThresh']
-			self.owlParamRigidCondThresh = self.config['phasespace']['owlParamRigidCondThresh']
-			self.owlParamPostProcess = self.config['phasespace']['owlParamPostProcess']
-		
-		flags = 'OWL_MODE'+ str(self.owlParamModeNum)
-		
-		if( self.owlParamPostProcess ):
-			flags = flags + '|OWL_POSTPROCESS'
-		
-		initCode = owlInit(self.serverAddress,eval(flags))
-		#initCode = owlInit(self.serverAddress,0)
-		
-		if (initCode < 0): 
-			print "Mocap: Could not connect to OWL Server"
-			exit()
-		else:
-			print '**** OWL Initialized with flags: ' + flags + ' ****'
-		
-		if not owlGetStatus():
-			print "Mocap: could not enable OWL_STREAMING, owlGetStatus returned: ", owlGetError()
-			exit();
-			
-		####################################################################################################################
-		####################################################################################################################
-		# Set server parameters
-		
-		# set default frequency
-		if( self.owlParamFrequ == 0 ):
-			
-			self.owlParamFrequ = OWL_MAX_FREQUENCY;
-			
-		#fi
-		
-		owlSetFloat(OWL_FREQUENCY, self.owlParamFrequ)
-		# start streaming
-		owlSetInteger(OWL_STREAMING, OWL_ENABLE)
-		owlSetInteger(OWL_INTERPOLATION, self.owlParamInterp)
+    Parameters
+    ----------
+    self.serverAddress : str
+        The hostname for the phasespace server.
+    self.owlParamFrequ : float
+        Poll phasespace this many times per second. Defaults to 100.
+    scale : (float, float, float)
+        Scale raw phasespace position data by this amount. The default is to
+        scale positions by 0.001, thus converting from mm to meters.
+    offset : (float, float, float)
+        Translate scaled phasespace position data by this amount.
+    postprocess : bool
+        Enable phasespace postprocessing. The default is no postprocessing.
+    slave : bool
+        Run our OWL client in slave mode. The default is to run OWL in master mode.
+    '''
 
-		######################################################################
-		######################################################################
-		# Create rigid objects
-		
-		# for all rigid bodies passed into the init function...
-		for rigidIdx in range(len(self.rigidFileNames_ridx)):
-			# initialize rigid and store in self.allRigidBodyObjects
-			
-			rigidOffsetMM_WorldXYZ  = [0,0,0]
-			rigidAvgMarkerList_mId = [0]
-			
-			if( len(self.rigidOffsetMM_ridx_WorldXYZ) < rigidIdx ):
-				print 'Rigid offset not set! Using offset of [0,0,0]'
-			else:
-				rigidOffsetMM_WorldXYZ = self.rigidOffsetMM_ridx_WorldXYZ[rigidIdx]
-			
-			if( len(self.rigidAvgMarkerList_rIdx_mId) < rigidIdx ):
-				print 'Average markers not provided! Using default (marker 0)'
-			else:
-				rigidAvgMarkerList_mId  = self.rigidAvgMarkerList_rIdx_mId[rigidIdx]
-			
-			self.allRigidBodyObjects.append( rigidObject(rigidIdx,self.phaseSpaceFilePath,self.rigidFileNames_ridx[rigidIdx],rigidAvgMarkerList_mId,rigidOffsetMM_WorldXYZ ))
-			
-		### Track markers not on rigid bodies 
-		# Fill allRigidBodyObjects with server data
-		
-		numRigidMarkers = 0;
-		self.markersUsedInRigid = []
-		
-		# for each rigid object...
-		for rIdx in range(len(self.allRigidBodyObjects)):
-			
-			# create a list of the markers used rigid bodies
-			markersUsedInThisRigid = self.allRigidBodyObjects[rIdx].markerID_midx 
-			self.markersUsedInRigid.extend( markersUsedInThisRigid );
-			
-			# add this
-			for mIdx in range(len(markersUsedInThisRigid)):
-				self.markerServerID_mIdx.append( markerNumToID(self.allRigidBodyObjects[rIdx].trackerIdx, mIdx ) )
-			
-		#print markersUsedInRigid;
-		if( self.markersUsedInRigid > self.owlParamMarkerCount ): 'Mocap: More markers used by rigid bodies than in owlParamMarkerCount.'
-		
-		#####################################################################
-		######################################################################
-		# One tracker contains all loose marker objects
-		
-		# Create tracker
-		self.markerTrackerIdx = len(self.allRigidBodyObjects)
-		owlTrackeri(self.markerTrackerIdx, OWL_CREATE, OWL_POINT_TRACKER)
-		
-		markerCount = 0;
-		
-		for markerNum in xrange(self.owlParamMarkerCount):
-			
-			# if marker not already used in rigid
-			if self.markersUsedInRigid.count(markerNum) == 0: 
+    UPDATE_TIMER = 0
+    
+    def __init__(self, config = None):
+        
+        super(phasespaceInterface, self).__init__()
+        
+        self.rbTrackers_rbIdx = []; # A list full of rigidBodyTrackers
+        self.markerTrackers_mIdx = []; # Note that these are vectors of Phasespace marker objects
 
-				# ...then add it to the loose marker tracker				
-				owlMarkeri(markerNumToID(self.markerTrackerIdx,markerCount), OWL_SET_LED, markerNum)
-				self.markerServerID_mIdx.append( markerNumToID(self.markerTrackerIdx,markerCount) )
-				
-				#print 'Mocap: marker: ' + str(markerNum) + ' is unattached, and was added to a tracker.'
-				markerCount = markerCount+1
-			else:
-				pass
-				#print 'Mocap: marker: ' + str(markerNum) + ' is attached to a rigid body'
-				
-		owlTracker(self.markerTrackerIdx, OWL_ENABLE);
-	
-		if not owlGetStatus():
-			print "HelmetHandPhaseSpace, could not enable OWL_STREAMING, owlGetStatus returned: ", owlGetError()
-			exit();
+        self.config = config
+        
+        if config==None:
+            
+            print('***Debug mode***')
+            self.phaseSpaceFilePath = 'Resources/'
+            self.origin 	= [0,0,0];
+            self.scale 		= [0.001,0.001,0.001];
+            self.serverAddress = '192.168.1.230';
+            
+            self.rigidFileNames_ridx= ['hmd-nvisMount.rb','paddle-hand.rb']
+            self.rigidAvgMarkerList_rIdx_mId = [[1,2],[3,5]]
+            self.rigidOffsetMM_ridx_WorldXYZ = [[0,0,0],[0,0,0]]
+                        
+            self.owlParamMarkerCount = 20
+            self.owlParamFrequ = OWL.OWL_MAX_FREQUENCY
+            self.owlParamInterp = 0
+            self.owlParamMarkerCondThresh = 50
+            self.owlParamPostProcess = 0
+            
+            self.owlParamModeNum = 1
+            print '**** Using default MODE #' + str(self.owlParamModeNum) + ' ****'
+            
+        else:
+            
+            self.phaseSpaceFilePath 	= 'Resources/'
+            self.origin 				= self.config['phasespace']['origin']
+            self.scale 					= self.config['phasespace']['scale']
+            self.serverAddress 			= self.config['phasespace']['phaseSpaceIP']
+            self.rigidFileNames_ridx	= self.config['phasespace']['rigidBodyList']
 
-		# Setup a timer to update owl server
-		self.callback(viz.TIMER_EVENT, self.refreshMarkerPositions)
-		self.starttimer(0,0,viz.FOREVER)
-		self.turnOn()
-	
-	# end init
-	######################################################################
-	######################################################################
-	def returnPointerToRigid(self,fileName):
-		
-		#  Accepts partial filenames, such as 'hmd' or 'paddle'
-		#  Will return the first match found.
-		
-		for rigidIdx in range(len(self.rigidFileNames_ridx)):
-			if( self.rigidFileNames_ridx[rigidIdx].find(fileName) > -1 ):
-			#if( self.rigidFileNames_ridx[rigidIdx] == fileName):
-				return self.allRigidBodyObjects[rigidIdx]
-				
-		print 'returnPointerToRigid: Could not find ' + fileName
-		return 0
-		
-	def returnPointerToMarker(self,markerIdx):
-	
-		# Uses marker Idx to find the marker's position
-		
-		for mIdx in range(len(self.alPSMarkers_midx)):
-			if( self.alPSMarkers_midx[mIdx].id == self.markerServerID_mIdx[markerIdx] ):
-				return self.alPSMarkers_midx[mIdx]
-		
-		print 'returnPointerToMarker: Could not find marker number' + str(markerIdx)
-		return 0
-	
-	def getMarkerPosition(self,markerID):
-		# Returns marker position in VIZARD frame of reference
-		
-		for mIdx in range(len(self.alPSMarkers_midx)):
-			if( self.alPSMarkers_midx[mIdx].id == self.markerServerID_mIdx[markerID] ):
-				
-				pos_XYZ = [self.alPSMarkers_midx[mIdx].x, self.alPSMarkers_midx[mIdx].y, self.alPSMarkers_midx[mIdx].z]
-				
-				condition = self.alPSMarkers_midx[mIdx].cond
-				
-				if( condition > 0 and condition < self.owlParamMarkerCondThresh ):
-					return self.psPosToVizPos(pos_XYZ)
-				else:
-					# print 'Bad condition'
-					return 0
-				
-	def checkForRigid(self,fileName):
-		return( self.returnPointerToRigid(fileName) )
-		
-	def __del__(self):
-		self.quit()
-			
-	def turnOff(self):
-		
-		if( self.mainViewUpdateAction ):
-			self.disableHMDTracking()
-			self.updateActionPaused = 1;
-			
-		self.off = 1
-		self.setEnabled(False)
-		
+            self.rigidOffsetMM_ridx_WorldXYZ = eval(self.config['phasespace']['rigidOffsetMM_ridx_WorldXYZ'])
+            self.rigidAvgMarkerList_rIdx_mId = eval(self.config['phasespace']['rigidAvgMarkerList_rIdx_mId'])
+            
+            self.owlParamModeNum	= self.config['phasespace']['owlParamModeNum']
+            
+            self.owlParamMarkerCount = self.config['phasespace']['owlParamMarkerCount']
+            self.owlParamFrequ = self.config['phasespace']['owlParamFrequ'] 
+            self.owlParamInterp = self.config['phasespace']['owlParamInterp']
+            self.owlParamMarkerCondThresh = self.config['phasespace']['owlParamMarkerCondThresh']
+            self.owlParamRigidCondThresh = self.config['phasespace']['owlParamRigidCondThresh']
+            self.owlParamPostProcess = self.config['phasespace']['owlParamPostProcess']
+        
+        # set default frequency
+        if( self.owlParamFrequ == 0 ):			
+            self.owlParamFrequ = OWL.OWL_MAX_FREQUENCY;
+        
+        flags = 'OWL.OWL_MODE' + str(self.owlParamModeNum)
+        
+        if( self.owlParamPostProcess ):
+            flags = flags + '|OWL.OWL_POSTPROCESS'
+        
+        initCode = OWL.owlInit(self.serverAddress,eval(flags))
+        #initCode = owlInit(self.serverAddress,0)
+        
+        if (initCode < 0): 
+            raise OwlError('phasespace')
+            print "Mocap: Could not connect to OWL Server"
+            exit()
+        else:
+            print '**** OWL Initialized with flags: ' + flags + ' ****'
+        
+        OWL.owlSetFloat(OWL.OWL_FREQUENCY, self.owlParamFrequ)
+        OWL.owlSetInteger(OWL.OWL_STREAMING, OWL.OWL_ENABLE)
+        OWL.owlSetInteger(OWL.OWL_INTERPOLATION, self.owlParamInterp)
+        
+        self.trackers = []
+        
+        ######################################################################
+        ######################################################################
+        # Create rigid objects
+        #head = mocap.track_rigid('Resources/hmd-nvisMount.rb', center_markers=(1,2))
+        
+        # for all rigid bodies passed into the init function...
+        for rigidIdx in range(len(self.rigidFileNames_ridx)):
+            # initialize rigid and store in self.rbTrackers_rbIdx
+            
+            rigidOffsetMM_WorldXYZ  = [0,0,0]
+            rigidAvgMarkerList_mIdx   = [0]
+            
+            if( len(self.rigidOffsetMM_ridx_WorldXYZ) < rigidIdx ):
+                print 'Rigid offset not set! Using offset of [0,0,0]'
+            else:
+                rigidOffsetMM_WorldXYZ = self.rigidOffsetMM_ridx_WorldXYZ[rigidIdx]
+            
+            if( len(self.rigidAvgMarkerList_rIdx_mId) < rigidIdx ):
+                print 'Average markers not provided! Using default (marker 0)'
+            else:
+                rigidAvgMarkerList_mIdx  = self.rigidAvgMarkerList_rIdx_mId[rigidIdx]
+            
+            #rigidOffsetMM_WorldXYZ = self.rigidOffsetMM_ridx_WorldXYZ[rigidIdx]
+            
+            #rigidNameAndPathStr = self.phaseSpaceFilePath + self.rigidFileNames_ridx[rigidIdx]
+            #self.rbTrackers_rbIdx.append( self.track_rigid(rigidNameAndPathStr , rigidAvgMarkerList_mId ) ) # rigidOffsetMM_WorldXYZ
+            
+            self.rbTrackers_rbIdx.append( self.track_rigid(self.rigidFileNames_ridx[rigidIdx],rigidAvgMarkerList_mIdx, rigidOffsetMM_WorldXYZ))
+        
+            #def track_rigid(self, filename, markers=None, center_markers=None):
 
-	def turnOn(self):
-		
-		self.off = 0
-		self.setEnabled(True)
-		
-		if( self.updateActionPaused ):
-			self.enableHMDTracking()
-			self.updateActionPaused = 0;
+        ###########################################################################
+        self._updated = viz.tick()
+        self._thread = None
+        self._running = False
 
-	def isOn(self):
-		return not self.off
+    def __del__(self):
+        '''Clean up our connection to the phasespace server.'''
+        OWL.owlDone()
 
-	def quit(self):
-		print "Disconnecting"
-		owlDone()
+    def start_thread(self):
+        self._running = True
+        self._thread = threading.Thread(target=self.update_thread)
+        self._thread.start()
+        self.callback(viz.EXIT_EVENT, self.stop_thread)
 
-	def getOutput(self):
-		
-		return ( ' PhaseSpace: ' + `viz.MainView.getPosition()` + ' ' + `viz.MainView.getQuat()` );
-	
-	#fed
+    def stop_thread(self):
+        self._running = False
+        if self._thread:
+            self._thread.join()
+            self._thread = None
 
-	
-	
-	def refreshMarkerPositions( self, num ):
-		
-		if (num == 0):
-			
-			# These are bools for whether to look for a rigid body
-			self.markerSeenThisRound = []
-			numMarkersSeenThisRound = 1;
-			markersSeen = [];
-			#self.alPSMarkers_midx = []
-			
-			# There is a buffer of rigidsSeen and markersSeen
-			# Empty this buffer and use latest information.
-			while numMarkersSeenThisRound:
-				
-				markersSeen = owlGetMarkers();
-				numMarkersSeenThisRound = len( markersSeen );
-				numMarkersSeenLastRound = len( self.alPSMarkers_midx );
-				
-				if( numMarkersSeenThisRound > 0 ):
-					
-					tempMarkerVector = [];
-					
-					if( numMarkersSeenLastRound == 0 or len(self.alPSMarkers_midx) < self.owlParamMarkerCount ):
-						
-						# Until all markers have been seen at least once, 
-						# self.allMarkers will less than the length of owlParamMarkerCount
-						# e
-						self.alPSMarkers_midx = markersSeen;
-						
-						#print ('mocap.refreshMarkerPositions: Getting marker data for first time.');
-					
-					else:
-						
-						for idx in range( 0, numMarkersSeenThisRound, 1 ):
-							
-							#self.alPSMarkers_midx = markersSeen;
+    def update_thread(self):
+        while self._running:
+            self.update()
+            elapsed = viz.tick() - self._updated
+            wait = 1. / self.owlParamFrequ - elapsed
+            while wait < 0:
+                wait += 1. / self.owlParamFrequ
+            #time.sleep(wait)
 
-							currentMarkersCondition = markersSeen[idx].cond
-							
-							# Run a quality check!
-							if( currentMarkersCondition > 0 and currentMarkersCondition < self.owlParamMarkerCondThresh ):
-							
-								# If the marker was seen
-								# The highter the .cond, the poorer the track quality
-								self.alPSMarkers_midx[idx] = markersSeen[idx]; # Update the marker position
-								self.markerSeenThisRound.append(idx)
-							#fi
-									
-						#rof
-					
-					#fi
-			
-				#fi
-				
-			#elihw
-	
-				numRigidsSeenThisRound = 1;
-				rigidsSeen = []
-				pose = []
-				
-				while numRigidsSeenThisRound:
-				
-					rigidsSeen = owlGetRigids()			
-					numRigidsSeenThisRound = len(rigidsSeen);
-					numRigidsSeenLastRound = len( self.allRigidBodyObjects );
-					
-					if( numRigidsSeenThisRound > 0 ):
-						
-						if( numRigidsSeenLastRound == 0 ):
-							# This runs the first frame of mocap only
-							self.allRigidBodyObjects = rigidsSeen
-							print ('mocap.refreshMarkerPositions: Getting rigid data for first time.');
-						else:							
-							# This runs on all subsequent frames in which a rigid body has been seen
-							for rSeenIdx in range(0,len(rigidsSeen)):
-								
-								if( rigidsSeen[rSeenIdx].cond > 0 and  rigidsSeen[rSeenIdx].cond < self.owlParamMarkerCondThresh ):									
-									
-									pose = rigidsSeen[rSeenIdx].pose
-									transformViz = self.psPoseToVizTransform(pose)
-									#print transformViz
-									self.allRigidBodyObjects[rSeenIdx].transformViz  = transformViz
-								#else:
-									#print 'Problem!'
-									
-			
-	def resetRigid( self, fileName ):
-		
-		
-		rigidBody = self.returnPointerToRigid( fileName );
-		
-		if( rigidBody ):
-			
-			#if( self.mainViewUpdateAction ):
-			rigidBody.resetRigid( self.alPSMarkers_midx );
-		else:
-			
-			print ('Error: Rigid body not initialized');
-			
-		#fi
-		
-	#fed
-		
-	def saveRigid(self,fileName):
-		rigidBody = self.returnPointerToRigid(fileName)
-		
-		if(rigidBody):
-			rigidBody.saveNewDefaults()
-		else: print 'Error: Rigid body not initialized'
-	
-	def rotateRigid(self,fileName,rotateByDegs_XYZ):
-		
-		rigidBody = self.returnPointerToRigid(fileName)
-		
-		if(rigidBody):
-			rigidBody.rotateRigid(rotateByDegs_XYZ)
-		else: print 'Error: Rigid body not initialized'
-		
-		
-#	def getOrientation(self,fileName):
-#		
-#		rigidBody = self.returnPointerToRigid(fileName)
-#		
-#		if(rigidBody):
-#			rigidBody.getOrientation(self.alPSMarkers_midx)
-#		else: print 'Rigid body not initialized'
-	
-	def toggleEyeProbes(self):
-		
-		hmdRigid = self.returnPointerToRigid('hmd')
-		
-		if( hmdRigid ):
-			print 'Toggling eye probes'
-			hmdRigid.toggleEyeMarkers()
-		else:
-			print 'No HMD rigid body'
-	
-	def enableHMDTracking(self):
-		
-		if( self.mainViewUpdateAction is False):
-			print 'phaseSpaceInterface.enableHMDTracking: Mainview now updated to match *hmd*.rb position and orientation'
-			self.mainViewUpdateAction = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE,self.updateMainViewWithRigid,'hmd')
-	
-	def disableHMDTracking(self):
-		
-		if( self.mainViewUpdateAction ):
-			print 'phaseSpaceInterface.enableHMDTracking: Mainview fred from *hmd*.rb'
-			vizact.removeEvent(self.mainViewUpdateAction)
-			self.mainViewUpdateAction = False
-		
-		#self.mainViewUpdateAction.
-		
-	def updateMainViewWithRigid(self,fileName):
-	
-		#print viz.getFrameNumber()
-		rigidBody = self.returnPointerToRigid(fileName)
-		
-		if(rigidBody):
-			
-			# Transform is updated in refreshmarkerpositions
-			transformViz  = rigidBody.transformViz
-			#print transformViz  
-			
-			if transformViz:
-				#print 'mocap.updateMainViewWithRigid: updating with transform'
-				viz.MainView.setMatrix(transformViz)
-			else:
-				# No server data
-				# This should only occur on startup
-				# when rigid body has been registered
-				# but system hasn't yet recieved data
-				#print 'No transform'
-				return
-				
-		else: print 'mocapINterface.updateMainViewWithRigid() Rigid body not initialized'
+    def start_timer(self):
+        self.callback(viz.TIMER_EVENT, self.update_timer)
+        self.starttimer(Phasespace.UPDATE_TIMER, 0, viz.FOREVER)
 
-	def printMarkerIDs(self):
-		
-		for mIdx in range(len(self.alPSMarkers_midx)):
-			
-			print 'ps   ' + str(self.alPSMarkers_midx[mIdx].id)
-			print 'mine ' + str(self.markerServerID_mIdx[mIdx])
-			
-			#print 'returnPointerToMarker: Could not find marker number' + str(markerID)
-	
-	def psPoseToVizTransform(self,psPose):
-		
-		# Set rigid body transformation matrix
-		pos_XYZ = [  psPose[0]*self.scale[0] + self.origin[0],
-		 psPose[1]*self.scale[1] + self.origin[1],
-		-psPose[2]*self.scale[2] + self.origin[2] ];
-		
-		# PS quats are WABC
-		# Viz wants ABCW
-		quat_ABCW = [ psPose[4], psPose[5], -psPose[6], -psPose[3] ];
-		
-		transformViz = viz.Transform()
-		transformViz.setQuat(quat_ABCW)
-		transformViz.postTrans(pos_XYZ)
-		transformViz.postAxisAngle(0,1,0,90)
-		
-		return transformViz
-		
-	def psPosToVizPos(self,posPS_XYZ):
-		
-		# FLip Z axis and rotate basis CCW 90 degs
-		
-		# Set rigid body transformation matrix
-		pos_XYZ = [  posPS_XYZ[0]*self.scale[0] + self.origin[0],
-		 posPS_XYZ[1]*self.scale[1] + self.origin[1],
-		-posPS_XYZ[2]*self.scale[2] + self.origin[2] ];
-		
-		transformViz = viz.Transform()
-		transformViz.postTrans(pos_XYZ)
-		transformViz.postAxisAngle(0,1,0,90)
-		
-		return transformViz.getPosition()
+    def update_timer(self, timer_id):
+        if timer_id == Phasespace.UPDATE_TIMER:
+            self.update()
 
-if __name__ == "__main__":
-	
-	import vizact
-	
-	environment = viz.addChild('piazza.osgb')
-	environment.setPosition(2.75,0,-.75)
-	
-	## Setup the phasespace server
-	mocap = phasespaceInterface();
-	
-	mocap.enableHMDTracking()
-	
-	# Auto-update the mainview with the rigid body position
-	# Note the use of 'hmd' as a partial string.
-	# This is used to find a rigid body file that contains this string
-	# In my case, hmd-oculus.rb
-	#vizact.onupdate(viz.PRIORITY_FIRST_UPDATE,mocap.updateMainViewWithRigid,'hmd')
-	#vizact.onupdate(viz.PRIORITY_FIRST_UPDATE,mocap.getMarkerPosition,1)
-	
-	#import oculus
-	#hmd = oculus.Rift()
-	import nvis
-	hmd = nvis.nvisorSX111()
-	
-	hmdRigid = mocap.allRigidBodyObjects[mocap.rigidHMDIdx];			
-	
-	viz.vsync(viz.OFF)
-	
-	viz.window.setFullscreenMonitor([1,2]) 
-	viz.setMultiSample(4)
-	viz.MainWindow.clip(0.01 ,200)
-	
-	viz.go(viz.FULLSCREEN)
-	
-	vizact.onkeydown( 'h', mocap.resetRigid, 'hmd' );
-	vizact.onkeydown( 'H', mocap.saveRigid, 'hmd' );
-	vizact.onkeydown( 'p', mocap.resetRigid, 'paddle' );
-	vizact.onkeydown( 'P', mocap.saveRigid, 'paddle' );
-	vizact.onkeydown( 'e', mocap.enableHMDTracking);
+    def update(self):
+        '''Update our knowledge of the current data from phasespace.'''
+        now = viz.tick()
+        #logging.info('%dus elapsed since last phasespace update',
+        #             1000000 * (now - self._updated))
+        self._updated = now
+
+        rigids = OWL.owlGetRigids()
+        markers = OWL.owlGetMarkers()
+        err = OWL.owlGetError()
+        if err != OWL.OWL_NO_ERROR:
+            hex = '0x%x' % err
+            logging.debug(
+                'OWL error %s (%s) getting marker data',
+                ERROR_MAP.get(err, hex), hex)
+            return
+
+        sx, sy, sz = self.scale
+        ox, oy, oz = self.origin
+        
+        def psPoseToVizardPose(x, y, z): # converts Phasespace pos to vizard cond
+            return sz * z + oz, sy * y + oy, sx * x + ox
+        def psQuatToVizardQuat(w, a, b, c): # converts Phasespace quat to vizard quat
+            return c, b, a, -w
+
+        for marker in markers:
+            if( marker.cond > 0 and marker.cond < self.owlParamMarkerCondThresh ):
+                t, o = marker.id >> 12, marker.id & 0xfff
+                x, y, z = marker.x, marker.y, marker.z
+
+                self.trackers[t].update_markers(o,
+                    Marker(pos=psPoseToVizardPose(x, y, z), cond=marker.cond),
+                    Marker(pos=(x, y, z), cond=marker.cond))
+
+        for rigid in rigids:
+            if( rigid.cond > 0 and rigid.cond < self.owlParamMarkerCondThresh ):
+                self.trackers[rigid.id].update_pose(Pose(
+                    pos=psPoseToVizardPose(*rigid.pose[0:3]),
+                    quat=psQuatToVizardQuat(*rigid.pose[3:7]),
+                    cond=rigid.cond))
+
+    def get_markers(self):
+        '''Get a dictionary of all current marker locations.
+
+        Returns
+        -------
+        dict :
+            A dictionary that maps phasespace marker ids to Marker tuples.
+        '''
+        markers = {}
+        for tracker in self.trackers:
+            markers.update(tracker.get_markers())
+        return markers
+
+    def track_points(self, markers):
+        '''Track a set of markers using phasespace.
+
+        Parameters
+        ----------
+        markers : int or sequence of int
+            If this is an integer, specifies the number of markers we ought to
+            track. If this is a sequence of integers, it specifies the IDs of
+            the markers to track.
+
+        Returns
+        -------
+        PointTracker :
+            A PointTracker instance to use for tracking the markers in question.
+        '''
+        if isinstance(markers, int):
+            markers = range(markers)
+        marker_ids = sorted(markers)
+
+        # set up tracker using owl libraries.
+        index = len(self.trackers)
+        OWL.owlTrackeri(index, OWL.OWL_CREATE, OWL.OWL_POINT_TRACKER)
+        for i, marker_id in enumerate(marker_ids):
+            OWL.owlMarkeri(OWL.MARKER(index, i), OWL.OWL_SET_LED, marker_id)
+        OWL.owlTracker(index, OWL.OWL_ENABLE)
+        if OWL.owlGetStatus() == 0:
+            raise OwlError('point tracker (index {})'.format(index))
+
+        tracker = PointTracker(index, marker_ids)
+        self.trackers.append(tracker)
+        return tracker
+
+    def track_rigid(self, markers_orFilename=None, center_markers=None, localOffest_xyz = [0,0,0]):
+        '''Add a rigid-body tracker to the phasespace workload.
+
+        Parameters
+        ----------
+        markers_orFilename : varied
+            This parameter describes the markers that make up the rigid body. It
+            can take several forms:
+
+            - An integer, n. This will result in tracking markers 0 through n-1.
+            - A sequence of integers, (n1, n2, ...). This will use markers n1,
+              n2, ... to track the rigid body.
+            - A dictionary, {n1: (x, y, z), n2: ...}. This will use markers n1,
+              n2, ... to track the rigid body, using relative marker offsets
+              specified by the values in the dictionary.
+            - A string. The rigid body configuration will be loaded from the
+              file named in the string.
+
+            If markers_orFilename is an integer or sequence of integers, then random marker
+            offsets will be assigned initially; call the .reset() method on the
+            rigid tracker to reassign the marker offsets.
+
+        center_markers : sequence of int
+            This parameter specifies which marker ids to use for computing the
+            center of the rigid body. If this is None, all markers will be
+            used.
+
+        Returns
+        -------
+        RigidTracker :
+            A RigidTracker instance to use for tracking this rigid body.
+        '''
+        def random_offsets():
+            return [random.random() - 0.5 for _ in range(3)]
+
+        marker_map = {}
+
+        # If markers_orFilename is a dictionary
+        if isinstance(markers_orFilename, dict):
+            marker_map = markers_orFilename
+
+        # If markers_orFilename is an int
+        if isinstance(markers_orFilename, int):
+            for i in range(markers_orFilename):
+                marker_map[i] = random_offsets()
+
+        # If markers_orFilename is a tuple
+        if isinstance(markers_orFilename, (tuple, list, set)):
+            for i in markers_orFilename:
+                marker_map[i] = random_offsets()
+        
+        # If markers_orFilename is a string
+        if isinstance(markers_orFilename, str):
+            
+            fileLocation = self.phaseSpaceFilePath + markers_orFilename
+            print "Initializing rigid body: " + fileLocation 
+            
+            # load rigid body configuration from a file.
+            with open(fileLocation) as handle:
+                for line in handle:
+                    id, x, y, z = line.replace(',', '').strip().split()
+                    marker_map[int(id)] = float(x), float(y), float(z)
+                    
+        marker_map = sorted(marker_map.iteritems())
+        marker_ids = tuple(i for i, _ in marker_map)
+
+        # set up tracker using owl libraries.
+        # Marker locations have been read in from file
+        index = len(self.trackers)
+        OWL.owlTrackeri(index, OWL.OWL_CREATE, OWL.OWL_RIGID_TRACKER)
+        for i, (marker_id, pos) in enumerate(marker_map):
+            OWL.owlMarkeri(OWL.MARKER(index, i), OWL.OWL_SET_LED, marker_id)
+            OWL.owlMarkerfv(OWL.MARKER(index, i), OWL.OWL_SET_POSITION, pos)
+        OWL.owlTracker(index, OWL.OWL_ENABLE)
+        if OWL.owlGetStatus() == 0:
+            raise OwlError('rigid tracker (index {})'.format(index))
+        
+        tracker = RigidTracker(index,marker_ids, center_markers or marker_ids, localOffest_xyz)
+
+        if isinstance(markers_orFilename, str):
+            tracker.filepath = self.phaseSpaceFilePath
+            tracker.filename = markers_orFilename
+            
+        self.trackers.append(tracker)
+        return tracker
+        
+    def get_rigidTracker(self,fileName):
+        '''
+        Accepts a partial filenames, such as 'hmd' or 'paddle'
+        Will return a pointer to ta rigidTracker
+        This tracker is the first rigid body that contains this string
+        '''
+        
+        
+        for rigidIdx in range(len(self.rigidFileNames_ridx)):
+            if( self.rigidFileNames_ridx[rigidIdx].find(fileName) > -1 ):
+            #if( self.rigidFileNames_ridx[rigidIdx] == fileName):
+                return self.rbTrackers_rbIdx[rigidIdx]
+                
+        print 'returnPointerToRigid: Could not find ' + fileName
+        return 0
+    
+    def returnPointerToRigid(self,fileName):
+        ''' Included for backwards compatability
+        '''
+        return self.get_rigidTracker(fileName)
+
+    def get_MarkerPos(self,markerIdx):
+        ''' Returns marker position in vizard format
+        '''
+        markerTrackers_mIdx = self.get_markers()
+        return markerTrackers_mIdx[markerIdx].pos
+    
+    def getMarkerPosition(self):
+        ''' Included for backwards compatability
+        '''
+        return self.get_MarkerPos(markerIdx)
+            
+    def get_MarkerTracker(self,markerIdx):
+        ''' Included for backwards compatability
+        '''
+        markerTrackers_mIdx = self.get_markers()
+        return markerTrackers_mIdx[markerIdx]
+    
+    def returnPointerToMarker(self,markerIdx):
+        return self.get_MarkerTracker(markerIdx)
+        
+    def get_MarkerCond(self,markerIdx):
+        '''Returns marker condition
+        
+        '''            
+        markerTrackers_mIdx = self.get_markers()
+        return markerTrackers_mIdx[markerIdx].cond
+            
+
+    def resetRigid( self, fileName ):
+        '''Finds the rigid body corresponding to this filename.
+        Resets marker positions based upon current position
+        '''
+        
+        rigidBody = self.get_rigidTracker( fileName );
+        
+        if( rigidBody ):
+            
+            #if( self.mainViewUpdateAction ):
+            rigidBody.reset()
+        else:
+            
+            print ('Error: Rigid body not initialized');
+            
+        #fi
+        
+    #fed
+        
+    def saveRigid(self,fileName):
+        '''Finds the rigid body corresponding to this filename.
+        Saves marker positions out to *.rb file
+        '''
+        
+        rigidBody = self.get_rigidTracker(fileName)
+        
+        if(rigidBody):
+            rigidBody.save()
+        else: print 'Error: Rigid body not initialized'
+

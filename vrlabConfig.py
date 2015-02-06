@@ -20,6 +20,7 @@ from configobj import ConfigObj
 from configobj import flatten_errors
 from validate import Validator
 import vizact
+import vizconnect
 
 class VRLabConfig:
 	"""
@@ -53,7 +54,7 @@ class VRLabConfig:
 		(as defined by the file in expCfgName). Both configurations MUST conform the specs given in sysCfgSpec.ini and
 		expCfgSpec.ini respectively. It also initializes the system as specified in the sysCfg.
 		"""
-		
+				
 		self.writables = list()
 		if expCfgName:
 			self.__createExpCfg(expCfgName)
@@ -160,30 +161,33 @@ class VRLabConfig:
 		################################################################
 		################################################################
 		##  Misc. Design specific items here.
+		
 		if( self.sysCfg['use_wiimote']):
 			# Create wiimote holder
 			self.wiimote = 0
 			self._connectWiiMote()
+
+		################################################################
+		##  HMD
 		
 		#Set up the HMD
 		if self.sysCfg['use_hmd']:
-			self.hmd = HMD(self.sysCfg['hmd'], True)
+			self.hmd = HMD(self.sysCfg['hmd'], True, displayList = self.sysCfg['displays'])
 			self.use_HMD = True
 		else:
 			self.hmd = HMD(self.sysCfg['hmd'], False)
 			self.use_HMD = False
-		
-		
-		viz.window.setFullscreenMonitor(self.sysCfg['displays'])
-		
+			
 		viz.setMultiSample(self.sysCfg['antiAliasPasses'])
 		viz.MainWindow.clip(0.01 ,200)
-		viz.vsync(1)
+		#viz.vsync(1)
 		
 		viz.setOption("viz.glfinish", 1)
 		viz.setOption("viz.dwm_composition", 0)
 		
-		#Set up recording
+		################################################################
+		##  Recording
+		
 		if self.sysCfg['use_DVR'] == 1:
 			self.use_DVR = True
 		else:
@@ -191,6 +195,9 @@ class VRLabConfig:
 		self.writer = None #Will get initialized later when the system starts
 		
 		#Set up the eye tracking callibration/configuration (eyeTrackingCal)
+		
+		################################################################
+		##  Eyetracking
 		
 		if self.sysCfg['use_eyetracking']:
 			self.use_eyeTracking = True
@@ -209,6 +216,9 @@ class VRLabConfig:
 			self.use_eyeTracking = False
 			self.eyeTrackingCal = None
 			
+		################################################################
+		##  Mocap
+		
 		#self.writables.append(self.eyeTrackingCal)
 			
 		self.mocap = None
@@ -216,9 +226,12 @@ class VRLabConfig:
 		
 		if self.sysCfg['use_phasespace']:
 			
+			#from mocapInterface import phasespaceInterface			
+			#self.mocap = phasespaceInterface(self.sysCfg);
+			
 			from mocapInterface import phasespaceInterface			
 			self.mocap = phasespaceInterface(self.sysCfg);
-				
+			
 			self.use_phasespace = True
 		else:
 			self.use_phasespace = False
@@ -244,7 +257,7 @@ class VRLabConfig:
 		else:
 			viz.go()
 		
-		self._setWinPriority(priority=5)
+		#self._setWinPriority(priority=5)
 		
 			
 	def start(self):
@@ -330,7 +343,7 @@ class HMD:
 			self.offset = offset
 			self.overlap = overlap
 	
-	def __init__(self, cfg, enabled=1):
+	def __init__(self, cfg, enabled=1,displayList = None):
 		
 		type = cfg['type']
 		offset = cfg['offset']
@@ -350,6 +363,7 @@ class HMD:
 				print "HMD type: NVIS SX111"
 				
 				print '*** Offset:' + str( viz.MainWindow.getViewOffset() )
+			
 			elif 'oculus' == type:
 			
 				import oculus
@@ -358,12 +372,17 @@ class HMD:
 				#vizconfig.register(self.hmd)
 				#self.updateOverlap(self.hmdstats.overlap-self.hmd._overlap)
 			
+			elif 'DK2' == type:
+				
+				self.setupOculusMon(displayList)
+				self.hmd = vizconnect.getTracker('rift')
+				
 			else:
 				print "Unsupported HMD type when starting HMD"
 				sys.exit(1)
 			
-			import vizconfig
-			vizconfig.register(self.hmd)
+#			import vizconfig
+#			vizconfig.register(self.hmd)
 			
 			if(overlap > -1 ):
 					self.updateOverlap(self.hmdstats.overlap-self.hmd._overlap)
@@ -391,4 +410,40 @@ class HMD:
 			self.hmdstats.overlap = self.hmd._overlap
 			print "Overlap", self.hmdstats.overlap, "Offset", self.hmdstats.offset
 			
+	def setupOculusMon(self,displayList):
+
+			vizconnect.go('setupDK2Cluster.py')
+			#viz.window.setFullscreenMonitor(self.sysCfg['displays'])
+			#displayList = self.sysCfg['displays'];
+			
+			if len(displayList) < 2:
+				print 'Display list is <1.  Need two displays.'
+			else:
+				print 'Using display number' + str(displayList[0]) + ' for oculus display.'
+				print 'Using display number' + str(displayList[1]) + ' for mirrored display.'
+			
+			### Set the rift and exp displays
+			
+			riftMon = []
+			expMon = displayList[1]
+			
+			with viz.cluster.MaskedContext(viz.MASTER):
+				
+				# Set monitor to the oculus rift
+				monList = viz.window.getMonitorList()
+				
+				for mon in monList:
+					if mon.name == 'Rift DK2':
+						riftMon = mon.id
+				
+				viz.window.setFullscreen(riftMon)
+
+			with viz.cluster.MaskedContext(viz.CLIENT1):
+				
+				count = 1
+				while( riftMon == expMon ):
+					expMon = count
+					
+				viz.window.setFullscreenMonitor(expMon)
+				viz.window.setFullscreen(1)
 		

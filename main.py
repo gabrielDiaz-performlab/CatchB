@@ -19,8 +19,6 @@ expConfigFileName = 'badmintonTest.cfg'
 #expConfigFileName = 'shortTest.cfg'
 #expConfigFileName = 'fullTest.cfg'
 
-
-
 ft = .3048
 inch = 0.0254
 m = 1
@@ -106,6 +104,7 @@ class Experiment(viz.EventClass):
 		self.room = visEnv.room(config)
 		
 		# self.room.physEnv 
+		self.updateViewAct = []
 		self.hmdLinkedToView = False
 		
 		################################################################
@@ -142,25 +141,7 @@ class Experiment(viz.EventClass):
 		# maxFlightDurTimerID times out balls a fixed dur after launch
 		self.maxFlightDurTimerID = viz.getEventID('maxFlightDurTimerID') # Generates a unique ID. 
 		
-		################################################################
-		##  LInk up the hmd to the mainview
-		
-		if( self.config.use_phasespace == True ):
-			
-			################################################################
-			##  Link up the hmd to the mainview
-			#if( self.config.mocap.mainViewLinkedToHead ):
-			if( self.config.use_HMD and  config.mocap.returnPointerToRigid('hmd') ):
-				#self.hmdLinkedToView = True
-				self.config.mocap.enableHMDTracking()
-				
-				#vizact.onkeydown('-',self.config.mocap.disableHMDTracking)
-				#vizact.onkeydown('=',self.config.mocap.enableHMDTracking)
-			
-			################################################################
-			##  LInk up the paddle to the mocap
-			# If there is a paddle visObj and a paddle rigid...
-		
+		self.setupHMD()
 		self.setupPaddle()
 				
 #		self.discTarg = visEnv.visObj(self.room,'cylinder',[0.5,1])
@@ -323,14 +304,11 @@ class Experiment(viz.EventClass):
 		
 		if not self.config.mocap:
 			pass
-		#elif (self.config.mocap.isOn() == 1): 
-		elif( self.config.mocap.mainViewUpdateAction == False):
-			#self.config.mocap.turnOff()
-			self.config.mocap.enableHMDTracking()
-			#self.config.mocap.turnOn()
+		elif( self.updateViewAct.getEnabled() ):
+			self.updateViewAct.setEnabled(0)
 		else:
-			self.config.mocap.disableHMDTracking()
-			
+			self.updateViewAct.setEnabled(1)
+		
 		viz.mouse.setOverride(viz.TOGGLE)
 		self.config.eyeTrackingCal.toggleCalib()
 		
@@ -374,6 +352,9 @@ class Experiment(viz.EventClass):
 		##########################################################
 		## Keys used in the default mode
 		
+		if 'R' == key:
+			#riftOriTracker = vizconnect.getTracker('rift').getNode3d()
+			pass
 		if 'c' == key: # and self.config.eyeTrackingCal != None: # eyeTrackingCal is the where the interace to the eyetracker calib lives
 			self.toggleEyeCalib()
 			# a bit of a hack.  THe crossahair / calib ponit in viewpoint mapping is a bit off
@@ -386,13 +367,12 @@ class Experiment(viz.EventClass):
 		if (self.inCalibrateMode is False):
 			
 			if key == 'M':
-				
+				if( self.updateViewAct is not -1 ):
+					self.updateViewAct.setEnabled(viz.TOGGLE)
 				# Toggle the link between the HMD and Mainview
-				if( mocapSys ):
-					if( mocapSys.mainViewUpdateAction ):
-						mocapSys.disableHMDTracking()
-					else:
-						mocapSys.enableHMDTracking()
+				#if( self.updateViewAct.getEnabled() ):
+				#	self.updateViewAct.getEnabled(viz.TOGGLE)
+					
 			elif key == 'p':
 				mocapSys.resetRigid('paddle')
 			elif key == 'P':
@@ -961,17 +941,74 @@ class Experiment(viz.EventClass):
 		if( dvrWriter.isPaused == 1 ):
 			print '************************************ DVR IS PAUSED ************************************'
 
+
+	def setupHMD(self):
+		
+		mocap = self.config.mocap
+		mocap.start_thread()
+		
+		hmdPosNode = viz.addGroup()
+		headRigidTracker = mocap.get_rigidTracker('hmd')	
+		headRigidTracker.link_position(hmdPosNode)
+		
+		import vizconnect
+		riftOriTracker = vizconnect.getTracker('rift').getNode3d()
+		headTracker = vizconnect.getRawTracker('headtracker')
+
+		def updateHeadTracker():
+			
+			ori_xyz = riftOriTracker.getEuler()
+			headTracker.setEuler( ori_xyz  )
+			
+			pos_xyz = headRigidTracker.get_position()
+			headTracker.setPosition( pos_xyz )
+			
+			#print 'Ori: ' + str( ori_xyz) + ' Pos: ' + str(pos_xyz)
+		
+		import vizact
+		self.updateViewAct = vizact.onupdate(40, updateHeadTracker)
+		
+		
+
+		#return mocap
+		
+#		
+#		#viewList = viz.getViewList()
+#		#viz.link(viewList[0],viewList[1])
+#		
+#		import vizconnect
+#		#vizconnect.getDisplay('custom_window').setParent(viz.MainView)
+##		
+##		hmd = self.config.hmd.hmd
+##		mocap = self.config.mocap
+##		mocap.start_thread()
+##		
+##		hmdPosNode = viz.addGroup()
+##		headTracker = mocap.get_rigidTracker('hmd')	
+##		headTracker.link_position(hmdPosNode)
+##		
+##		self.viewLinks = []
+###		
+##		for view in viz.getViewList():
+##			#(viz.MainView.setPosition,headTracker.getPosition)
+##			
+##			#Only link orientation 
+##			link = viz.link(hmdPosNode,view)
+##			link.setMask( viz.LINK_POS )
+##			self.viewLinks.append(link )
+##			
+##		self.hmdLinkedToView = 1
+##		
 	def setupPaddle(self):
+
+		mocap = self.config.mocap
+		
 		# Performs several functions
 		# Creates either a fake paddle, a visual paddle, or a vis/phy/mocap paddle
 		
 		# FOr debugging. Creates a fake paddle in teh center of the room
 		if( self.config.expCfg['experiment']['useFakePaddle'] ):
 				
-#				if(any("paddle" in idx for idx in self.room.visObjNames_idx)):
-#					print 'removed paddle'
-#					self.room.paddle.remove()
-					
 				# Put a fake stationary paddle in the room
 				paddleSize = [.15, 1.5]
 				self.room.paddle = visEnv.visObj(self.room,'cylinder_Z',paddleSize)
@@ -982,14 +1019,28 @@ class Experiment(viz.EventClass):
 				self.room.paddle.applyVisToPhys()
 				self.room.paddle.visNode.alpha(.5)
 				
+				print 'Placed fake paddle'
 				return
 		
-		paddleRigid  = self.config.mocap.returnPointerToRigid('paddle')
+		paddleRigid  = mocap.get_rigidTracker('paddle')
 		
 		# If there is a visObj paddle and a paddle rigid, link em up!
 		if any("paddle" in idx for idx in self.room.visObjNames_idx): 
 			
-#			if(paddleRigid ):
+			if(paddleRigid ):
+				paddle = self.room.paddle
+				# Link the visObj to the rigid 
+				paddle.setMocapRigidBody(self.config.mocap,'paddle')
+				paddle.toggleUpdateWithRigid()
+				paddle.visNode.alpha(0.4)
+				paddle.enablePhysNode()
+				paddle.toggleUpdatePhysWithVis()
+				#paddle.setPosition([0,1.5,0])
+				#paddle.visNode.setEuler(0,180,0)
+				vizact.onupdate(10,paddle.visNode.setEuler,[90,0,0],viz.ABS_LOCAL)
+		
+		
+		#			if(paddleRigid ):
 #				paddle = self.room.paddle
 #				# Link the visObj to the rigid 
 #				paddle.setMocapRigidBody(self.config.mocap,'paddle')
@@ -1006,25 +1057,27 @@ class Experiment(viz.EventClass):
 #				pObj.setParent(self.room.paddle.visNode)
 #				pObj.setScale([.9,.9,.9])
 #				pObj.setPosition(0,0.5,0,viz.ABS_PARENT)
-#		
-			
-			if(paddleRigid ):
-				paddle = self.room.paddle
-				# Link the visObj to the rigid 
-				paddle.setMocapRigidBody(self.config.mocap,'paddle')
-				paddle.toggleUpdateWithRigid()
-				#paddle.visNode.alpha(0)
-				paddle.enablePhysNode()
-				paddle.toggleUpdatePhysWithVis()
-				paddle.setPosition([0,1.5,0])
-				#paddle.visNode.setEuler(0,180,0)
-				#vizact.onupdate(10,paddle.visNode.setEuler,[0,90,0],viz.ABS_LOCAL)
-		
 		
 		
 		#paddle.obj.visible(viz.ON)					
 		#visEnv.drawMarkerSpheres(self.room,self.config.mocap)
+
+	def labelDisplays():
 		
+		winList = viz.getWindowList()
+		hmdWin = winList[0]
+		expWin = winList[1]
+
+		text1 = viz.addText('HMD',viz.SCREEN)
+		text1.renderOnlyToWindows([hmdWin])
+		text1.alignment(viz.ALIGN_RIGHT_BOTTOM)
+		text1.setPosition([0.8,0.9,0])
+
+		text2 = viz.addText('EXP',viz.SCREEN)
+		text2.renderOnlyToWindows([viz.VizWindow(1)])
+		text2.setPosition([0.8,0.9,0])
+		
+	
 ############################################################################################################
 ############################################################################################################
 
