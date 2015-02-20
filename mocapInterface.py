@@ -295,7 +295,7 @@ class RigidTracker(PointTracker):
         self.callback(
             viz.UPDATE_EVENT, lambda e: target.setEuler(self.get_euler()))        
             
-    def link_pose(self, target):
+    def link_pose(self, target, stringArg = None):
         '''Link an object to this rigid body for continual updates.
 
         Parameters
@@ -303,8 +303,20 @@ class RigidTracker(PointTracker):
         target : viz.Object
             An object to link to this rigid tracker.
         '''
+        def updatePose(target,stringArg):
+            
+            newPose = self.get_transform()
+            evalString = 'newPose.' + stringArg
+            eval(evalString)
+            #newPose.preEuler([90,0,0])
+            target.setMatrix(newPose)
+            
         self.callback(
-            viz.UPDATE_EVENT, lambda e: target.setMatrix(self.get_transform()))
+            #viz.UPDATE_EVENT, lambda e: target.setMatrix(self.get_transform()))
+            viz.UPDATE_EVENT, lambda e: updatePose(target,stringArg))
+            
+        #self.callback(
+        #   viz.UPDATE_EVENT, lambda e: target.setMatrix(self.get_transform()))
 
     def update_pose(self, pose):
         '''Update the pose (and transform) for this rigid body.

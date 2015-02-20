@@ -2,20 +2,11 @@
 import viz
 import vizact
 
-
 # The physical environment
 class physEnv(viz.EventClass):
 	def __init__(self):
 		
 		viz.EventClass.__init__(self)
-		
-		print 'physEnv.init(): Frame-rate hardcoded at 1/60!'
-		
-		self.frameRate = 1.0/75
-		
-		if( type(self.frameRate) is not float ):
-			print 'physEnv.init(): frame-rate must be a float!'
-			return
 			
 		# Keep track of physnodes in here
 		self.physNodes_phys = []
@@ -79,15 +70,11 @@ class physEnv(viz.EventClass):
 
 	def stepPhysics(self):
 		
-#		self.emptyCollisionBuffer()
-#		self.space.collide(self,self.detectCollisions)
-#		self.world.step( 1.0/60  )
-		
 		self.emptyCollisionBuffer()
 		
 		numCycles = 20
 		
-		timeStep = (1.0/60) / numCycles
+		timeStep = viz.getFrameElapsed() / numCycles #self.frameRate / numCycles
 		
 		for idx in range(numCycles):
 			self.space.collide(self,self.detectCollisions)
@@ -100,11 +87,11 @@ class physEnv(viz.EventClass):
 		
 		# Accept a body or geom and return pointer to the phys node
 		
-		if( geomOrBody == ode.Body):
-			print '*1'
-		
-		if( type(geomOrBody) == ode.Body):
-			print '*2'
+#		if( geomOrBody == ode.Body):
+#			print '*1'
+#		
+#		if( type(geomOrBody) == ode.Body):
+#			print '*2'
 			
 		if( type(geomOrBody) == ode.GeomObject or
 			type(geomOrBody) == ode.GeomBox or
@@ -237,6 +224,13 @@ class physNode():
 
 	def __init__(self,world,space,shape,pos,size=[],bounciness = 1,friction = 0,vertices = None,indices = None):
 		
+		self.node3D = viz.addGroup()
+
+		# If it is NOT linked it updates seld.node3D pose with pos/quat pose on each frame
+		# If it is NOT linked it updates pos/quat pose with node3D pose on each frame
+		# This allows a linked phsynode to be moved around by an external source via the node3D
+		
+		self.isLinked = 0
 		self.geom  = 0
 		self.body = 0
 		
@@ -405,11 +399,56 @@ class physNode():
 			return
 			pass
 		
-	
+		#print '**************UPDATING THE NODE *****************'
+		self.updateNodeAct = vizact.onupdate(viz.PRIORITY_PHYSICS,self.updateNode3D)
+
+	def updateNode3D(self):
+		
+		if( self.geom.placeable() is False ):
+			#print 'Not placeable' 
+			return
+			
+#		if( self.isLinked is False ):
+#			#print 'Not linked' 
+#			return
+			
+		#print 'Physnode.updateNode3D ' + str(self.geom.getPosition())
+		
+		#self.node3D.setQuat( self.getQuaternion() )
+		#self.node3D.setPosition( self.geom.getPosition() )
+
+		if( self.isLinked == True ):
+			# Linked to a node!  
+			# Update body/geom using node3D
+			self.setQuaternion(self.node3D.getQuat())
+			self.setPosition(self.node3D.getPosition())
+			
+			# Linked to a node!  
+			# Update body/geom using node3D
+			#self.setQuaternion(self.node3D.getQuat())
+			#self.setPosition(self.node3D.getPosition())
+#			print 'linked!'
+#			vizFormQuat = self.node3D.getQuat()
+#			odeFormQuat = [ vizFormQuat[3], vizFormQuat[0], vizFormQuat[1], vizFormQuat[2]]
+#			
+#			self.body.setQuaternion(odeFormQuat)
+#			self.geom.setQuaternion(odeFormQuat)
+#			
+#			self.body.setPosition(self.node3D.getPosition())
+#			self.geom.setPosition(self.node3D.getPosition())
+			
+		else:
+			
+			# Not linked to a node!  
+			# Update node3D using body/geom
+			self.node3D.setQuat( self.getQuaternion() )
+			self.node3D.setPosition( self.body.getPosition() )
+
+
 	def remove(self):
 		
 		#self.parentRoom.physEnv.removeGeom(self.physGeom)
-		
+		vizact.removeEvent( self.updateNodeAct )
 		self.geom.setBody(None)
 		self.parentSpace.remove(self.geom)
 		
@@ -433,23 +472,24 @@ class physNode():
 		
 		if( self.body ):
 			odeFormQuat = self.body.getQuaternion()
-		elif( self.geom ):
+		
+		elif( self.geom and self.geom.placeable() ):
+			# FOr example, A geom is not placeable if it is a plane
 			odeFormQuat = self.geom.getQuaternion()
 		else:
-			print 'No physnode!'
-			return
+			return 0
 			
 		vizFormQuat = [ odeFormQuat[1], odeFormQuat[2], odeFormQuat[3], odeFormQuat[0]]
 		
 		return vizFormQuat 
 		
-	def updateWithTransform(self,transform):
-		
-		newPos = transform.getPosition()
-		newQuat = transform.getQuat()
-		
-		self.setQuaternion(newQuat)
-		self.setPosition(newPos)
+#	def updateWithTransform(self,transform):
+#		
+#		newPos = transform.getPosition()
+#		newQuat = transform.getQuat()
+#		
+#		self.setQuaternion(newQuat)
+#		self.setPosition(newPos)
 		
 	def setQuaternion(self,vizFormQuat):
 		
@@ -557,8 +597,26 @@ class physNode():
 		rotMat[8]  = 1 - 2. * ( xx + yy );
 		
 		return rotMat
-		
 	
+	def linkPose(self, node3d):
+		
+		newTransMat = viz.Matrix()
+		newTransMat.setQuat(self.getQuaternion())
+		newTransMat.setPosition(self.body.getPosition())
+		
+		linkAction = vizact.onupdate(viz.PRIORITY_LINKS,node3d.setMatrix,newTransMat)
+		return linkAction
+
+	def linkPosition(self, node3d):
+		
+		linkAction = vizact.onupdate(viz.PRIORITY_LINKS,node3d.setPosition, self.body.getPosition)
+		return linkAction
+		
+	def linkOrientation(self):
+		
+		linkAction = vizact.onupdate(viz.PRIORITY_LINKS,node3d.setQuat, self.getQuaternion)
+		return linkAction
+		
 if __name__ == "__main__":
 
 	import vizact
@@ -586,6 +644,9 @@ if __name__ == "__main__":
 	ballInitialVel = [0,0,0]
 
 	ball = visEnv.visObj(room,'sphere',.07,ballInitialPos)
-	ball.toggleUpdateWithPhys() # Visobj are inanimate until either tied to a physics or motion capture object
+	
+	ball.enablePhysNode()
+	ball.linkToPhysNode()
+			
 	ball.setBounciness(0.5)
 	ball.physNode.enableMovement() # Turns on kinematics

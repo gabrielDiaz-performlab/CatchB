@@ -2,10 +2,10 @@ import viz
 import vizshape
 import vizmat
 import math
-import ode
-import physEnv
 import vizact
 import Shadow
+
+import physEnv
 
 ft = .3048
 inch = 0.0254
@@ -17,7 +17,7 @@ nan = float('NaN')
 class room():
     def __init__(self,config=None):
 
-        self.roomvisNode = viz.addGroup()
+        self.roomnode3D = viz.addGroup()
         self.walls = viz.addGroup()
         self.objects = viz.addGroup()
         
@@ -119,15 +119,15 @@ class room():
                                 [self.translateOnX,0, self.translateOnZ],
                                 floorTexPath,texScale,planeABCD);
                                 
-        self.floor.visNode.setParent(self.walls)
-        self.ceiling.visNode.setParent(self.walls)
-        self.wall_PosZ.visNode.setParent(self.walls)
-        self.wall_NegZ.visNode.setParent(self.walls)
-        self.wall_PosX.visNode.setParent(self.walls)
-        self.wall_NegX.visNode.setParent(self.walls)
+        self.floor.node3D.setParent(self.walls)
+        self.ceiling.node3D.setParent(self.walls)
+        self.wall_PosZ.node3D.setParent(self.walls)
+        self.wall_NegZ.node3D.setParent(self.walls)
+        self.wall_PosX.node3D.setParent(self.walls)
+        self.wall_NegX.node3D.setParent(self.walls)
         
-        self.walls.setParent( self.roomvisNode )
-        self.objects.setParent( self.roomvisNode )
+        self.walls.setParent( self.roomnode3D )
+        self.objects.setParent( self.roomnode3D )
         
         if( self.drawStandingBox ):
             self.createStandingBox()
@@ -192,8 +192,8 @@ class room():
 class wall():
     def __init__(self,physEnv,dimensions,axisAngle,position,texPath,texScale,planeABCD):
         
-        # A wall object invludes a specialized visNode
-        # This visNode is actually a texQuad
+        # A wall object invludes a specialized node3D
+        # This node3D is actually a texQuad
 
         ################################################################################################
         ################################################################################################
@@ -207,25 +207,25 @@ class wall():
         
         ################################################################################################
         ################################################################################################
-        ##  Create visNode: a texture quad
+        ##  Create node3D: a texture quad
         
-        self.visNode = viz.addTexQuad()
-        self.visNode.setScale(dimensions[0],dimensions[1])
-        self.visNode.setPosition(position)
-        self.visNode.setAxisAngle(axisAngle)
-        self.visNode.disable(viz.DYNAMICS)
-        self.visNode.enable([viz.LIGHTING,viz.CULL_FACE])
+        self.node3D = viz.addTexQuad()
+        self.node3D.setScale(dimensions[0],dimensions[1])
+        self.node3D.setPosition(position)
+        self.node3D.setAxisAngle(axisAngle)
+        self.node3D.disable(viz.DYNAMICS)
+        self.node3D.enable([viz.LIGHTING,viz.CULL_FACE])
 
         # Put texture on the quad  
         matrix = vizmat.Transform()
         matrix.setScale([dimensions[0]/texScale,dimensions[1]/texScale,texScale])
         
-        self.visNode.texmat(matrix)
+        self.node3D.texmat(matrix)
         
         self.texObj = viz.addTexture(texPath)
         self.texObj.wrap(viz.WRAP_T, viz.REPEAT)
         self.texObj.wrap(viz.WRAP_S, viz.REPEAT)
-        self.visNode.texture(self.texObj)
+        self.node3D.texture(self.texObj)
         
         ################################################################################################
         ################################################################################################
@@ -258,66 +258,56 @@ class visObj(viz.EventClass):
         self.size = size
         self.parentRoom = room;
         
-        self.visNode = 0
-        self.physNode = 0
+        self.node3D = 0
         self.obj = []
-        
+            
         ################################################################################################
         ################################################################################################
         ## Variables related to automated updating with physics or motion capture
         
-        self.applyVisToPhysAction = 0
-        self.updatingPhysWithVis = 0
-        
         self.updateAction = 0
-        self.updatingWithPhys = 0
-        
-        self.mocapDevice = 0
-        self.updatingWithMocap = 0
-        
-        self.rigidBodyFile = 0
-        self.markerNumber = -1
         
         ################################################################################################
         ################################################################################################
         ## Create visual object
         
-        self.makeBasicVisNode()
-        #self.visNode.color(self.color_3f)
+        self.makeBasicVizShape()
+        #self.node3D.color(self.color_3f)
         self.setColor(self.color_3f)
-        self.visNode.visible(True)
+        self.node3D.visible(True)
 
         ## Create physical object
-        self.visNode.dynamic() # This command speeds up rendering, supposedly    
-            
-        #self.updateAction = vizact.onupdate(viz.PRIORITY_LINKS, self.applyVisToPhys)
+        self.node3D.dynamic() # This command speeds up rendering, supposedly    
+        #self.enablePhysNode()
         
     def __del__(self):
         
         #print viz.getFrameNumber()
         
+        # Stop updating node3D
+        if( self.updateAction ):
+            self.updateAction.remove()
+        
         # Remove physical component
         if( self.physNode ):
             self.physNode.remove()
-        
-        # Stop updating visNode
-        if( self.updateAction ):
-            self.updateAction.remove()
-            
+            self.physNode = False
+                
         # Remove visual component
-        self.visNode.remove()
+        self.node3D.remove()
      
     def remove(self):
+        
         self.__del__()
         
-    def makeBasicVisNode(self):
+    def makeBasicVizShape(self):
         
         # Returns a pointer to a vizshape object
         # This is added to the room.objects parent
-        newvisNode = []
+        newnode3D = []
         
         if(self.shape == 'box' ):
-            #print 'Making box visNode'
+            #print 'Making box node3D'
             
             if( type(self.size) == float or len(self.size) !=3): 
                 print '**********Invalid size for box'
@@ -326,7 +316,7 @@ class visObj(viz.EventClass):
                 import winsound
                 winsound.Beep(1000,250)
             lwh = [self.size[1],self.size[2],self.size[0]]
-            newvisNode = vizshape.addBox(lwh ,alpha = self.alpha,color=viz.RED)
+            newnode3D = vizshape.addBox(lwh ,alpha = self.alpha,color=viz.RED)
             
         elif(self.shape == 'sphere'):
             
@@ -341,8 +331,8 @@ class visObj(viz.EventClass):
                 import winsound
                 winsound.Beep(1000,250)
             
-            #print 'Making sphere visNode'
-            newvisNode = vizshape.addSphere(radius = float(self.size), alpha = self.alpha,color=viz.BLUE,slices=10, stacks=10)
+            #print 'Making sphere node3D'
+            newnode3D = vizshape.addSphere(radius = float(self.size), alpha = self.alpha,color=viz.BLUE,slices=10, stacks=10)
         
         elif('cylinder' in self.shape):
             
@@ -354,255 +344,97 @@ class visObj(viz.EventClass):
                 import winsound
                 winsound.Beep(1000,250)
                 
-            #print 'Making cylinder visNode'
+            #print 'Making cylinder node3D'
             
             if( self.shape[-2:] == '_X' or self.shape[-2:] == '_Y' or self.shape[-2:] == '_Z' ):
                 axisString = 'vizshape.AXIS' + self.shape[-2:]
                 print axisString + axisString + axisString + axisString
                 evalString = 'vizshape.addCylinder(height=self.size[0],radius=self.size[1], alpha = self.alpha,color=viz.BLUE,axis=' + axisString + ')'
                 
-                newvisNode = eval(evalString)
+                newnode3D = eval(evalString)
             else:
-                newvisNode = vizshape.addCylinder(height=self.size[0],radius=self.size[1], alpha = self.alpha,color=viz.BLUE, axis = vizshape.AXIS_Y )
+                newnode3D = vizshape.addCylinder(height=self.size[0],radius=self.size[1], alpha = self.alpha,color=viz.BLUE, axis = vizshape.AXIS_Y )
             
-        if( newvisNode ) :
+        if( newnode3D ) :
                     
-            self.visNode = newvisNode
+            self.node3D = newnode3D
             
         else:
             
-            print 'vizEnv.room.makeBasicVisNode(): Unable to create visNode'
+            print 'vizEnv.room.makeBasicVizShape(): Unable to create node3D'
             import winsound
             winsound.Beep(1000,250)
         
         #if(self.parentRoom):
-        newvisNode.setParent(self.parentRoom.objects)
+        newnode3D.setParent(self.parentRoom.objects)
 
-    def enablePhysNode(self):
 
-        ## Create physical object
-        self.physNode = self.parentRoom.physEnv.makePhysNode(self.shape,self.position,self.size)
-        self.setVelocity([0,0,0])
-        self.physNode.disableMovement()
         
     def setVelocity(self,velocity):
         
-        #self.visNode.setVelocity(velocity)
+        #self.node3D.setVelocity(velocity)
         if( self.physNode.body ):
             self.physNode.body.setLinearVel(velocity)
     
     def getVelocity(self):
         
-        #self.visNode.setVelocity(velocity)
+        #self.node3D.setVelocity(velocity)
         if( self.physNode.body ):
             return self.physNode.body.getLinearVel()
     
     def getAngularVelocity(self):
         
-        #self.visNode.setVelocity(velocity)
+        #self.node3D.setVelocity(velocity)
         if( self.physNode.body ):
             return self.physNode.body.getAngularVel()
             
     def setPosition(self,position):
 
         self.physNode.setPosition(position)
-        self.visNode.setPosition(position)
+        self.node3D.setPosition(position)
         
     def setColor(self,color3f):
         
-        self.visNode.color(color3f)
-        #self.visNode.ambient(color3f)
-        #self.visNode.specular(color3f)
+        self.node3D.color(color3f)
+        #self.node3D.ambient(color3f)
+        #self.node3D.specular(color3f)
     
-    #$def _onTimer(self,timerNum):
-    
-    def setBounciness(self,bounciness):
-        
-        self.physNode.setBounciness(bounciness)
-    
-#    def makeMarkerSphere(self,targetVisNode):
-#        
-#        for mIdx in range(len(markersUsedInThisRigid)):
-#            self.markerServerID_mIdx.append( convertIDtoServerID(rIdx,mIdx) )
-#        pass
-        
-    def projectShadows(self,targetVisNode):
+    def projectShadows(self,targetnode3D):
     
         #add avatar as shadow caster
-        self.parentRoom.shadowSource.addCaster(self.visNode)
+        self.parentRoom.shadowSource.addCaster(self.node3D)
 
         #Add ground as shadow receiver
-        self.parentRoom.shadowSource.addReceiver(targetVisNode)
+        self.parentRoom.shadowSource.addReceiver(targetnode3D)
         
-    def setMocapMarker(self,mocap,markerIndex):        
-       
-       self.markerObject = mocap.returnPointerToMarker(markerIndex)
+#    def setMocapMarker(self,mocap,markerIndex):        
+#       
+#       self.markerObject = mocap.returnPointerToMarker(markerIndex)
+#    
+#    def setMocapRigidBody(self,mocap,rigidBodyFileString):        
+#       
+#       self.rigidBodyFile = mocap.returnPointerToRigid(rigidBodyFileString)
     
-    def setMocapRigidBody(self,mocap,rigidBodyFileString):        
-       
-       self.rigidBodyFile = mocap.returnPointerToRigid(rigidBodyFileString)
-    
-    def removeUpdateAction(self):
-        
-        if( self.updateAction ):
-            self.updateAction.remove()
-            self.updateAction = 0
-            
-            if( self.updatingWithMocap):
-                self.applyVisToPhysAction.remove()
-                self.applyVisToPhysAction = 0
-                
-    def toggleUpdateWithRigid(self):
-        
-        self.removeUpdateAction()
-                
-        if( self.rigidBodyFile ):
-            if( self.updatingWithMocap == 0 ):
-                print 'Now updating with mocap'
-                
-                self.updatingWithMocap = True
-                self.updateAction = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE, self.applyRigidToVis)
-                
-#                if( self.physNode ):
-#                    self.applyVisToPhysAction = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE, self.applyVisToPhys)
-                
-            else:
-                print 'Not updating with mocap'
-                self.updatingWithMocap = False
-                self.updateAction.remove()
-        else:
-            self.updateAction = 0
-            print 'No phyNode defined'  
+    def enablePhysNode(self):
 
-        
+        ## Create physical object
+        self.physNode = self.parentRoom.physEnv.makePhysNode(self.shape,self.position,self.size)
+        self.setVelocity([0,0,0])
+        self.physNode.disableMovement()
+    
+    def linkToPhysNode(self):
 
-    def toggleUpdateWithMarker(self):
+        print self.physNode.node3D.getPosition()
+        self.updateAction = viz.link( self.physNode.node3D, self.node3D )
         
-        self.removeUpdateAction()
-            
-        if( self.markerNumber > -1  ):
-            
-            if( self.updatingWithMocap == False ):
-                #print 'Now updating with mocap'
-                self.updatingWithMocap = True
-                self.updateAction = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE, self.applyMarkerToVis)
-            else:
-                self.updatingWithMocap = False
-                self.updateAction.remove()
-        else:
-            self.updateAction = 0
-            print 'No marker defined'
+        #if( self.physNode ):
+            #return vizact.onupdate(viz.PRIORITY_LINKS,self.physNode.linkPose,self.node3D )
     
-    def toggleUpdateWithPhys(self):
-        
-        self.removeUpdateAction()
-        
-        # Create a physNode
-        if( self.physNode == 0 ):
-            self.enablePhysNode();
-        
-        # Update with physics    
-        if( self.updatingWithPhys == False ):
-            #print 'Now updating with physics'
-            self.updatingWithPhys = True
-            self.updateAction = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE, self.applyPhysToVis)
-            #self.physNode.enableMovement()
-        else:
-            #print 'No longer updating with physics'
-            self.updatingWithPhys = False
-            self.physNode.disableMovement() #If you don't disble the physics component, it will keep on moving in the physworld
-        
-    def toggleUpdatePhysWithVis(self):
-        
-        #self.removeUpdateAction()
-        
-        if( self.updatingPhysWithVis == False ):
-            self.updatingPhysWithVis = True
-            self.applyVisToPhysAction = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE, self.applyVisToPhys)
-            
-        else:
-            self.updatingPhysWithVis = False
-            self.updateAction.remove()
-        
-        
-    def applyMarkerToVis(self):
-        
-        if( self.markerNumber > -1 and self.mocapDevice ):
-            
-            pos_XYZ = self.mocapDevice.getMarkerPosition(self.markerNumber)
-            
-            if( pos_XYZ ):
-                self.visNode.visible(viz.ON)
-                pos_XYZ = [pos_XYZ[0], pos_XYZ[1], pos_XYZ[2]]
-                #print 'Marker pos: ' + str(pos)
-                self.visNode.setPosition(pos_XYZ)
-            else:
-                # Marker not seen
-                self.visNode.visible(viz.OFF)
-                return
-        else:
-            #print 'visEnv.updateWithMocap: No mocap, or no marker number set!'
-            return
-             
-     
-    def applyVisToMarker(self):
-        
-        #print str(viz.getFrameNumber())
-        #self.physNode.setPosition(self.visNode.getPosition())
-        #self.physNode.setQuaternion(self.visNode.getQuat())
-        
-        pos_XYZ = self.visNode.getPosition()
-        pos_XYZ[2] = -pos_XYZ[2]
-        self.physNode.setPosition(pos_XYZ)
-    
-    def applyVisToPhys(self):
-        
-        transformMat = self.visNode.getMatrix()
-        self.physNode.updateWithTransform(transformMat)
-    
-    def applyPhysToVis(self):
-        
-        self.visNode.setPosition(self.physNode.geom.getPosition())
-        self.visNode.setQuat(self.physNode.getQuaternion())
-    
-    def applyRigidToVis(self):
-        
-        if( self.rigidBodyFile ):
-           
-            transformViz = self.rigidBodyFile.get_transform()
-            
-            #print transformViz
-            #self.visNode.setMatrix(transformViz)
-            
-            if(transformViz ):
-                self.visNode.setMatrix(transformViz)
-                
-            else:
-                return
-                print 'visObj.updateWithMocap(): PS server does not have valid rigid body data.  Its likely that it was not detected.'
-        else:
-            print 'visEnv.updateWithMocap: No rigid body set!'
-            return
-        
-    def removeUpdateAction(self):
-        if( self.updateAction ):
-            self.updateAction.remove()
-            self.updateAction = 0
-            
-            self.updatingPhysWithVis = False
-            self.updatingWithMocap = False
-            self.updatingWithPhys = False
-    
-    def disableUpdateWithPhys(self):
-        
-        if( self.updateAction and self.updatingWithPhys ):
-            
-            #self.physNode.disableMovement() #If you don't disble the physics component, it will keep on moving in the physworld
-            self.updateAction.remove()
-            #self.updateAction.remove()
-            self.updateAction = 0
-            self.updatingWithPhys = False
-            
+    def setBounciness(self,bounciness):        
+
+        self.physNode.setBounciness(bounciness)        
+
+
 class mocapMarkerSphere(visObj):
     def __init__(self,mocap,room,markerNum):
         #super(visObj,self).__init__(room,'sphere',.04,[0,0,0],[.5,0,0],1)
@@ -619,17 +451,6 @@ class mocapMarkerSphere(visObj):
         self.mocapDevice = mocap
         self.toggleUpdateWithMarker()
 
-def drawMarkerSpheres(room,mocap):
-    
-     ##  Create mocap marker spheres - 1 per LED
-    markerVisObjList_idx = []
-    
-    for mNum in range(0,len(mocap.alPSMarkers_midx)):
-
-            markerVisObjList_idx.append(mocapMarkerSphere(mocap,room,mNum))
-
-    print 'visEnv.mocapMarkerSphere: Drawing ' + str(len(markerVisObjList_idx)) + ' markers.'
-    
 if __name__ == "__main__":
 
     import vizact
@@ -666,18 +487,6 @@ if __name__ == "__main__":
             
             viz.MainView.setPosition([room.wallPos_NegX +.1, 2, room.wallPos_NegZ +.1])
             viz.MainView.lookAt([0,2,0])
-                
-        # Draw markers where the spehres are
-        drawMarkerSpheres(room,config.mocap)
-        
-        #########################################################
-        # Register some keypresses
-      
-        #vizact.onkeydown('8',ball.toggleUpdateWithPhys)
-        #vizact.onkeydown('9',ball.remove)
-        
-        #viz.MainView.setPosition([0,10,15])
-        #viz.MainView.lookAt([0,0,15])
         
     else:
         
@@ -695,11 +504,3 @@ if __name__ == "__main__":
         viz.vsync(1)
         room = room()
         
-#    #Add a world axis with X,Y,Z labels
-#    world_axes = vizshape.addAxes()
-#    X = viz.addText3D('X',pos=[1.1,0,0],color=viz.RED,scale=[0.3,0.3,0.3],parent=world_axes)
-#    Y = viz.addText3D('Y',pos=[0,1.1,0],color=viz.GREEN,scale=[0.3,0.3,0.3],align=viz.ALIGN_CENTER_BASE,parent=world_axes)
-#    Z = viz.addText3D('Z',pos=[0,0,1.1],color=viz.BLUE,scale=[0.3,0.3,0.3],align=viz.ALIGN_CENTER_BASE,parent=world_axes)
-
-
-
