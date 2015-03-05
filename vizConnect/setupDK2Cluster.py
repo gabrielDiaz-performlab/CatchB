@@ -82,7 +82,7 @@ def initDisplays(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 			
 			#VC: create the raw object
 			import oculus
-			_window.displayNode = oculus.Rift(window=_window, autoDetectMonitor=autoDetectMonitor)
+			_window.displayNode = oculus.Rift(window=_window, autoDetectMonitor=autoDetectMonitor,renderMode=oculus.RENDER_CLIENT)
 			viz.window.setFullscreen(True)
 			rawDisplay[_name] = _window
 	

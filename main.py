@@ -15,6 +15,8 @@ import datetime
 from ctypes import * # eyetrackka
 import vizconnect
 
+#from smi_beta import *
+import smi_beta
 
 #For hardware configuration
 viz.res.addPath('resources')
@@ -79,7 +81,8 @@ class Configuration():
 		(as defined by the file in expCfgName). Both configurations MUST conform the specs given in sysCfgSpec.ini and
 		expCfgSpec.ini respectively. It also initializes the system as specified in the sysCfg.
 		"""
-				
+		self.eyeTracker = []
+		
 		self.writables = list()
 		if expCfgName:
 			self.__createExpCfg(expCfgName)
@@ -101,6 +104,7 @@ class Configuration():
 		This is where one can run any system-specific code that vizconnect can't handle
 		'''
 		
+		
 		if self.sysCfg['use_phasespace']:
 			
 			from mocapInterface import phasespaceInterface			
@@ -113,10 +117,14 @@ class Configuration():
 		if( self.sysCfg['use_wiimote']):
 			# Create wiimote holder
 			self.wiimote = 0
-			self._connectWiiMote()
+			self.__connectWiiMote()
 
 		if self.sysCfg['use_hmd'] and self.sysCfg['hmd']['type'] == 'DK2':
 			self.__setupOculusMon()
+		
+		if self.sysCfg['use_eyetracking']:
+			self.__connectSMIDK2()
+		
 		
 		#__setWinPriority()
 		#viz.setMultiSample(self.sysCfg['antiAliasPasses'])
@@ -256,6 +264,8 @@ class Configuration():
 		
 		#viz.window.setFullscreenMonitor(self.sysCfg['displays'])
 		
+		#hmd = oculus.Rift(renderMode=oculus.RENDER_CLIENT)
+
 		displayList = self.sysCfg['displays'];
 		
 		if len(displayList) < 2:
@@ -289,7 +299,7 @@ class Configuration():
 			viz.window.setFullscreenMonitor(expMon)
 			viz.window.setFullscreen(1)
 
-	def _connectWiiMote(self):
+	def __connectWiiMote(self):
 		
 		wii = viz.add('wiimote.dle')#Add wiimote extension
 		
@@ -303,6 +313,14 @@ class Configuration():
 		vizact.onexit(self.wiimote.remove) # Make sure it is disconnected on quit
 		
 		self.wiimote.led = wii.LED_1 | wii.LED_4 #Turn on leds to show connection
+	
+	def __connectSMIDK2(self):
+		
+		if self.sysCfg['sim_trackerData']:
+			self.eyeTracker = smi_beta.iViewHMD(simulate=True)
+		else:
+			self.eyeTracker = smi_beta.iViewHMD()
+	
 		
 #	def connectWiiMote(self):
 #		
@@ -366,7 +384,7 @@ class Experiment(viz.EventClass):
 		self.room = visEnv.room(self.config)
 		self.viewAct = []
 		self.hmdLinkedToView = False
-		
+		self.headTracker = []
 		################################################################
 		################################################################
 		# Build block and trial list
@@ -592,12 +610,14 @@ class Experiment(viz.EventClass):
 		"""
 		Interactive commands can be given via the keyboard. Some are provided here. You'll likely want to add more.
 		"""
-		mocapSys = self.config.mocap;
+		
 		
 		if( self.config.use_phasespace == True ):
+			mocapSys = self.config.mocap;
 			hmdRigid = mocapSys.returnPointerToRigid('hmd')
 			paddleRigid = mocapSys.returnPointerToRigid('paddle')
 		else:
+			mocapSys = []
 			hmdRigid = []
 			paddleRigid = []
 		
@@ -608,8 +628,10 @@ class Experiment(viz.EventClass):
 		if 'R' == key:
 			#riftOriTracker = vizconnect.getTracker('rift').getNode3d()
 			pass
-		if 'c' == key: # and self.config.eyeTrackingCal != None: # eyeTrackingCal is the where the interace to the eyetracker calib lives
-			self.toggleEyeCalib()
+		if 'c' == key and self.config.eyeTracker:
+			eyeTracker = experimentObject.config.eyeTracker
+#		if 'c' == key: # and self.config.eyeTrackingCal != None: # eyeTrackingCal is the where the interace to the eyetracker calib lives
+#			self.toggleEyeCalib()
 			# a bit of a hack.  THe crossahair / calib ponit in viewpoint mapping is a bit off
 			# until you hit a key.  So, I'm doing that for you.
 			
@@ -1230,12 +1252,12 @@ class Experiment(viz.EventClass):
 		"""
 
 		riftOriTracker = vizconnect.getTracker('rift').getNode3d()			
-		headTracker = vizconnect.getRawTracker('headtracker')
+		self.headTracker = vizconnect.getRawTracker('headtracker')
 		ori_xyz = riftOriTracker.getEuler()
-		headTracker.setEuler( ori_xyz  )
+		self.headTracker.setEuler( ori_xyz  )
 		
 		headRigidTracker = self.config.mocap.get_rigidTracker('hmd')	
-		headTracker.setPosition( headRigidTracker.get_position() )	
+		self.headTracker.setPosition( headRigidTracker.get_position() )	
 	
 		
 	def setupPaddle(self):
@@ -1659,3 +1681,18 @@ experimentObject.start()
 #pObj.setPosition(0,0.54,0,viz.ABS_PARENT)
 
 #visEnv.drawMarkerSpheres(experimentObject.room,experimentObject.config.mocap)
+
+from gazeTools import gazeSphere
+
+eyeTracker = experimentObject.config.eyeTracker
+headTracker = vizconnect.getRawTrackerDict()['headtracker']
+
+both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,viz.RED)
+both_sphere.toggleUpdate()
+
+
+##  Heres how to put a ball in head-centered coordinates
+#newBall = vizshape.addSphere(0.25,color = viz.RED)
+#headTracker = vizconnect.getRawTrackerDict()['headtracker']
+#newBall.setParent(headTracker)
+#newBall.setPosition(0,0,0,viz.ABS_PARENT)
