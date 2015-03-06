@@ -28,7 +28,6 @@ import platform
 import os.path
 import vizconnect
 
-
 expConfigFileName = 'badmintonTest.cfg'
 
 #expConfigFileName = 'shortTest.cfg'
@@ -83,27 +82,31 @@ class Configuration():
 		"""
 		self.eyeTracker = []
 		
+
+		#self.bodyCam = None
+
 		self.writables = list()
 		if expCfgName:
 			self.__createExpCfg(expCfgName)
 		else:
 			self.expCfg = None
+			
 		self.__createSysCfg()
 		
 		for pathName in self.sysCfg['set_path']:
 			viz.res.addPath(pathName)
-		
+			
 		self.vizconnect = vizconnect.go( 'vizConnect/' + self.sysCfg['vizconfigFileName'])
-	
-		#self.bodyCam = None
-		
 		self.__postVizConnectSetup()
 		
 	def __postVizConnectSetup(self):
 		''' 
 		This is where one can run any system-specific code that vizconnect can't handle
 		'''
+		dispDict = vizconnect.getRawDisplayDict()
 		
+		self.clientWindow = dispDict['custom_window']
+		self.riftWindow = dispDict['rift']
 		
 		if self.sysCfg['use_phasespace']:
 			
@@ -123,8 +126,19 @@ class Configuration():
 			self.__setupOculusMon()
 		
 		if self.sysCfg['use_eyetracking']:
+			self.use_eyetracking = True
 			self.__connectSMIDK2()
+		else:
+			self.use_eyetracking = False
+			
+		if self.sysCfg['use_DVR'] == 1:
+			self.use_DVR = True
+		else:
+			self.use_DVR = False
+
+		self.writer = None #Will get initialized later when the system starts
 		
+		self.writables = list()
 		
 		#__setWinPriority()
 		#viz.setMultiSample(self.sysCfg['antiAliasPasses'])
@@ -321,12 +335,63 @@ class Configuration():
 		else:
 			self.eyeTracker = smi_beta.iViewHMD()
 	
+	def __record_data__(self, e):
 		
+		if self.use_DVR and self.writer != None:
+			#print "Writing..."
+			self.writer.write(self.writables)
+		
+	def startDVR(self):
+		
+		if self.use_DVR:
+			print "Starting DVR"
+			from DVRwriter				import DVRwriter
+			from datetime 				import datetime
+			
+			metadata = 'unused per-file meta data' #Can be filled in with useful metadata if desired.
+			
+			if None == self.writer: #need to lazy initialize this because it has to be called after viz.go()
+				
+				sz = viz.window.getSize()
+				self.now = datetime.now()
+				nameRoot = '%s%d.%d.%d.%d-%d' % (self.sysCfg['writer']['outFileDir'], self.now.year, self.now.month, self.now.day, self.now.hour, self.now.minute)
+				outFile = '%s.%s' % (nameRoot, self.sysCfg['writer']['outFileName'])
+				self.expCfg.filename = '%s.expCfg.cfg' % (nameRoot)
+				self.sysCfg.filename = '%s.sysCfg.cfg' % (nameRoot)
+				
+				
+#				if 'L' == self.sysCfg['eyetracker']['eye']: 
+#					viewport = (0,      0,sz[0]/2,sz[1])
+#				else:               
+#					viewport = (sz[0]/2,0,sz[0]/2,sz[1])
+#				#fi
+				
+				viewport = self.clientWindow
+				viewPosXY = viewport.getPosition(viz.WINDOW_PIXELS)
+				viewSizeXY = viewport.getSize(viz.WINDOW_PIXELS)
+				
+				#viewport = (1920,0,1920,1200)
+				viewport = (0,0,1920,1200)
+				
+				
+				print "OutfileName:" + self.sysCfg['writer']['outFileName']
+				print "Metadata:" + metadata
+				print "Viewport:" + str(viewport)
+				print "Eyetracking:" + str(self.use_eyetracking)
+				
+			
+				self.writer = DVRwriter(outFile, metadata, viewport,0)
+				self.expCfg.write()
+				self.sysCfg.write()
+				
+			self.writer.turnOn()
+			
+
 #	def connectWiiMote(self):
 #		
 #		wii = viz.add('wiimote.dle')#Add wiimote extension
 #		
-#		# Replace old wiimote
+#		# Replace old wiimote	
 #		if( self.wiimote ):
 #			print 'Wiimote removed.'
 #			self.wiimote.remove()
@@ -548,7 +613,7 @@ class Experiment(viz.EventClass):
 		
 		##This is called when the experiment should begin.
 		self.setEnabled(True)
-
+		
 	def toggleEyeCalib(self):
 		
 		"""
@@ -630,13 +695,12 @@ class Experiment(viz.EventClass):
 			pass
 		if 'c' == key and self.config.eyeTracker:
 			eyeTracker = experimentObject.config.eyeTracker
+			eyeTracker.calibrate()
+			
 #		if 'c' == key: # and self.config.eyeTrackingCal != None: # eyeTrackingCal is the where the interace to the eyetracker calib lives
 #			self.toggleEyeCalib()
 			# a bit of a hack.  THe crossahair / calib ponit in viewpoint mapping is a bit off
 			# until you hit a key.  So, I'm doing that for you.
-			
-			
-			
 			
 		if (self.inCalibrateMode is False):
 			
@@ -1064,41 +1128,40 @@ class Experiment(viz.EventClass):
 
 		outputString = ''		
 		
-		
-		
+	
 		#pyArr = viz.add('arrington.dle')
 		#eyeA = pyArr.EYE_A;
 		
 
-		class VPX_RealType(Structure):
-			 _fields_ = [("x", c_float),("y", c_float)]
-
-		## Position
-		arrington = self.config.eyeTrackingCal.arrington;
-		
-		#eyePos_XY = pyArr.getPosition(self.arrington.RAW)
-		#outputString = outputString + '( eyePos_XY %f %f ) ' %(eyePos_XY[0],eyePos_XY[1])
-		
-		Eye_A  = c_int(0)
-
-		eyePos = VPX_RealType()
-		eyePosPointer = pointer(eyePos)
-		
-		arrington.VPX_GetGazePoint2(Eye_A ,eyePosPointer)
-		outputString = outputString + '( eyePos %f  %f ) ' % (eyePos.x, eyePos.y)
-		
-		## Time
-		eyeTime = c_double();
-		eyeTimePointer = pointer(eyeTime)		
-		arrington.VPX_GetDataTime2(Eye_A ,eyeTimePointer)
-		outputString = outputString + '* eyeDataTime %f * ' % eyeTime.value
-		
-		## Quality
-		eyeQual = c_int();
-		eyeQualPointer = pointer(eyeQual)		
-		arrington.VPX_GetDataQuality2(Eye_A ,eyeQualPointer)
-		outputString = outputString + '* eyeQuality %i * ' % eyeQual.value
-		
+#		class VPX_RealType(Structure):
+#			 _fields_ = [("x", c_float),("y", c_float)]
+#
+#		## Position
+#		arrington = self.config.eyeTrackingCal.arrington;
+#		
+#		#eyePos_XY = pyArr.getPosition(self.arrington.RAW)
+#		#outputString = outputString + '( eyePos_XY %f %f ) ' %(eyePos_XY[0],eyePos_XY[1])
+#		
+#		Eye_A  = c_int(0)
+#
+#		eyePos = VPX_RealType()
+#		eyePosPointer = pointer(eyePos)
+#		
+#		arrington.VPX_GetGazePoint2(Eye_A ,eyePosPointer)
+#		outputString = outputString + '( eyePos %f  %f ) ' % (eyePos.x, eyePos.y)
+#		
+#		## Time
+#		eyeTime = c_double();
+#		eyeTimePointer = pointer(eyeTime)		
+#		arrington.VPX_GetDataTime2(Eye_A ,eyeTimePointer)
+#		outputString = outputString + '* eyeDataTime %f * ' % eyeTime.value
+#		
+#		## Quality
+#		eyeQual = c_int();
+#		eyeQualPointer = pointer(eyeQual)		
+#		arrington.VPX_GetDataQuality2(Eye_A ,eyeQualPointer)
+#		outputString = outputString + '* eyeQuality %i * ' % eyeQual.value
+#		
 		return outputString
 		
 	def endTrial(self):
@@ -1674,6 +1737,10 @@ class trial(viz.EventClass):
 experimentObject = Experiment(expConfigFileName)
 experimentObject.start()
 
+with viz.cluster.MaskedContext(viz.CLIENT1):
+	if( experimentObject.config.use_DVR):
+		experimentObject.config.startDVR()
+
 #pV = experimentObject.room.paddle.node3D
 #eA = vizact.onupdate(8,pV.setEuler,[0,90,0],viz.ABS_LOCAL)
 
@@ -1686,13 +1753,22 @@ from gazeTools import gazeSphere
 
 eyeTracker = experimentObject.config.eyeTracker
 headTracker = vizconnect.getRawTrackerDict()['headtracker']
+headTracker.setPosition(0,1,0)
 
-both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,viz.RED)
+dispDict = vizconnect.getRawDisplayDict()
+clientWindowID = dispDict['custom_window']
+
+both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.RED)
 both_sphere.toggleUpdate()
 
-
+#viz.callback(viz.EXIT_EVENT, experimentObject.config.writer.__exit__, mask = viz.CLIENT1)
+	
 ##  Heres how to put a ball in head-centered coordinates
-#newBall = vizshape.addSphere(0.25,color = viz.RED)
-#headTracker = vizconnect.getRawTrackerDict()['headtracker']
+#newBall = vizshape.addSphere(0.25,color = viz.GREEN)
 #newBall.setParent(headTracker)
-#newBall.setPosition(0,0,0,viz.ABS_PARENT)
+#newBall.setPosition(0,0,3,viz.ABS_PARENT)
+#newBall.renderOnlyToWindows([viz.VizWindow(viz.MASTER)])
+
+#newBall.renderOnlyToWindows([clientWindowID])
+
+

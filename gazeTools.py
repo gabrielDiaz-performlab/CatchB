@@ -7,9 +7,21 @@ import vizconnect
 
 
 class gazeSphere():
-	def __init__(self,eyeTracker,eye,parentNode,sphereColor=viz.RED):
+	def __init__(self,eyeTracker,eye,parentNode,renderToWindows = None,sphereColor=viz.RED):
 		
-		self.node3D = vizshape.addSphere(radius=0.01, color = sphereColor)
+		self.sizeInDegrees = 1
+		self.sphereDistance = 1
+		self.renderToWindows = renderToWindows
+		from math import tan, radians
+		
+		self.radius = tan(radians(self.sizeInDegrees)) * self.sphereDistance
+		
+		#with viz.cluster.MaskedContext(viz.CLIENT1):
+		self.node3D = vizshape.addSphere(radius=self.radius, color = sphereColor)
+		
+		if( self.renderToWindows ):
+			self.node3D.renderOnlyToWindows(self.renderToWindows)
+		
 		self.node3D.disable(viz.RENDERING)
 		
 		self.updateAct = []
@@ -18,26 +30,39 @@ class gazeSphere():
 		self.eye = eye
 		self.node3D.setParent(parentNode)
 		
+		
 	def toggleUpdate(self):
 	
 		def moveGazeSphere():
 			
-			gazeMat = self.eyeTracker.getLastGazeMatrix()
+			gazeSamp = []
 			
-			# Move gaze matrix into world based coordinates
-			# I've turned this off /bc I think it moves the point from 
-			# head-centered to world-centered coords.  
-			# We want head centered.
-			#gazeMat.postMult(self.node3D.getParents()[0].getMatrix())
+			#if( self.eye == viz.BOTH_EYE):
+			gazeSamp = self.eyeTracker.getLastSample()
 			
-			headPos = self.node3D.getParents()[0].getPosition()
+			if( gazeSamp is None ):
+				return
+				
+			#timestamp = gazeSamp.timestamp
 			
-			# Draw point in head centered coordinates
-			#self.node3D.setPosition( gazeMat.getPosition()) + gazeMat.getForward()*2,viz.ABS_PARENT)
+			if( self.eye == viz.LEFT_EYE):
+				gazeSamp = gazeSamp.leftEye;
+			elif( self.eye == viz.RIGHT_EYE ):
+				gazeSamp = gazeSamp.rightEye;
 			
-			self.node3D.setPosition( headPos + gazeMat.getPosition(),viz.ABS_PARENT)
+			
+			#3D gaze is provided as a normalized gaze direction vector (gazeDirection) and a gaze base point (gazeBasePoint).
+			#Gaze base point is given in mm with respect to the origin of the eyetracker coordinate system.
+			# Note: you must flip X
+			gazeDirXYZ = [ -gazeSamp.gazeDir_x, gazeSamp.gazeDir_y, gazeSamp.gazeDir_z]
+			gazePointXYZ = self.sphereDistance * gazeDirXYZ
+			
+			#with viz.cluster.MaskedContext(viz.CLIENT1):# show
+			self.node3D.setPosition( gazePointXYZ,viz.ABS_PARENT)
+			
 			
 		self.node3D.enable(viz.RENDERING)
+		
 		self.updateAct = vizact.onupdate(viz.PRIORITY_LINKS+1,moveGazeSphere)
 
 #
