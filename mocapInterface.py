@@ -411,7 +411,11 @@ class phasespaceInterface(viz.EventClass):
         
         self.rbTrackers_rbIdx = []; # A list full of rigidBodyTrackers
         self.markerTrackers_mIdx = []; # Note that these are vectors of Phasespace marker objects
-
+        
+        self.mTrackerStoreTime_fr = []
+        self.mTrackerLists_fr = []
+        self.bufferThresholdS = 2; # buffer 2 seconds of data
+         
         self.config = config
         
         if config==None:
@@ -550,6 +554,7 @@ class phasespaceInterface(viz.EventClass):
             self.update()
 
     def update(self):
+        
         '''Update our knowledge of the current data from phasespace.'''
         now = viz.tick()
         #logging.info('%dus elapsed since last phasespace update',
@@ -590,6 +595,13 @@ class phasespaceInterface(viz.EventClass):
                     quat=psQuatToVizardQuat(*rigid.pose[3:7]),
                     cond=rigid.cond))
 
+        
+        # Clock time
+        self.mTrackerStoreTime_fr.append = time.clock()
+        # Tracker buffer
+        self.mTrackerLists_fr.append(self.trackers)
+        self.cleanMarkerBuffer()
+        
     def get_markers(self):
         '''Get a dictionary of all current marker locations.
 
@@ -742,16 +754,32 @@ class phasespaceInterface(viz.EventClass):
         '''
         return self.get_rigidTracker(fileName)
 
-    def get_MarkerPos(self,markerIdx):
+    def get_MarkerPos(self,markerIdx,bufferDurationS = None):
         ''' Returns marker position in vizard format
+        buffer duration will return the number of samples S seconds to have been collected over the previous S seconds
         '''
-        markerTrackers_mIdx = self.get_markers()
-        return markerTrackers_mIdx[markerIdx].pos
     
-    def getMarkerPosition(self):
+        #self.mTrackerStoreTime_fr = []
+        #self.mTrackers_fr_mIdx = []
+        
+        if( bufferDurationS ):
+            
+            currentTime = time.clock()
+            timeSinceSample_fr = [m - currentTime for m in mTrackerStoreTime_fr ]
+            
+            # find the first index smaller than bufferDurationS
+            firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= bufferDurationS) 
+            
+            return self.mTrackerLists_fr[firstIndex:end]
+            
+        else:
+            markerTrackers_mIdx = self.get_markers()
+            return markerTrackers_mIdx[markerIdx].pos
+    
+    def getMarkerPosition(self,markerIdx,bufferDurationS = None):
         ''' Included for backwards compatability
         '''
-        return self.get_MarkerPos(markerIdx)
+        return self.get_MarkerPos(markerIdx,bufferDurationS)
             
     def get_MarkerTracker(self,markerIdx):
         ''' Included for backwards compatability
@@ -799,4 +827,14 @@ class phasespaceInterface(viz.EventClass):
         if(rigidBody):
             rigidBody.save()
         else: print 'Error: Rigid body not initialized'
-
+    
+    def cleanMarkerBuffer(self):
+        
+        currentTime = time.clock()
+        timeSinceSample_fr = [m - currentTime for m in mTrackerStoreTime_fr ]
+            
+        # find the first index smaller than bufferDurationS
+        firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= self.bufferThresholdS ) 
+        
+        mTrackerStoreTime_fr[0:firstIndex].remove()
+        mTrackerLists_fr[0:firstIndex].remove()
