@@ -770,7 +770,9 @@ class phasespaceInterface(viz.EventClass):
             # find the first index smaller than bufferDurationS
             firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= bufferDurationS) 
             
-            return self.mTrackerLists_fr[firstIndex:end]
+            markerPos_fr_XYZ = [mIdx.pos for mIdx in self.mTrackerLists_fr[firstIndex:end]]
+            
+            return markerPos_fr_XYZ
             
         else:
             markerTrackers_mIdx = self.get_markers()

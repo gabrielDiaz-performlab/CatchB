@@ -1077,7 +1077,14 @@ class Experiment(viz.EventClass):
 		text2.renderOnlyToWindows([viz.VizWindow(1)])
 		text2.setPosition([0.8,0.9,0])
 		
-	
+	def printRecentMarkerHistory(self,dur):
+		
+		mocap = experimentObject.config.mocap
+		markerPos_fr_XYZ = mocap.get_MarkerPos(0,dur)
+		
+		for fIdx in range(len(markerPos_fr_XYZ)):
+			print markerPos_fr_XYZ[fIdx][1]
+		
 ############################################################################################################
 ############################################################################################################
 
@@ -1436,3 +1443,6 @@ if( experimentObject.hmdLinkedToView == False ):
 	viz.MainView.setPosition(-3,2,-3)
 	#viz.MainView.setPosition([experimentObject.room.wallPos_NegX +.1, 2, experimentObject.room.wallPos_NegZ +.1])
 	viz.MainView.lookAt([0,2,-2])
+	
+
+
