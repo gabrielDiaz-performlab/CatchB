@@ -433,10 +433,10 @@ class trackerBuffer(viz.EventClass):
             # Note that you can't slice into deque without using isslice()
         
         return collections.deque(itertools.islice(self.buffer_sIdx, firstIndex, len(self.buffer_sIdx)))
-        
+    
+    #def getRigidPose(self,trackerID,lookBackDurationS):
+    
     def getMarkerPosition(self,markerID,lookBackDurationS):
-
-        #with self._lock:
                 
         # passes back a list of tuples of form (time,listOfTrackers) 
         # This list is just a slice of self.buffer_sIdx
@@ -468,12 +468,7 @@ class trackerBuffer(viz.EventClass):
             ### Keyerror
             try:
                 posBuffer_sIdx.append(markers[markerID].pos)
-                
-                # prevFrame is -1 on the first run through
-                # This if statement makes sure there are no duplicate data entries indicated by PSpace frame # 
-                #if( prevFrame == -1 or ( prevFrame != -1  and markers[markerID].frame != prevFrame) ):
-                #    posBuffer_sIdx.append(markers[markerID].pos)
-                #    prevFrame = markers[markerID].frame
+    
                     
             except KeyError, e:
                 print 'Marker index does not exist for at least one of the trackers stored in the buffer'
@@ -516,9 +511,6 @@ class phasespaceInterface(viz.EventClass):
     def __init__(self, config = None):
         
         super(phasespaceInterface, self).__init__()
-        
-        self.rbTrackers_rbIdx = []; # A list full of rigidBodyTrackers
-        self.markerTrackers_mIdx = []; # Note that these are vectors of Phasespace marker objects
     
         self.markerTrackerBuffer = trackerBuffer()
         #self.trackPosBuff_sIdx_mIdx_XYZ = collections.deque(maxlen=200) # a deque of tuples (time,[marker tracker list])
@@ -601,7 +593,6 @@ class phasespaceInterface(viz.EventClass):
         
         # for all rigid bodies passed into the init function...
         for rigidIdx in range(len(self.rigidFileNames_ridx)):
-            # initialize rigid and store in self.rbTrackers_rbIdx
             
             rigidOffsetMM_WorldXYZ  = [0,0,0]
             rigidAvgMarkerList_mIdx   = [0]
@@ -616,7 +607,7 @@ class phasespaceInterface(viz.EventClass):
             else:
                 rigidAvgMarkerList_mIdx  = self.rigidAvgMarkerList_rIdx_mId[rigidIdx]
           
-            self.rbTrackers_rbIdx.append( self.track_rigid(self.rigidFileNames_ridx[rigidIdx],rigidAvgMarkerList_mIdx, rigidOffsetMM_WorldXYZ))
+            self.track_rigid(self.rigidFileNames_ridx[rigidIdx],rigidAvgMarkerList_mIdx, rigidOffsetMM_WorldXYZ)
         
         ###########################################################################
         self._updated = viz.tick()
@@ -852,6 +843,15 @@ class phasespaceInterface(viz.EventClass):
             
         self.trackers.append(tracker)
         return tracker
+    
+    def get_rigidIdx(self, fileName):
+
+        for tIdx , tracker in enumerate(self.trackers):
+            
+            if( isinstance(tracker, RigidTracker) and tracker.filename.find(fileName)>-1 ):
+                    return tIdx
+                
+        print 'returnPointerToRigid: Could not find ' + fileName
         
     def get_rigidTracker(self,fileName):
         '''
@@ -860,13 +860,7 @@ class phasespaceInterface(viz.EventClass):
         This tracker is the first rigid body that contains this string
         '''
         
-        for rigidIdx in range(len(self.rigidFileNames_ridx)):
-            if( self.rigidFileNames_ridx[rigidIdx].find(fileName) > -1 ):
-            #if( self.rigidFileNames_ridx[rigidIdx] == fileName):
-                return self.rbTrackers_rbIdx[rigidIdx]
-                
-        print 'returnPointerToRigid: Could not find ' + fileName
-        return 0
+        return self.trackers[self.get_rigidIdx(fileName)]
     
     def returnPointerToRigid(self,fileName):
         ''' Included for backwards compatability
@@ -937,23 +931,6 @@ class phasespaceInterface(viz.EventClass):
             rigidBody.save()
         else: print 'Error: Rigid body not initialized'
     
-#    def cleanMarkerBuffer(self):
-#        
-#        #currentTime = time.clock()
-#        #timeSinceSample_fr = [currentTime - m for m in self.mTrackerStoreTime_fr ]
-#            
-#        # find the first index smaller than bufferDurationS
-#        #firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= self.bufferThresholdS ) 
-#        # firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= bufferDurationS) 
-#        
-#        while( self.mTrackerStoreTime_fr and (time.clock() - self.mTrackerStoreTime_fr[0]) > self.bufferThresholdS ):
-#            #print time.clock() - self.mTrackerStoreTime_fr[0]
-#            self.mTrackerStoreTime_fr.popleft()
-#            self.mTrackerLists_sIdx_tIdx.popleft()
-#            
-#        #self.mTrackerStoreTime_fr = self.mTrackerStoreTime_fr[firstIndex:-1]
-#        #self.mTrackerLists_sIdx_tIdx = self.mTrackerLists_sIdx_tIdx[firstIndex:-1]
-        
         
 if __name__ == "__main__":
   

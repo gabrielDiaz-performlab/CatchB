@@ -1417,10 +1417,8 @@ class trial(viz.EventClass):
 
 experimentConfiguration = vrlabConfig.VRLabConfig(expConfigFileName)
 
-
 ## vrlabConfig uses config to setup hardware, motion tracking, frustum, eyeTrackingCal.
 ##  This draws upon the system config to setup the hardware / HMD
-
 
 ## The experiment class initialization draws the room, sets up physics, 
 ## and populates itself with a list of blocks.  Each block contains a list of trials
