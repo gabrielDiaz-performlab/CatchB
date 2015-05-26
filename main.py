@@ -968,8 +968,7 @@ class Experiment(viz.EventClass):
 		import vizact
 		self.updateViewAct = vizact.onupdate(40, updateHeadTracker)
 		
-		
-
+	
 		#return mocap
 		
 #		
@@ -1080,7 +1079,7 @@ class Experiment(viz.EventClass):
 	def printRecentMarkerHistory(self,dur):
 		
 		mocap = experimentObject.config.mocap
-		markerPos_fr_XYZ = mocap.get_MarkerPos(0,dur)
+		#markerPos_s_XYZ = [mocap.get_MarkerPos(0,dur)]
 		
 		for fIdx in range(len(markerPos_fr_XYZ)):
 			print markerPos_fr_XYZ[fIdx][1]
@@ -1445,4 +1444,7 @@ if( experimentObject.hmdLinkedToView == False ):
 	viz.MainView.lookAt([0,2,-2])
 	
 
+
+# experimentObject.printRecentMarkerHistory(.02)
+mocap = experimentObject.config.mocap
 

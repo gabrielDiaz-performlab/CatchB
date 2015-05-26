@@ -116,7 +116,7 @@ def initDisplays(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 			
 			#VC: set the fullscreen monitor
 			with viz.cluster.MaskedContext(viz.CLIENT1):# only for clients with this display
-				viz.window.setFullscreenMonitor(2)
+				viz.window.setFullscreenMonitor(3)
 				viz.window.setFullscreen(True)
 			
 			#VC: set some parameters

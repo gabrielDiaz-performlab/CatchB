@@ -7,7 +7,8 @@ import random
 import threading
 import time
 import viz
-
+import copy
+import itertools
 
 ERROR_MAP = {
     OWL.OWL_NO_ERROR: 'No Error',
@@ -29,9 +30,9 @@ class OwlError(Error):
             self.msg, ERROR_MAP.get(self.err, self.err), self.err)
 
 
-Marker = collections.namedtuple('Marker', 'pos cond')
-Pose = collections.namedtuple('Pose', 'pos quat cond')
-
+Marker = collections.namedtuple('Marker', 'pos cond frame')
+Pose = collections.namedtuple('Pose', 'pos quat cond frame')
+BufferedTrackers = collections.namedtuple('BufferedTrackers', 'time trackerList frame')
 
 class PointTracker(viz.EventClass):
     '''Track a set of markers on the phasespace server.'''
@@ -42,8 +43,8 @@ class PointTracker(viz.EventClass):
         self.marker_ids = marker_ids
         self._index = index
         self._lock = threading.Lock()
-        self._raw_markers = [Marker(pos=(0, 0, 0), cond=-1) for _ in marker_ids]
-        self._markers = [Marker(pos=(0, 0, 0), cond=-1) for _ in marker_ids]
+        self._raw_markers = [Marker(pos=(0, 0, 0), cond=-1, frame = -1 ) for _ in marker_ids]
+        self._markers = [Marker(pos=(0, 0, 0), cond=-1, frame = -1 ) for _ in marker_ids]
         self._targets = [None for _ in marker_ids]
 
         # schedule an update event for following marker data.
@@ -135,7 +136,7 @@ class RigidTracker(PointTracker):
 
         self.center_marker_ids = center_marker_ids
         
-        self._pose = Pose(pos=(0, 0, 0), quat=(1, 0, 0, 0), cond=-1)
+        self._pose = Pose(pos=(0, 0, 0), quat=(1, 0, 0, 0), cond=-1, frame = -1)
         self._transform = viz.Transform()
         self._localOffset = [0,0,0]
         
@@ -383,6 +384,113 @@ class RigidTracker(PointTracker):
         OWL.owlTracker(self._index, OWL.OWL_ENABLE)
 
 
+class trackerBuffer(viz.EventClass):
+    def __init__(self):
+        
+        self.bufferLength = 2000
+        
+        self.buffer_sIdx = collections.deque(maxlen=self.bufferLength) # a FIFO deque of tuples (time,[marker tracker list])
+
+        self._lock = threading.Lock()
+
+    def getSize(self):
+        return len(self.buffer_sIdx)
+        
+    def append(self,timexTrackerList_tuple):
+        
+        with self._lock:
+            self.buffer_sIdx.append( timexTrackerList_tuple )
+    
+    def popleft(self,timexTrackerList_tuple):
+        
+        with self._lock:
+            self.buffer_sIdx.popleft();
+            
+    def getTrackers(self,lookBackDurationS):
+        '''
+        Use this function to get mocap data from past lookBackDurationS seconds
+
+        Parameters
+        ----------
+        lookBackDurationS : int
+            Seconds of buffered data to return
+    
+        Returns
+        ------
+        A list of tuples of form (time,listOfTrackers)
+        '''
+        with self._lock:
+        
+            currentTime = time.clock()
+            #currentTime =  OWL.owlGetIntegerv(OWL.OWL_TIMESTAMP)
+            
+            timeSinceSample_fr = [currentTime - m[1] for m in self.buffer_sIdx ]
+            
+            # find the first index smaller than bufferDurationS
+            firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= lookBackDurationS ) 
+
+            # return new values
+            # Note that you can't slice into deque without using isslice()
+        
+        return collections.deque(itertools.islice(self.buffer_sIdx, firstIndex, len(self.buffer_sIdx)))
+        
+    def getMarkerPosition(self,markerID,lookBackDurationS):
+
+        #with self._lock:
+                
+        # passes back a list of tuples of form (time,listOfTrackers) 
+        # This list is just a slice of self.buffer_sIdx
+        trackerTuples_sIdx = self.getTrackers(lookBackDurationS)
+        
+        # Get time and list of trackers for each sample
+        #timeStamp_sIdx = [OWL.owlGetIntegerv(OWL.OWL_TIMESTAMP) - m[0] for m in trackerTuples_sIdx ]\
+        timeStamp_sIdx = [time.clock() - m[1] for m in trackerTuples_sIdx ]\
+        
+        trackers_sIdx_tIdx = [m[2] for m in trackerTuples_sIdx ]
+            
+        posBuffer_sIdx = []
+
+        prevFrame = -1
+        
+        # Iterate through each sample.
+        # ...remember that each sample stores a list of trackers
+        for sample_tIdx in trackers_sIdx_tIdx:
+            
+            # Marker info is stored across all trackers
+            # Iterate through list of trackers
+            # grab marker info and store it here
+            
+            markers = {}
+            
+            for tracker in sample_tIdx:
+                markers.update(tracker.get_markers())
+            
+            ### Keyerror
+            try:
+                posBuffer_sIdx.append(markers[markerID].pos)
+                
+                # prevFrame is -1 on the first run through
+                # This if statement makes sure there are no duplicate data entries indicated by PSpace frame # 
+                #if( prevFrame == -1 or ( prevFrame != -1  and markers[markerID].frame != prevFrame) ):
+                #    posBuffer_sIdx.append(markers[markerID].pos)
+                #    prevFrame = markers[markerID].frame
+                    
+            except KeyError, e:
+                print 'Marker index does not exist for at least one of the trackers stored in the buffer'
+                return
+
+        return posBuffer_sIdx
+    
+    
+    def psPoseToVizardPose(self, x, y, z): # converts Phasespace pos to vizard cond
+        return sz * z + oz, sy * y + oy, sx * x + ox
+        
+    def psQuatToVizardQuat(self, w, a, b, c): # converts Phasespace quat to vizard quat
+        return c, b, a, -w
+        
+        pass
+    
+    
 class phasespaceInterface(viz.EventClass):
     '''Handle the details of getting mocap data from phasespace.
 
@@ -411,11 +519,11 @@ class phasespaceInterface(viz.EventClass):
         
         self.rbTrackers_rbIdx = []; # A list full of rigidBodyTrackers
         self.markerTrackers_mIdx = []; # Note that these are vectors of Phasespace marker objects
+    
+        self.markerTrackerBuffer = trackerBuffer()
+        #self.trackPosBuff_sIdx_mIdx_XYZ = collections.deque(maxlen=200) # a deque of tuples (time,[marker tracker list])
         
-        self.mTrackerStoreTime_fr = []
-        self.mTrackerLists_fr = []
-        self.bufferThresholdS = 2; # buffer 2 seconds of data
-         
+        
         self.config = config
         
         if config==None:
@@ -468,6 +576,8 @@ class phasespaceInterface(viz.EventClass):
         if( self.owlParamPostProcess ):
             flags = flags + '|OWL.OWL_POSTPROCESS'
         
+        
+        
         initCode = OWL.owlInit(self.serverAddress,eval(flags))
         #initCode = owlInit(self.serverAddress,0)
         
@@ -481,13 +591,13 @@ class phasespaceInterface(viz.EventClass):
         OWL.owlSetFloat(OWL.OWL_FREQUENCY, self.owlParamFrequ)
         OWL.owlSetInteger(OWL.OWL_STREAMING, OWL.OWL_ENABLE)
         OWL.owlSetInteger(OWL.OWL_INTERPOLATION, self.owlParamInterp)
+        OWL.owlSetInteger(OWL.OWL_TIMESTAMP, OWL.OWL_ENABLE)
         
         self.trackers = []
         
         ######################################################################
         ######################################################################
         # Create rigid objects
-        #head = mocap.track_rigid('Resources/hmd-nvisMount.rb', center_markers=(1,2))
         
         # for all rigid bodies passed into the init function...
         for rigidIdx in range(len(self.rigidFileNames_ridx)):
@@ -505,16 +615,9 @@ class phasespaceInterface(viz.EventClass):
                 print 'Average markers not provided! Using default (marker 0)'
             else:
                 rigidAvgMarkerList_mIdx  = self.rigidAvgMarkerList_rIdx_mId[rigidIdx]
-            
-            #rigidOffsetMM_WorldXYZ = self.rigidOffsetMM_ridx_WorldXYZ[rigidIdx]
-            
-            #rigidNameAndPathStr = self.phaseSpaceFilePath + self.rigidFileNames_ridx[rigidIdx]
-            #self.rbTrackers_rbIdx.append( self.track_rigid(rigidNameAndPathStr , rigidAvgMarkerList_mId ) ) # rigidOffsetMM_WorldXYZ
-            
+          
             self.rbTrackers_rbIdx.append( self.track_rigid(self.rigidFileNames_ridx[rigidIdx],rigidAvgMarkerList_mIdx, rigidOffsetMM_WorldXYZ))
         
-            #def track_rigid(self, filename, markers=None, center_markers=None):
-
         ###########################################################################
         self._updated = viz.tick()
         self._thread = None
@@ -579,28 +682,42 @@ class phasespaceInterface(viz.EventClass):
         def psQuatToVizardQuat(w, a, b, c): # converts Phasespace quat to vizard quat
             return c, b, a, -w
 
+        #trackerPos_tIdx_XYZ = [0] * (len(markers) + len(rigids))
+        
         for marker in markers:
             if( marker.cond > 0 and marker.cond < self.owlParamMarkerCondThresh ):
+              
                 t, o = marker.id >> 12, marker.id & 0xfff
                 x, y, z = marker.x, marker.y, marker.z
-
+                
+                vizPos = psPoseToVizardPose(x, y, z)
+                
                 self.trackers[t].update_markers(o,
-                    Marker(pos=psPoseToVizardPose(x, y, z), cond=marker.cond),
-                    Marker(pos=(x, y, z), cond=marker.cond))
+                    Marker(pos=vizPos, cond=marker.cond, frame = marker.frame),
+                    Marker(pos=(x, y, z), cond=marker.cond, frame = marker.frame))
+                
 
         for rigid in rigids:
             if( rigid.cond > 0 and rigid.cond < self.owlParamMarkerCondThresh ):
-                self.trackers[rigid.id].update_pose(Pose(
-                    pos=psPoseToVizardPose(*rigid.pose[0:3]),
-                    quat=psQuatToVizardQuat(*rigid.pose[3:7]),
-                    cond=rigid.cond))
+                
+                vizPos = psPoseToVizardPose(*rigid.pose[0:3])
 
-        
-        # Clock time
-        self.mTrackerStoreTime_fr.append = time.clock()
-        # Tracker buffer
-        self.mTrackerLists_fr.append(self.trackers)
-        self.cleanMarkerBuffer()
+                self.trackers[rigid.id].update_pose(Pose(
+                    vizPos,
+                    quat=psQuatToVizardQuat(*rigid.pose[3:7]),
+                    cond=rigid.cond,
+                    frame = rigid.frame))
+
+        frameNum = OWL.owlGetIntegerv(OWL.OWL_FRAME_NUMBER)[0]
+            
+        # Is this fresh data?
+        if( self.markerTrackerBuffer.getSize() == 0 or 
+            self.markerTrackerBuffer.buffer_sIdx[-1][0] != frameNum ): 
+            
+            #print 'FrameNum: ' + str(frameNum) + ' ' + str(self.markerTrackerBuffer.buffer_sIdx[-1].frame)
+            
+            # Yes!  Store it in the buffer.
+            self.markerTrackerBuffer.append((frameNum,time.clock(),self.trackers))
         
     def get_markers(self):
         '''Get a dictionary of all current marker locations.
@@ -716,10 +833,13 @@ class phasespaceInterface(viz.EventClass):
         # set up tracker using owl libraries.
         # Marker locations have been read in from file
         index = len(self.trackers)
+
         OWL.owlTrackeri(index, OWL.OWL_CREATE, OWL.OWL_RIGID_TRACKER)
+
         for i, (marker_id, pos) in enumerate(marker_map):
             OWL.owlMarkeri(OWL.MARKER(index, i), OWL.OWL_SET_LED, marker_id)
             OWL.owlMarkerfv(OWL.MARKER(index, i), OWL.OWL_SET_POSITION, pos)
+            
         OWL.owlTracker(index, OWL.OWL_ENABLE)
         if OWL.owlGetStatus() == 0:
             raise OwlError('rigid tracker (index {})'.format(index))
@@ -740,7 +860,6 @@ class phasespaceInterface(viz.EventClass):
         This tracker is the first rigid body that contains this string
         '''
         
-        
         for rigidIdx in range(len(self.rigidFileNames_ridx)):
             if( self.rigidFileNames_ridx[rigidIdx].find(fileName) > -1 ):
             #if( self.rigidFileNames_ridx[rigidIdx] == fileName):
@@ -755,25 +874,13 @@ class phasespaceInterface(viz.EventClass):
         return self.get_rigidTracker(fileName)
 
     def get_MarkerPos(self,markerIdx,bufferDurationS = None):
+
         ''' Returns marker position in vizard format
         buffer duration will return the number of samples S seconds to have been collected over the previous S seconds
         '''
-    
-        #self.mTrackerStoreTime_fr = []
-        #self.mTrackers_fr_mIdx = []
         
         if( bufferDurationS ):
-            
-            currentTime = time.clock()
-            timeSinceSample_fr = [m - currentTime for m in mTrackerStoreTime_fr ]
-            
-            # find the first index smaller than bufferDurationS
-            firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= bufferDurationS) 
-            
-            markerPos_fr_XYZ = [mIdx.pos for mIdx in self.mTrackerLists_fr[firstIndex:end]]
-            
-            return markerPos_fr_XYZ
-            
+            return self.markerTrackerBuffer.getMarkerPosition(markerIdx,bufferDurationS)
         else:
             markerTrackers_mIdx = self.get_markers()
             return markerTrackers_mIdx[markerIdx].pos
@@ -830,13 +937,35 @@ class phasespaceInterface(viz.EventClass):
             rigidBody.save()
         else: print 'Error: Rigid body not initialized'
     
-    def cleanMarkerBuffer(self):
+#    def cleanMarkerBuffer(self):
+#        
+#        #currentTime = time.clock()
+#        #timeSinceSample_fr = [currentTime - m for m in self.mTrackerStoreTime_fr ]
+#            
+#        # find the first index smaller than bufferDurationS
+#        #firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= self.bufferThresholdS ) 
+#        # firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= bufferDurationS) 
+#        
+#        while( self.mTrackerStoreTime_fr and (time.clock() - self.mTrackerStoreTime_fr[0]) > self.bufferThresholdS ):
+#            #print time.clock() - self.mTrackerStoreTime_fr[0]
+#            self.mTrackerStoreTime_fr.popleft()
+#            self.mTrackerLists_sIdx_tIdx.popleft()
+#            
+#        #self.mTrackerStoreTime_fr = self.mTrackerStoreTime_fr[firstIndex:-1]
+#        #self.mTrackerLists_sIdx_tIdx = self.mTrackerLists_sIdx_tIdx[firstIndex:-1]
         
-        currentTime = time.clock()
-        timeSinceSample_fr = [m - currentTime for m in mTrackerStoreTime_fr ]
-            
-        # find the first index smaller than bufferDurationS
-        firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= self.bufferThresholdS ) 
         
-        mTrackerStoreTime_fr[0:firstIndex].remove()
-        mTrackerLists_fr[0:firstIndex].remove()
+if __name__ == "__main__":
+  
+  
+    mocap = phasespaceInterface();
+    mocap.start_thread()
+    
+    #import vizshape
+    #vizshape.addGrid()
+    
+    piazza = viz.addChild('piazza.osgb')
+    viz.window.setFullscreenMonitor(1)
+    viz.go(viz.FULLSCREEN)
+    
+    
