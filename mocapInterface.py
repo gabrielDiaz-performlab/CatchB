@@ -387,7 +387,8 @@ class RigidTracker(PointTracker):
 class trackerBuffer(viz.EventClass):
     def __init__(self):
         
-        self.bufferLength = 2000
+        # Approx a one second buffer
+        self.bufferLength = OWL.OWL_MAX_FREQUENCY
         
         self.buffer_sIdx = collections.deque(maxlen=self.bufferLength) # a FIFO deque of tuples (time,[marker tracker list])
 
@@ -419,25 +420,26 @@ class trackerBuffer(viz.EventClass):
         ------
         A list of tuples of form (time,listOfTrackers)
         '''
-        with self._lock:
         
-            currentTime = time.clock()
-            #currentTime =  OWL.owlGetIntegerv(OWL.OWL_TIMESTAMP)
-            
+        
+        currentTime = time.clock()
+        #currentTime =  OWL.owlGetIntegerv(OWL.OWL_TIMESTAMP)
+        
+        with self._lock:            
             timeSinceSample_fr = [currentTime - m[1] for m in self.buffer_sIdx ]
-            
-            # find the first index smaller than bufferDurationS
-            firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= lookBackDurationS ) 
-
-            # return new values
-            # Note that you can't slice into deque without using isslice()
         
+        # find the first index smaller than bufferDurationS
+        firstIndex = next(idx for idx, timePast in enumerate(timeSinceSample_fr) if timePast <= lookBackDurationS ) 
+
+        # return new values
+        # Note that you can't slice into deque without using isslice()        
         return collections.deque(itertools.islice(self.buffer_sIdx, firstIndex, len(self.buffer_sIdx)))
-    
-    #def getRigidPose(self,trackerID,lookBackDurationS):
-    
+        
     def getMarkerPosition(self,markerID,lookBackDurationS):
-                
+        '''
+        Returns a list of tuples of form (timeStamp,XYZ)
+        '''
+        
         # passes back a list of tuples of form (time,listOfTrackers) 
         # This list is just a slice of self.buffer_sIdx
         trackerTuples_sIdx = self.getTrackers(lookBackDurationS)
@@ -450,11 +452,9 @@ class trackerBuffer(viz.EventClass):
             
         posBuffer_sIdx = []
 
-        prevFrame = -1
-        
         # Iterate through each sample.
         # ...remember that each sample stores a list of trackers
-        for sample_tIdx in trackers_sIdx_tIdx:
+        for sIdx, sample_tIdx in enumerate(trackers_sIdx_tIdx):
             
             # Marker info is stored across all trackers
             # Iterate through list of trackers
@@ -467,15 +467,14 @@ class trackerBuffer(viz.EventClass):
             
             ### Keyerror
             try:
-                posBuffer_sIdx.append(markers[markerID].pos)
-    
+                # A list of tuples of form (timeStamp,XYZ)
+                posBuffer_sIdx.append( (timeStamp_sIdx[sIdx], markers[markerID].pos) ) 
                     
             except KeyError, e:
                 print 'Marker index does not exist for at least one of the trackers stored in the buffer'
                 return
 
         return posBuffer_sIdx
-    
     
     def psPoseToVizardPose(self, x, y, z): # converts Phasespace pos to vizard cond
         return sz * z + oz, sy * y + oy, sx * x + ox
@@ -484,8 +483,67 @@ class trackerBuffer(viz.EventClass):
         return c, b, a, -w
         
         pass
-    
-    
+        
+    def getRigidTransform(self,rigidIdx,lookBackDurationS):
+        '''
+        Returns the pose in Vizard format
+        '''
+        
+        # passes back a list of tuples of form (time,listOfTrackers) 
+        # This list is just a slice of self.buffer_sIdx
+        trackerTuples_sIdx = self.getTrackers(lookBackDurationS)
+        
+        # Get time and list of trackers for each sample
+        #timeStamp_sIdx = [OWL.owlGetIntegerv(OWL.OWL_TIMESTAMP) - m[0] for m in trackerTuples_sIdx ]\
+        timeStamp_sIdx = [time.clock() - m[1] for m in trackerTuples_sIdx ]\
+        
+        trackers_sIdx_tIdx = [m[2] for m in trackerTuples_sIdx ]
+        
+        tformBuffer_sIdx = []
+        
+        # Iterate through each sample.
+        # ...remember that each sample stores a list of trackers
+        for sIdx, sample_tIdx in enumerate(trackers_sIdx_tIdx):
+            
+            ### Keyerror
+            try:
+                tformBuffer_sIdx.append( (timeStamp_sIdx[sIdx], trackers_sIdx_tIdx[sIdx][rigidIdx].get_transform()))
+            except KeyError, e:
+                # Bad indexing.
+                print 'Rigid index invalid for at least one of the trackers stored in the buffer'
+                return
+        
+        return tformBuffer_sIdx
+        
+#    def getRigidQuat(self,rigidIdx,lookBackDurationS):
+#        '''
+#        returns a list of rigid body quaternions
+#        '''
+#        
+#        # Get a list of tuples: (time,pose)
+#        # Pose is in vizard format
+#        poseBuffer_sIdx = self.getRigidPose(rigidIdx,lookBackDurationS)
+#        
+#        quatBuffer_sIdx = []
+#        
+#        for sIdx, pose in enumerate(poseBuffer_sIdx):
+#            quatBuffer_sIdx.append( (poseBuffer_sIdx[sIdx][0], poseBuffer_sIdx[sIdx][1].quat) )
+#        
+#        return quatBuffer_sIdx
+#        
+#    def getRigidPosition(self,rigidIdx,lookBackDurationS):
+#        
+#        # Get a list of tuples: (time,pose)
+#        # Pose is in vizard format
+#        poseBuffer_sIdx = self.getRigidPose(rigidIdx,lookBackDurationS)
+#        
+#        positionBuffer_sIdx = []
+#        
+#        for sIdx, pose in enumerate(poseBuffer_sIdx):
+#            positionBuffer_sIdx.append( (poseBuffer_sIdx[sIdx][0], poseBuffer_sIdx[sIdx][1].pos) )
+#        
+#        return positionBuffer_sIdx
+        
 class phasespaceInterface(viz.EventClass):
     '''Handle the details of getting mocap data from phasespace.
 
@@ -709,20 +767,7 @@ class phasespaceInterface(viz.EventClass):
             
             # Yes!  Store it in the buffer.
             self.markerTrackerBuffer.append((frameNum,time.clock(),self.trackers))
-        
-    def get_markers(self):
-        '''Get a dictionary of all current marker locations.
-
-        Returns
-        -------
-        dict :
-            A dictionary that maps phasespace marker ids to Marker tuples.
-        '''
-        markers = {}
-        for tracker in self.trackers:
-            markers.update(tracker.get_markers())
-        return markers
-
+    
     def track_points(self, markers):
         '''Track a set of markers using phasespace.
 
@@ -754,6 +799,54 @@ class phasespaceInterface(viz.EventClass):
         tracker = PointTracker(index, marker_ids)
         self.trackers.append(tracker)
         return tracker
+
+   
+    def get_markers(self):
+        '''Get a dictionary of all current marker locations.
+
+        Returns
+        -------
+        dict :
+            A dictionary that maps phasespace marker ids to Marker tuples.
+        '''
+        markers = {}
+        for tracker in self.trackers:
+            markers.update(tracker.get_markers())
+        return markers
+    
+    def get_MarkerPos(self,markerIdx,bufferDurationS = None):
+
+        ''' Returns marker position in vizard format
+        buffer duration will return the number of samples S seconds to have been collected over the previous S seconds
+        '''
+        
+        if( bufferDurationS ):
+            return self.markerTrackerBuffer.getMarkerPosition(markerIdx,bufferDurationS)
+        else:
+            markerTrackers_mIdx = self.get_markers()
+            return markerTrackers_mIdx[markerIdx].pos
+    
+    def getMarkerPosition(self,markerIdx,bufferDurationS = None):
+        ''' Included for backwards compatability
+        '''
+        return self.get_MarkerPos(markerIdx,bufferDurationS)
+            
+    def get_MarkerTracker(self,markerIdx):
+        ''' Included for backwards compatability
+        '''
+        markerTrackers_mIdx = self.get_markers()
+        return markerTrackers_mIdx[markerIdx]
+    
+    def returnPointerToMarker(self,markerIdx):
+        return self.get_MarkerTracker(markerIdx)
+        
+    def get_MarkerCond(self,markerIdx):
+        '''Returns marker condition
+        
+        '''            
+        markerTrackers_mIdx = self.get_markers()
+        return markerTrackers_mIdx[markerIdx].cond
+        
 
     def track_rigid(self, markers_orFilename=None, center_markers=None, localOffest_xyz = [0,0,0]):
         '''Add a rigid-body tracker to the phasespace workload.
@@ -843,7 +936,12 @@ class phasespaceInterface(viz.EventClass):
             
         self.trackers.append(tracker)
         return tracker
-    
+
+    def returnPointerToRigid(self,fileName):
+        ''' Included for backwards compatability
+        '''
+        return self.get_rigidTracker(fileName)
+        
     def get_rigidIdx(self, fileName):
 
         for tIdx , tracker in enumerate(self.trackers):
@@ -862,44 +960,15 @@ class phasespaceInterface(viz.EventClass):
         
         return self.trackers[self.get_rigidIdx(fileName)]
     
-    def returnPointerToRigid(self,fileName):
-        ''' Included for backwards compatability
-        '''
-        return self.get_rigidTracker(fileName)
+    def getRigidTransform(self,fileName,bufferDurationS = None):
 
-    def get_MarkerPos(self,markerIdx,bufferDurationS = None):
-
-        ''' Returns marker position in vizard format
-        buffer duration will return the number of samples S seconds to have been collected over the previous S seconds
-        '''
+        rIdx = self.get_rigidIdx(fileName)
         
         if( bufferDurationS ):
-            return self.markerTrackerBuffer.getMarkerPosition(markerIdx,bufferDurationS)
+            return self.markerTrackerBuffer.getRigidTransform(rIdx,bufferDurationS)
         else:
-            markerTrackers_mIdx = self.get_markers()
-            return markerTrackers_mIdx[markerIdx].pos
-    
-    def getMarkerPosition(self,markerIdx,bufferDurationS = None):
-        ''' Included for backwards compatability
-        '''
-        return self.get_MarkerPos(markerIdx,bufferDurationS)
             
-    def get_MarkerTracker(self,markerIdx):
-        ''' Included for backwards compatability
-        '''
-        markerTrackers_mIdx = self.get_markers()
-        return markerTrackers_mIdx[markerIdx]
-    
-    def returnPointerToMarker(self,markerIdx):
-        return self.get_MarkerTracker(markerIdx)
-        
-    def get_MarkerCond(self,markerIdx):
-        '''Returns marker condition
-        
-        '''            
-        markerTrackers_mIdx = self.get_markers()
-        return markerTrackers_mIdx[markerIdx].cond
-            
+            return self.trackers[rIdx].get_position()
 
     def resetRigid( self, fileName ):
         '''Finds the rigid body corresponding to this filename.
