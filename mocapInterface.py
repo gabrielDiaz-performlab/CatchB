@@ -547,7 +547,12 @@ class phasespaceInterface(viz.EventClass):
     def update_thread(self):
         while self._running:
             self.update()
-            elapsed = viz.tick() - self._updated
+            try:
+                elapsed = viz.tick() - self._updated
+            except:
+                tick = viz.tick()
+                upd = self._updated
+                
             wait = 1. / self.owlParamFrequ - elapsed
             while wait < 0:
                 wait += 1. / self.owlParamFrequ
@@ -582,9 +587,9 @@ class phasespaceInterface(viz.EventClass):
         ox, oy, oz = self.origin
         
         def psPoseToVizardPose(x, y, z): # converts Phasespace pos to vizard cond
-            return sz * z + oz, sy * y + oy, sx * x + ox
+            return -sz * z + oz, sy * y + oy, -sx * x + ox
         def psQuatToVizardQuat(w, a, b, c): # converts Phasespace quat to vizard quat
-            return c, b, a, -w
+            return -c, b, -a, -w
 
         for marker in markers:
             if( marker.cond > 0 and marker.cond < self.owlParamMarkerCondThresh ):

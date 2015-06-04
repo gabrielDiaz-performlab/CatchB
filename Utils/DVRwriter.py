@@ -6,7 +6,7 @@ class DVRwriter():
 		
 		#viz.EventClass.__init__(self)
 		
-		#viz.callback(viz.EXIT_EVENT, self.__exit__, mask = viz.CLIENT1)
+		#sviz.callback(viz.EXIT_EVENT, self.__exit__, mask = viz.CLIENT1)
 		
 		self.metadata = metadata
 		
