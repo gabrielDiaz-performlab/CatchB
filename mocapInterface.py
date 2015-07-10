@@ -421,7 +421,6 @@ class trackerBuffer(viz.EventClass):
         A list of tuples of form (time,listOfTrackers)
         '''
         
-        
         currentTime = time.clock()
         #currentTime =  OWL.owlGetIntegerv(OWL.OWL_TIMESTAMP)
         
@@ -968,7 +967,7 @@ class phasespaceInterface(viz.EventClass):
             return self.markerTrackerBuffer.getRigidTransform(rIdx,bufferDurationS)
         else:
             
-            return self.trackers[rIdx].get_position()
+            return self.trackers[rIdx].get_transform()
 
     def resetRigid( self, fileName ):
         '''Finds the rigid body corresponding to this filename.
