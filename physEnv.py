@@ -184,6 +184,9 @@ class physEnv(viz.EventClass):
 
 
 				for gIdx in range(len(physNode1.stickTo_gIdx)):
+					# Check if the two objects should stick.  
+					# If yes, the "break" will prevent entering the else statement below
+					
 					if( physNode1.stickTo_gIdx[gIdx] == geom2 ):
 						
 						physNode1.disableCollisions()
@@ -191,7 +194,10 @@ class physEnv(viz.EventClass):
 					
 						# Ball always seems to be be the first geom
 						physNode1.collisionPosLocal_XYZ = body2.getPosRelPoint(body1.getPosition())
+						break
+						print '>>>>>> Collision Detected {', body1, body2, '} <<<<<<<'
 				else:
+					# If there is no stickiness, calc parameters of the bounce 
 					
 					# This determines the dynamics of this particular collision / contact
 					contactObject.setBounce(physNode1.bounciness * physNode2.bounciness ) # Coefficient of restitution

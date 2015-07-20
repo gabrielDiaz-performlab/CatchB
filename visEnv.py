@@ -32,7 +32,7 @@ class room():
             self.roomWidth = 50.0; #self.wallPos_PosX-self.wallPos_NegX
             self.roomLength = 50.0; #self.wallPos_PosZ-self.wallPos_NegZ
             
-            self.translateOnZ = 2.0;
+            self.translateOnZ = 8.0;
             self.translateOnX = 0.0;
             
             self.wallPos_PosZ = self.roomLength/2 + self.translateOnZ;
@@ -46,7 +46,7 @@ class room():
             self.texPath = config.expCfg['experiment']['texturePath'] #'Resources/'
             
             roomSize_WHL = map(float,config.expCfg['room']['roomSize_WHL'])
-            
+            roomSize_WHL = [60, 60, 40]# FIX ME: (KAMRAN) 
             self.roomWidth = roomSize_WHL[0]
             self.ceilingHeight = roomSize_WHL[1]
             self.roomLength = roomSize_WHL[2]
@@ -424,7 +424,7 @@ class visObj(viz.EventClass):
     
     def linkToPhysNode(self):
 
-        print self.physNode.node3D.getPosition()
+        #print'linkToPhysNode ==>' self.physNode.node3D.getPosition()
         self.updateAction = viz.link( self.physNode.node3D, self.node3D )
         
         #if( self.physNode ):
@@ -432,8 +432,13 @@ class visObj(viz.EventClass):
     
     def setBounciness(self,bounciness):        
 
-        self.physNode.setBounciness(bounciness)        
-
+        self.physNode.setBounciness(bounciness)
+    
+    def linkPhysToVis(self):
+        self.physNode.isLinked = 1;
+        self.updateAction = viz.link( self.node3D, self.physNode.node3D)
+        self.updateAction.setDstFlag(viz.ABS_GLOBAL)
+        self.updateAction.setSrcFlag(viz.ABS_GLOBAL)
 
 class mocapMarkerSphere(visObj):
     def __init__(self,mocap,room,markerNum):

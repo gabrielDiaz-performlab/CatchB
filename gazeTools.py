@@ -15,6 +15,7 @@ class gazeVector():
 		
 		#Creating a line
 		viz.startLayer(viz.LINES)
+		viz.lineWidth(4)#Set the size of the lines. 
 		viz.vertex(0,0,0)
 		viz.vertex(0,0,3)
 		viz.vertexColor(gazeVectorColor)
@@ -145,19 +146,28 @@ class calibrationTools():
 	def angle(self, v1, v2):
 	  return math.acos(self.dotproduct(v1, v2) / (self.length(v1) * self.length(v2)))
 
-	def calculateAngularError(self, vector1, vector2):
+	def calculateAngularError(self, node1, node2, textObject):
 		#V1 = Ball_Pos_XYZ[:,FrameNumber] - cyclopEyeNode.getPosition(viz.ABS_GLOBAL)
 		#V2 = eyeGazeSphere.getPosition(viz.ABS_GLOBAL) - cyclopEyeNode.getPosition(viz.ABS_GLOBAL)
 		#V2 = [a - b for a, b in zip(eyeGazeSphere.getPosition(viz.ABS_GLOBAL), cyclopEyeNode.getPosition(viz.ABS_GLOBAL))]
 		# XYZ = [l1[idx][0] - l2[idx][0] , l1[idx][1] - l2[idx][1], l1[idx][2] - l2[idx][2]  for idx in range(len(l1))]
-		vector1 = vector1.getPosition(viz.ABS_GLOBAL)
-		V1 = [a - b for a, b in zip(vector1, self.parentNode.getPosition(viz.ABS_GLOBAL))]
-		if (vector2 == 0.0):
-			V2 = self.calibrationPositions[self.calibrationCounter,:] + self.parentNode.getPosition(viz.ABS_GLOBAL)
+		vector1 = node1.getPosition(viz.ABS_PARENT)
+		#V1 = [a - b for a, b in zip(vector1, self.parentNode.getPosition(viz.ABS_GLOBAL))]
+		V1 = vector1
+		if (node2 == 0.0):
+			V2 = self.calibrationPositions[self.calibrationCounter,:]# + self.parentNode.getPosition(viz.ABS_GLOBAL)
 		else:
-			V2 = vector2
+			#V2 = vector2.getPosition()
+			V2 = [b - a for a, b in zip(node1.getPosition(viz.ABS_GLOBAL), node2.getPosition(viz.ABS_GLOBAL))]
 		self.errorAngle = np.multiply(self.angle(V1,V2), 180/np.pi)
 		#print 'Angular Error = %.2f %c'%(errorAngle, u"\u00b0")
+		#print 'Angular Error = %.2f %c'%(self.errorAngle, u"\u00b0")
+		textObject.message('AE = %.2f %c'%(self.errorAngle, u"\u00b0"))
+		textObject.setPosition(-3, 0, 5, viz.ABS_PARENT)
+		if ( self.errorAngle < 15 ):
+			textObject.color(self.errorAngle/15.0, 1 - self.errorAngle/15.0,0)
+		else:
+			textObject.color(1, 0, 0)
 
 
 	def create3DCalibrationPositions(self, xRange, yRange, zRange, numberOfGridPoints):
