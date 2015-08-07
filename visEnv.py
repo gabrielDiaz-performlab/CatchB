@@ -46,7 +46,7 @@ class room():
             self.texPath = config.expCfg['experiment']['texturePath'] #'Resources/'
             
             roomSize_WHL = map(float,config.expCfg['room']['roomSize_WHL'])
-            roomSize_WHL = [60, 60, 40]# FIX ME: (KAMRAN) 
+            roomSize_WHL = [32, 12, 30]# FIX ME: (KAMRAN) 
             self.roomWidth = roomSize_WHL[0]
             self.ceilingHeight = roomSize_WHL[1]
             self.roomLength = roomSize_WHL[2]
