@@ -57,7 +57,7 @@ def ParseTextData( self, TextFileName ):
                 F_Matrix = np.hstack((F_Matrix, Line[i+1]))
             elif (Line[i] == 'eyeTimeStamp'):
                 eyeTimeStamp = np.hstack((eyeTimeStamp, Line[i+1]))
-            elif (Line[i] == 'inCalibrateBool'):
+            elif (Line[i] == 'calibrationFlag'):
                 inCalibrate = np.hstack((inCalibrate, Line[i+1]))
             elif (Line[i] == 'eventFlag'):
                 EventFlag = np.hstack((EventFlag,Line[i+1]));

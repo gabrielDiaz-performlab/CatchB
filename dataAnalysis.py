@@ -93,7 +93,7 @@ def ParseExpData(TextFileName):
 				#F_Matrix.append(float(Line[i+1]));
 				F_Matrix = np.hstack((F_Matrix, Line[i+1]))
 				#print 'F=\n', F_Matrix
-			elif (Line[i] == 'inCalibrateBool'):
+			elif (Line[i] == 'calibrationFlag'):
 				inCalibrate = np.hstack((inCalibrate, Line[i+1]))
 			elif (Line[i] == 'eventFlag'):
 				EventFlag = np.hstack((EventFlag,Line[i+1]));
@@ -195,7 +195,7 @@ def ParseExpData(TextFileName):
 	
 	MatFile = {
 	
-	'FrameTime':F_Matrix,'inCalibrateBool':inCalibrate, 'EventFlag':EventFlag,'TrialType':TrialType, 
+	'FrameTime':F_Matrix,'calibrationFlag':inCalibrate, 'EventFlag':EventFlag,'TrialType':TrialType, 
 	'view_XYZ_Pos':view_XYZ_Matrix,'Quat_Matrix':view_Quat_Matrix, 'paddlePos_XYZ':Paddle_XYZ_Matrix,
 	'paddleQUAT_WXYZ':Paddle_Quat_Matrix, 'ballPos_XYZ':Ball_XYZ_Matrix, 'ballVel_XYZ':Ball_Vel_XYZ_Matrix,
 	'ballPix_XYDist': BallPix_XYDist, 'invViewMat': Inv_view_Matrix, 'invProMat':Inv_Pro_Matrix,
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 	'''
 	mat File Keys [
 
-	'FrameTime', 'eyeTimeStamp', 'TrialType', 'invProMat', 'invViewMat', 'EventFlag', 'inCalibrateBool'
+	'FrameTime', 'eyeTimeStamp', 'TrialType', 'invProMat', 'invViewMat', 'EventFlag', 'calibrationFlag'
 	'view_XYZ_Pos', 'Quat_Matrix', 'paddlePos_XYZ', 'paddleQUAT_WXYZ', 'ballPix_XYDist', 'ballPos_XYZ', 'ballVel_XYZ', 
 
 	'IPD', 'IOD'

@@ -20,6 +20,7 @@ class room():
         self.roomnode3D = viz.addGroup()
         self.walls = viz.addGroup()
         self.objects = viz.addGroup()
+        self.passingPlane = None
         
         ##################################
         ## Physical environment
@@ -46,7 +47,6 @@ class room():
             self.texPath = config.expCfg['experiment']['texturePath'] #'Resources/'
             
             roomSize_WHL = map(float,config.expCfg['room']['roomSize_WHL'])
-            roomSize_WHL = [32, 12, 30]# FIX ME: (KAMRAN) 
             self.roomWidth = roomSize_WHL[0]
             self.ceilingHeight = roomSize_WHL[1]
             self.roomLength = roomSize_WHL[2]
@@ -86,7 +86,7 @@ class room():
         
         texScale = 1;
         
-        wallTexPath = self.texPath  + 'tile_slate.jpg'
+        wallTexPath = self.texPath  + 'Texture_Seamless.jpg'#'Concrete_Plain.jpg'#'Wood-wall-texture.jpg'#'tile_slate.jpg'
         floorTexPath = self.texPath + 'tile_wood.jpg'
         
         planeABCD = [0,-1,0,-self.ceilingHeight]

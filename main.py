@@ -467,6 +467,9 @@ class Experiment(viz.EventClass):
 		self.setEnabled(False)
 		self.test_char = None
 
+		self.calibrationFrameCounter = 0
+		self.totalCalibrationFrames = 100
+		#self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
 		################################################################
 		################################################################
 		# Create visual and physical objects (the room)
@@ -783,42 +786,33 @@ class Experiment(viz.EventClass):
 
 		if key == 'c' and self.config.eyeTracker:
 			
-			self.calibrationDoneSMI = 1.0
+			self.calibrationDoneSMI = 1.0 # TODO: This should be toggled after the SMI Calibration Method
 			print 'calibrationDoneSMI ==> ', self.calibrationDoneSMI
 			eyeTracker = experimentObject.config.eyeTracker
 			eyeTracker.calibrate()
 
-		if key == 'e':
-			print 'My Calibration Method is Called'
-			calibTools.myCalibrationMethod()
-			if ( calibTools.calibrationInProgress == True ):
-				self.text_object = viz.addText('')
-				self.text_object.setParent(calibTools.calibrationSphere)
-				vizact.onupdate(viz.PRIORITY_INPUT+1,calibTools.calculateAngularError, cyclopEyeSphere.node3D, 0.0, self.text_object)#self.currentTrial.ballObj.node3D
+		if key == 'q':
+			calibTools.updateCalibrationPoint()
 
-			else:
-				self.text_object.remove()
+		if key == 'k':
+			print 'Data Recording Started for Calibration'
+			calibTools.calibrationSphere.color(viz.YELLOW)
+			self.writeToTxtFile = True
+			self.calibrationFrameCounter = 0
+
+		if key == 'e':
+			print 'Static Calibration Method is Called'
+			self.totalCalibrationFrames = 100
+			calibTools.staticCalibrationMethod()
+
+		if key == 'z':
+			print 'Dynamic Calibration Method is Called'
+			self.totalCalibrationFrames = 2000
+			self.writeToTxtFile = True
+			calibTools.dynamicCalibrationMethod()
+
 			
 
-
-
-		if key == 'q':
-
-			calibTools.updateCalibrationPoint()
-#			viewPos_XYZ = viz.MainView.getPosition()
-#			print '[ viewPos_XYZ %f %f %f ] ' % (viewPos_XYZ[0],viewPos_XYZ[1],viewPos_XYZ[2])
-#			
-#			viewMat = viz.MainView.getMatrix()
-#
-#			viewQUAT_XYZW = viewMat.getQuat()
-#			print '< viewQUAT_WXYZ %f %f %f %f > ' % (viewQUAT_XYZW [0],viewQUAT_XYZW [1],viewQUAT_XYZW [2],viewQUAT_XYZW[3])
-
-#			MarkerPos = []
-#			for i in range(14):
-#				Pos = self.config.mocap.getMarkerPosition(i);
-#				MarkerPos.append(Pos);
-#			print 'Cyclop eye :', MarkerPos[3]
-#
 		if ( self.inCalibrateMode is False ):
 			
 			if key == 'M':
@@ -851,21 +845,7 @@ class Experiment(viz.EventClass):
 		##########################################################
 		##########################################################
 		## Eye-tracker calibration mode
-		
-#		if self.inCalibrateMode:
-#			if key == 'w':
-#				self.config.eyeTrackingCal.updateOffset('w')
-#			elif key == 's':
-#				self.config.eyeTrackingCal.updateOffset('s')
-#			elif key == 'i':
-#				self.config.eyeTrackingCal.updateDelta('w')
-#			elif key == 'k':  
-#				self.config.eyeTrackingCal.updateDelta('s')
-#			elif key == 'j':
-#				self.config.eyeTrackingCal.updateDelta('a')
-#			elif key == 'l':
-#				self.config.eyeTrackingCal.updateDelta('d')
-	
+
 	
 	def onKeyUp(self,key):
 				
@@ -950,11 +930,11 @@ class Experiment(viz.EventClass):
 				
 		outputString = '< frameTime %f > ' % (viz.getFrameTime())
 		
-		#outputString = outputString + '* inCalibrateBool %f * ' % (self.inCalibrateMode)
+		outputString = outputString + '* calibrationInProgress %d * ' % (calibTools.calibrationInProgress)
 		
 		outputString = outputString + '< eventFlag %f > ' % (self.eventFlag.status)
 		
-		#outputString = outputString + '* trialType %s * ' % (self.currentTrial.trialType)
+		outputString = outputString + '* trialType %s * ' % (self.currentTrial.trialType)
 		
 		viewPos_XYZ = viz.MainView.getPosition()
 		outputString = outputString + '< viewPos_XYZ %f %f %f > ' % (viewPos_XYZ[0],viewPos_XYZ[1],viewPos_XYZ[2])
@@ -965,10 +945,10 @@ class Experiment(viz.EventClass):
 		
 		outputString = outputString + '< viewQUAT_WXYZ %f %f %f %f > ' % (viewQUAT_XYZW[0],viewQUAT_XYZW[1],viewQUAT_XYZW[2],viewQUAT_XYZW[3])
 		
-		#outputString = outputString + '< calibrationDone %d >' % (self.calibrationDoneSMI)
-		#outputString = outputString + '< calibrationCounter %d >' % (calibTools.calibrationCounter)
-		#calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
-		#outputString = outputString + '< calibrationPosition %f %f %f >' % (calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2])
+		outputString = outputString + '< isCalibrated %d >' % (self.calibrationDoneSMI)
+		outputString = outputString + '< calibrationCounter %d >' % (calibTools.calibrationCounter)
+		calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
+		outputString = outputString + '< calibrationPosition %f %f %f >' % (calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2])
 		####============================================================================###
 		####=====Sample Eye Tracking Data being printed out just for test (Kamran) =====###
 		####============================================================================###
@@ -1044,14 +1024,14 @@ class Experiment(viz.EventClass):
 		################################################
 		#### BALL DATA
 
-			
 		theBall = self.currentTrial.ballObj;
-		
-		ballPos_XYZ = theBall.node3D.getPosition()
-		outputString = outputString + '< ballPos_XYZ %f %f %f > ' % (ballPos_XYZ [0],ballPos_XYZ[1],ballPos_XYZ [2])
-		
-		ballVel_XYZ = theBall.getVelocity()
-		outputString = outputString + '< ballVel_XYZ %f %f %f > ' % (ballVel_XYZ[0],ballVel_XYZ[1],ballVel_XYZ[2])
+		if(theBall is not -1):
+			
+			ballPos_XYZ = theBall.node3D.getPosition()
+			outputString = outputString + '< ballPos_XYZ %f %f %f > ' % (ballPos_XYZ [0],ballPos_XYZ[1],ballPos_XYZ [2])
+			
+			ballVel_XYZ = theBall.getVelocity()
+			outputString = outputString + '< ballVel_XYZ %f %f %f > ' % (ballVel_XYZ[0],ballVel_XYZ[1],ballVel_XYZ[2])
 		
 		#ballPix_XYDist = viz.MainWindow.worldToScreen(ballPos_XYZ,viz.LEFT_EYE)
 		#outputString = outputString + '< ballPix_XYDist %f %f %f > ' % (ballPix_XYDist[0],ballPix_XYDist[1],ballPix_XYDist[2])
@@ -1216,7 +1196,19 @@ class Experiment(viz.EventClass):
 		# Only write data is the experiment is ongoing
 		if( (self.writeToTxtFile is False) ): # (self.inProgress is False) or 
 			return
-		
+			
+		if(calibTools.calibrationCounter > 50):
+			print 'Finished Writing Data for Dynamic Calibration'
+			self.writeToTxtFile = False
+			return
+		self.calibrationFrameCounter = self.calibrationFrameCounter + 1
+		if ( calibTools.calibrationInProgress == True and self.calibrationFrameCounter > self.totalCalibrationFrames  ):
+			self.writeToTxtFile = False
+			print 'Calibration Frames Recorded:', self.calibrationFrameCounter 
+			calibTools.calibrationSphere.color(viz.PURPLE)
+			self.calibrationFrameCounter = 0
+			return
+			
 		expDataString = self.getOutput()
 		self.expDataFile.write(expDataString + '\n')
 		
@@ -1547,7 +1539,7 @@ class trial(viz.EventClass):
 #		
 		self.ballDiameter_distType = []
 		self.ballDiameter_distParams = []
-		self.ballDiameter = []
+		self.ballDiameter = config.expCfg['room']['ballDiameter']
 		
 		self.gravity_distType = []
 		self.gravity_distParams = []
@@ -1572,20 +1564,25 @@ class trial(viz.EventClass):
 		#====================================================================
 		#====== Launching and Passing Planes sizes are determined here ======
 		#====================================================================
-		self.passingPlaneSize = [1., 1.]
-		self.launchPlaneSize = [15.0, 1.5]
-		self.gapBetweenPlanes = 1.0
-		self.distanceInDepth = 10.0 # FIX ME (KAMRAN)
-		self.xMinimumValue = self.gapBetweenPlanes
-		self.xMaximumValue = self.gapBetweenPlanes + 2 * self.passingPlaneSize[0]
+		self.passingPlaneSize = map(float, config.expCfg['room']['passingPlaneSize_WHL'])
+		self.launchPlaneSize = map(float, config.expCfg['room']['launchPlaneSize_WH'])
+		self.passingPlanePosition = map(float, config.expCfg['room']['passingPlanePos_XYZ'])
+		self.launchPlanePosition = map(float, config.expCfg['room']['launchPlanePos_XYZ'])
+		
+		self.distanceInDepth = self.launchPlanePosition[2] - self.passingPlanePosition[2]
+
+		self.xMinimumValue = -2.0
+		self.xMaximumValue = 2.0
 		self.timeToContact = 1.0
 		self.presentationDuration = 0.5
 		self.blankDuration = 0.5
 		self.postBlankDuration = 0.5
 		self.beta = 30.0
 		self.theta = 45.0
-		self.OcclusionBox = []
-		
+
+		self.valuesForPD = map(float, config.expCfg['room']['presentationDurationValues'])
+		self.valuesForBD = map(float, config.expCfg['room']['blankDurationValues'])
+
 		
 		self.launchHeight_distType = []
 		self.launchHeight_distParams = []
@@ -1729,7 +1726,7 @@ class trial(viz.EventClass):
 		#adds a transparent plane that the ball is being launched from it
 		self.room.launchPlane = vizshape.addPlane(size = planeSize , axis=-vizshape.AXIS_Z, cullFace = False)
 		#shifts the wall to match the edge of the floor
-		self.room.launchPlane.setPosition([-self.launchPlaneSize[0]/2, 1.5, 24.0])
+		self.room.launchPlane.setPosition(self.launchPlanePosition)#[-self.launchPlaneSize[0]/2, 1.5, 24.0]
 		#makes the wall appear white
 		self.room.launchPlane.color(viz.CYAN)
 		self.room.launchPlane.alpha(0.2)
@@ -1741,7 +1738,7 @@ class trial(viz.EventClass):
 	def placePassingPlane(self, planeSize):
 		
 		#adds a transparent plane that the ball ends up in this plane
-		self.room.passingPlane = visEnv.visObj(self.room,'box',size = [0.02, planeSize[0], planeSize[0]])
+		self.room.passingPlane = visEnv.visObj(self.room,'box',size = self.passingPlaneSize)#[0.02, planeSize[0], planeSize[0]]
 		#self.physNode = physEnv.makePhysNode('plane',planeABCD)
 		
 		self.room.passingPlane.enablePhysNode()
@@ -1753,7 +1750,7 @@ class trial(viz.EventClass):
 		#experimentObject.room.passingPlane.node3D.getPosition()
 		
 		#self.passingPlane = vizshape.addPlane(size = planeSize, axis=-vizshape.AXIS_Z, cullFace = False)
-		self.room.passingPlane.node3D.setPosition([0, 1.5, 1.0])
+		self.room.passingPlane.node3D.setPosition(self.passingPlanePosition)#[0, 1.5, 1.0]
 		#makes the wall appear white
 		self.room.passingPlane.node3D.color(viz.PURPLE)
 		self.room.passingPlane.node3D.alpha(0.3)
@@ -1778,8 +1775,7 @@ class trial(viz.EventClass):
 		print 'Initial max/min=[', self.xMinimumValue, self.xMaximumValue,']'
 		self.ballInitialPos_XYZ[0] = self.ballInitialPos_XYZ[0]+ np.random.choice(range(self.xMinimumValue, self.xMaximumValue,1))/100.0 
 
-		self.ballDiameter = 0.06 # FIX ME (KAMRAN)
-		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.ballInitialPos_XYZ,self.ballColor_RGB)
+		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.ballInitialPos_XYZ,viz.RED)#self.ballColor_RGB
 
 		#random.randrange(round(self.xMinimumValue*10), round(self.xMaximumValue*10))/10.0
 
@@ -1790,11 +1786,9 @@ class trial(viz.EventClass):
 		print 'Final max/min=[', minRange, maxRange,']'
 		self.ballFinalPos_XYZ[0] = self.ballFinalPos_XYZ[0] + np.random.choice(range(minRange, maxRange,1))/100.0
 
-		#self.initialVelocity_XYZ[0] = random.choice([1.5, 3, 5, 7])
-		#self.timeToContact = random.choice([1.0, 1.5, 2, 2.5])
-		self.presentationDuration = random.choice([0.6, 0.9, 1.2, 1.5])
-		self.blankDuration = random.choice([0.3, 0.4, 0.5, 0.6])
-		self.postBlankDuration = 0.9 - self.blankDuration
+		self.presentationDuration = random.choice(self.valuesForPD)
+		self.blankDuration = random.choice(self.valuesForBD)
+		self.postBlankDuration = 0.8 - self.blankDuration
 		self.timeToContact = self.presentationDuration + self.blankDuration + self.postBlankDuration
 		print 'placeBall ==> [Initial Final] = [', self.ballInitialPos_XYZ, self.ballFinalPos_XYZ, ']'
 		
@@ -1802,10 +1796,6 @@ class trial(viz.EventClass):
 		print 'PlaceBall ==> Vx=', self.initialVelocity_XYZ[0], ' TTC=', self.timeToContact
 		print 'PD = ', self.presentationDuration, ' BD = ', self.blankDuration, ' PBD = ', self.postBlankDuration
 		
-		#=========================================================================
-		#=========================================================================
-		self.ballObj.node3D.setPosition([-5, 2, 24])# Fix ME: (KAMRAN) There is a huge mistake in the link phys to vis method. It should be solved later
-		#print '=== FIX ME =========> ballPos',  self.ballObj.node3D.getPosition()
 		self.ballObj.enablePhysNode()
 		self.ballObj.linkToPhysNode()
 		
@@ -1891,9 +1881,10 @@ cyclopEyeSphere.toggleUpdate()
 
 cyclopEyeNode = vizshape.addSphere(0.015, color = viz.GREEN)
 cyclopEyeNode.setParent(headTracker)
+cyclopEyeNode.alpha(0.01)
 
-calibTools = calibrationTools(cyclopEyeNode)
-calibTools.create3DCalibrationPositions([-0.5, 0.5], [calibTools.calibrationSphereRadius + 0.2,-0.2], [1.0,5.0], 3.)
+calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room) # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
+calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
 
 
 IOD = 0.06
@@ -1907,7 +1898,7 @@ leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID]
 left_sphere.toggleUpdate()
 leftGazeVector.toggleUpdate()
 left_sphere.node3D.alpha(0.7)
-
+leftEyeNode.alpha(0.01)
 
 # create a node3D rightEyeNode
 rightEyeNode = vizshape.addSphere(0.005, color = viz.RED)
@@ -1919,6 +1910,7 @@ rightGazeVector = gazeVector(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindow
 right_sphere.toggleUpdate()
 rightGazeVector.toggleUpdate()
 right_sphere.node3D.alpha(0.7)
+rightEyeNode.alpha(0.01)
 
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
 #	myMatrix = viz.Transform()
