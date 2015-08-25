@@ -32,10 +32,9 @@ import os.path
 import vizconnect
 from gazeTools import calibrationTools
 
-expConfigFileName = 'badmintonTest.cfg'
-
-#expConfigFileName = 'shortTest.cfg'
-#expConfigFileName = 'fullTest.cfg'
+#expConfigFileName = 'badmintonTest.cfg'
+expConfigFileName = 'gd_pilot_A.cfg'
+print '**************** USING' + expConfigFileName + '****************'
 
 ft = .3048
 inch = 0.0254
@@ -109,8 +108,8 @@ class Configuration():
 		'''
 		dispDict = vizconnect.getRawDisplayDict()
 		
-		self.clientWindow = dispDict['custom_window']
-		self.riftWindow = dispDict['rift']
+		self.clientWindow = dispDict['exp_display']
+		self.riftWindow = dispDict['rift_display']
 		
 	
 
@@ -127,19 +126,8 @@ class Configuration():
 			self.__connectSMIDK2()
 		else:
 			self.use_eyeTracking = False
+	
 			
-		if self.sysCfg['use_DVR'] == 1:
-			
-			with viz.cluster.MaskedContext(viz.MASTER):
-				self.use_DVR = False
-			
-			with viz.cluster.MaskedContext(viz.CLIENT1):
-				self.use_DVR = True
-			
-		else:
-			
-			self.use_DVR = False
-				
 		self.writer = None #Will get initialized later when the system starts
 		self.writables = list()
 		
@@ -293,7 +281,6 @@ class Configuration():
 		"""
 		
 		#viz.window.setFullscreenMonitor(self.sysCfg['displays'])
-		
 		#hmd = oculus.Rift(renderMode=oculus.RENDER_CLIENT)
 
 		displayList = self.sysCfg['displays'];
@@ -318,8 +305,9 @@ class Configuration():
 				if mon.name == 'Rift DK2':
 					riftMon = mon.id
 			
-			viz.window.setFullscreen(riftMon)
-
+			viz.window.setFullscreenMonitor(riftMon)
+			viz.window.setFullscreen(1)
+			
 		with viz.cluster.MaskedContext(viz.CLIENT1):
 			
 			count = 1
@@ -357,83 +345,6 @@ class Configuration():
 			#print "Writing..."
 			self.writer.write(self.writables)
 		
-	def startDVR(self):
-		
-		if self.use_DVR:
-			print "Starting DVR"
-			from DVRwriter				import DVRwriter
-			from datetime 				import datetime
-			
-			metadata = 'unused per-file meta data' #Can be filled in with useful metadata if desired.
-			
-			if None == self.writer: #need to lazy initialize this because it has to be called after viz.go()
-				print 'Initialized DVR'
-				sz = viz.window.getSize()
-				self.now = datetime.now()
-				nameRoot = '%s%d.%d.%d.%d-%d' % (self.sysCfg['writer']['outFileDir'], self.now.year, self.now.month, self.now.day, self.now.hour, self.now.minute)
-				outFile = '%s.%s' % (nameRoot, self.sysCfg['writer']['outFileName'])
-				self.expCfg.filename = '%s.expCfg.cfg' % (nameRoot)
-				self.sysCfg.filename = '%s.sysCfg.cfg' % (nameRoot)
-				
-				#if 'L' == self.sysCfg['eyetracker']['eye']: 
-				#	viewport = (0,      0,sz[0]/2,sz[1])
-				#else:               
-				#	viewport = (sz[0]/2,0,sz[0]/2,sz[1])
-				#fi
-
-				viewport = [0,0,1920,1200]
-				
-				print "OutfileName:" + self.sysCfg['writer']['outFileName']
-				print "Metadata:" + metadata
-				print "Viewport:" + str(viewport)
-				print "Eyetracking:" + str(self.use_eyeTracking)
-				
-				self.writer = DVRwriter(outFile, metadata, viewport, 0)
-				self.expCfg.write()
-				self.sysCfg.write()
-				
-		if( viz.cluster.getClient() == 1L ):
-			self.writer.turnOn()
-		#viz.callback(viz.PRIORITY_FIRST_UPDATE,self.writer.turnOn,mask=viz.CLIENT1)
-		
-		
-	def stopDVR(self):
-		
-		with viz.cluster.MaskedContext(viz.CLIENT1):
-			print 'IN STOP DVR'
-
-			if( viz.cluster.getClient() == 1L ):
-
-				print 'Stopped!'
-				
-				if( self.use_DVR == True ):
-						print '*****Stopping DVR*****'
-						self.writer.turnOff()
-				
-				
-
-#	def connectWiiMote(self):
-#		
-#		wii = viz.add('wiimote.dle')#Add wiimote extension
-#		
-#		# Replace old wiimote	
-#		if( self.wiimote ):
-#			print 'Wiimote removed.'
-#			self.wiimote.remove()
-#			
-#		self.wiimote = wii.addWiimote()# Connect to first available wiimote
-#		
-#		vizact.onexit(self.wiimote.remove) # Make sure it is disconnected on quit
-#		
-#		self.wiimote.led = wii.LED_1 | wii.LED_4 #Turn on leds to show connection
-		
-
-# wiimote
-# hmd
-# eyetracker
-# graphical properties
-# mocap
-# dvr?
 
 class Experiment(viz.EventClass):
 	
@@ -469,6 +380,7 @@ class Experiment(viz.EventClass):
 
 		self.calibrationFrameCounter = 0
 		self.totalCalibrationFrames = 100
+		
 		#self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
 		################################################################
 		################################################################
@@ -641,9 +553,13 @@ class Experiment(viz.EventClass):
 					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
 					if( theBall.physNode.queryStickyState(thePaddle.physNode) ):
 					
+						theBall.updateAction.remove() # Could also be acheived by turning of physics via the physnode
+						
 						theBall.node3D.setParent(thePaddle.node3D)
 						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
 						theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
+						
+						
 						print 'Collision Location ', collPoint_XYZ
 						self.currentTrial.ballOnPaddlePosLoc_XYZ = collPoint_XYZ
 						
@@ -651,21 +567,21 @@ class Experiment(viz.EventClass):
 						# then it doesn't seem to update correctly.  
 						# My guess is that this is because the ball's position is updated later on this frame using
 						# visObj.applyPhysToVis()
-						
+
 						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2], viz.ABS_PARENT)
 
-				# BALL / PassingPlane
-				if( self.currentTrial.ballHasHitPassingPlane == False and
-					(physNode1 == thePassingPlane.physNode and physNode2 == theBall.physNode or 
-					physNode1 == theBall.physNode and physNode2 == thePassingPlane.physNode )):
-						
-					self.eventFlag.setStatus(8)
-					self.currentTrial.ballHasHitPassingPlane = True
-					
-					viz.playSound(soundBank.bubblePop)
-					#self.currentTrial.myMarkersList.append(vizshape.addCircle(0.02))
-					#self.currentTrial.myMarkersList[-1].color([1,1,0])
-					#self.currentTrial.myMarkersList[-1].setPosition(theBall.node3D.getPosition())
+#				# BALL / PassingPlane
+#				if( self.currentTrial.ballHasHitPassingPlane == False and
+#					(physNode1 == thePassingPlane.physNode and physNode2 == theBall.physNode or 
+#					physNode1 == theBall.physNode and physNode2 == thePassingPlane.physNode )):
+#						
+#					self.eventFlag.setStatus(8)
+#					self.currentTrial.ballHasHitPassingPlane = True
+#					
+#					viz.playSound(soundBank.bubblePop)
+#					#self.currentTrial.myMarkersList.append(vizshape.addCircle(0.02))
+#					#self.currentTrial.myMarkersList[-1].color([1,1,0])
+#					#self.currentTrial.myMarkersList[-1].setPosition(theBall.node3D.getPosition())
 
 # FIX ME (KAMRAN) This did not work properly due to the fact that the local collision Position returns a wrong value
 # Though it works for the ball-paddle but I should check it later
@@ -841,7 +757,11 @@ class Experiment(viz.EventClass):
 			elif key == 'D':
 				dvrWriter = self.config.writer;
 				dvrWriter.toggleOnOff()
-	
+			
+			elif key == 'r':
+				
+				vizconnect.getTracker('rift_tracker').resetHeading()
+			
 		##########################################################
 		##########################################################
 		## Eye-tracker calibration mode
@@ -1236,7 +1156,7 @@ class Experiment(viz.EventClass):
 			vizact.onsensorup(self.config.wiimote,wii.BUTTON_LEFT,mocapSys.resetRigid,'paddle') 
 			vizact.onsensorup(self.config.wiimote,wii.BUTTON_RIGHT,mocapSys.saveRigid,'paddle') 
 			
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_A,self.printQuats)
+			vizact.onsensorup(self.config.wiimote,wii.BUTTON_1,vizconnect.getTracker('rift_tracker').resetHeading)
 			
 	
 	def endExperiment(self):
@@ -1286,21 +1206,14 @@ class Experiment(viz.EventClass):
 		
 		trackerDict = vizconnect.getTrackerDict()
 		
-		if( 'rift' in trackerDict.keys() ):
+		if( 'rift_tracker' in trackerDict.keys() ):
 			
 			mocap = self.config.mocap
-		
-			#self.hmdPosNode = viz.addGroup()
-			#headRigidTracker = mocap.get_rigidTracker('hmd')	
-			#headRigidTracker.link_position(hmdPosNode)
-			
 			self.viewAct = vizact.onupdate(viz.PRIORITY_LINKS, self.updateHeadTracker)
 			
 		else:
 			print '*** Experiment:linkObjectsUsingMocap: Rift not enabled as a tracker'
 			return
-		
-		
 		
 	def updateHeadTracker(self):
 		"""
@@ -1311,8 +1224,8 @@ class Experiment(viz.EventClass):
 		
 		"""
 
-		riftOriTracker = vizconnect.getTracker('rift').getNode3d()			
-		self.headTracker = vizconnect.getRawTracker('headtracker')
+		riftOriTracker = vizconnect.getTracker('rift_tracker').getNode3d()			
+		self.headTracker = vizconnect.getRawTracker('head_tracker')
 		ori_xyz = riftOriTracker.getEuler()
 		self.headTracker.setEuler( ori_xyz  )
 		
@@ -1730,9 +1643,9 @@ class trial(viz.EventClass):
 		#makes the wall appear white
 		self.room.launchPlane.color(viz.CYAN)
 		self.room.launchPlane.alpha(0.2)
-		self.room.launchPlane.collideBox()
+		#self.room.launchPlane.collideBox()
 		self.room.launchPlane.disable(viz.DYNAMICS)
-		#self.room.launchPlane.visible(False)
+		self.room.launchPlane.visible(False)
 		print 'Launch Plane Created!'
 
 	def placePassingPlane(self, planeSize):
@@ -1741,8 +1654,8 @@ class trial(viz.EventClass):
 		self.room.passingPlane = visEnv.visObj(self.room,'box',size = self.passingPlaneSize)#[0.02, planeSize[0], planeSize[0]]
 		#self.physNode = physEnv.makePhysNode('plane',planeABCD)
 		
-		self.room.passingPlane.enablePhysNode()
-		self.room.passingPlane.linkPhysToVis()
+		#self.room.passingPlane.enablePhysNode()
+		#self.room.passingPlane.linkPhysToVis()
 		
 #		self.OcclusionBox = vizshape.addBox(size = [4,12,4])
 #		self.OcclusionBox.setPosition([-4,0,14])
@@ -1804,7 +1717,7 @@ class trial(viz.EventClass):
 		self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
 		
 		# FIX ME (KAMRAN) This does not work now !! The ball does not stick to the plane
-		self.ballObj.physNode.setStickUponContact( self.room.passingPlane.physNode.geom )
+		#self.ballObj.physNode.setStickUponContact( self.room.passingPlane.physNode.geom )
 		
 		# Costly, in terms of computation
 		self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D)
@@ -1851,29 +1764,16 @@ class trial(viz.EventClass):
 
 experimentObject = Experiment(expConfigFileName)
 experimentObject.start()
-#experimentObject.config.startDVR()
-
-#with viz.cluster.MaskedContext(viz.CLIENT1):
-#	if( experimentObject.config.use_DVR):
-#		experimentObject.config.startDVR()
-
-#pV = experimentObject.room.paddle.node3D
-#eA = vizact.onupdate(8,pV.setEuler,[0,90,0],viz.ABS_LOCAL)
-
-#pObj = experimentObject.room.paddle.obj
-#pObj.setPosition(0,0.54,0,viz.ABS_PARENT)
-
-#visEnv.drawMarkerSpheres(experimentObject.room,experimentObject.config.mocap)
 
 from gazeTools import gazeSphere
 from gazeTools import gazeVector
 
 eyeTracker = experimentObject.config.eyeTracker
-headTracker = vizconnect.getRawTrackerDict()['headtracker']
+headTracker = vizconnect.getRawTrackerDict()['head_tracker']
 #headTracker.setPosition(0,1,0)
 
 dispDict = vizconnect.getRawDisplayDict()
-clientWindowID = dispDict['custom_window']
+clientWindowID = dispDict['exp_display']
 
 cyclopEyeSphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.GREEN)
 #both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,sphereColor=viz.GREEN)

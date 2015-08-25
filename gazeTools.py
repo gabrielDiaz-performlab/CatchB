@@ -196,8 +196,8 @@ class calibrationTools():
 		points = np.delete(points, 0, 0) # TODO: The first element is initialized by a random value!!? Why? Should be fixed later (KAMRAN)
 		self.calibrationPositions = points
 		self.numberOfCalibrationPoints = self.calibrationPositions.shape[0]
-		print 'Number of Calibration Points =', self.numberOfCalibrationPoints
-		print 'calibration points:\n', points
+		#print 'Number of Calibration Points =', self.numberOfCalibrationPoints
+		#print 'calibration points:\n', points
 
 	def toggleRoomWallsVisibility(self):
 
