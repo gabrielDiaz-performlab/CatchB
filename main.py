@@ -288,8 +288,8 @@ class Configuration():
 		if len(displayList) < 2:
 			print 'Display list is <1.  Need two displays.'
 		else:
-			print 'Using display number' + str(displayList[0]) + ' for oculus display.'
-			print 'Using display number' + str(displayList[1]) + ' for mirrored display.'
+			print 'Using display number ' + str(displayList[0]) + ' for oculus display.'
+			print 'Using display number ' + str(displayList[1]) + ' for mirrored display.'
 		
 		### Set the rift and exp displays
 		
@@ -570,37 +570,39 @@ class Experiment(viz.EventClass):
 
 						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2], viz.ABS_PARENT)
 
-#				# BALL / PassingPlane
-#				if( self.currentTrial.ballHasHitPassingPlane == False and
-#					(physNode1 == thePassingPlane.physNode and physNode2 == theBall.physNode or 
-#					physNode1 == theBall.physNode and physNode2 == thePassingPlane.physNode )):
-#						
-#					self.eventFlag.setStatus(8)
-#					self.currentTrial.ballHasHitPassingPlane = True
-#					
-#					viz.playSound(soundBank.bubblePop)
-#					#self.currentTrial.myMarkersList.append(vizshape.addCircle(0.02))
-#					#self.currentTrial.myMarkersList[-1].color([1,1,0])
-#					#self.currentTrial.myMarkersList[-1].setPosition(theBall.node3D.getPosition())
+				# BALL / PassingPlane
+				if( type(self.room.passingPlane) is visEnv.visObj and 
+					self.currentTrial.ballHasHitPassingPlane == False 
+					and (physNode1 == thePassingPlane.physNode and physNode2 == theBall.physNode or 
+						 physNode1 == theBall.physNode and physNode2 == thePassingPlane.physNode )):
+						
+					self.eventFlag.setStatus(8)
+					self.currentTrial.ballHasHitPassingPlane = True
+					viz.playSound(soundBank.bubblePop)
+					
+					#self.currentTrial.myMarkersList.append(vizshape.addCircle(0.02))
+					#self.currentTrial.myMarkersList[-1].color([1,1,0])
+					#self.currentTrial.myMarkersList[-1].setPosition(theBall.node3D.getPosition())
 
-# FIX ME (KAMRAN) This did not work properly due to the fact that the local collision Position returns a wrong value
-# Though it works for the ball-paddle but I should check it later
+ ###FIX ME (KAMRAN) This did not work properly due to the fact that the local collision Position returns a wrong value
+ ##Though it works for the ball-paddle but I should check it later
 
-#					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
-#					if( theBall.physNode.queryStickyState(thePassingPlane.physNode) ):
-#					
-#						theBall.node3D.setParent(thePassingPlane.node3D)
-#						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
-#						theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
-#						
-#						self.currentTrial.ballOnPassingPlanePosLoc_XYZ = collPoint_XYZ
-#						
-#						# If you don't set position in this way (on the next frame using vizact.onupdate),
-#						# then it doesn't seem to update correctly.  
-#						# My guess is that this is because the ball's position is updated later on this frame using
-#						# visObj.applyPhysToVis()
-#						#print '===============> HI HOO', collPoint_XYZ
-#						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2])
+					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
+					if( theBall.physNode.queryStickyState(thePassingPlane.physNode) ):
+					
+						theBall.updateAction.remove()
+						theBall.node3D.setParent(thePassingPlane.node3D)
+						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
+						theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
+						
+						self.currentTrial.ballOnPassingPlanePosLoc_XYZ = collPoint_XYZ
+						
+						# If you don't set position in this way (on the next frame using vizact.onupdate),
+						# then it doesn't seem to update correctly.  
+						# My guess is that this is because the ball's position is updated later on this frame using
+						# visObj.applyPhysToVis()
+						#print '===============> HI HOO', collPoint_XYZ
+						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2])
 
 				if( physNode1 == theBackWall.physNode and physNode2 == theBall.physNode or 
 					physNode1 == theBall.physNode and physNode2 == theBackWall.physNode):
@@ -1484,19 +1486,19 @@ class trial(viz.EventClass):
 		
 		self.distanceInDepth = self.launchPlanePosition[2] - self.passingPlanePosition[2]
 
-		self.xMinimumValue = -2.0
-		self.xMaximumValue = 2.0
-		self.timeToContact = 1.0
-		self.presentationDuration = 0.5
-		self.blankDuration = 0.5
-		self.postBlankDuration = 0.5
-		self.beta = 30.0
-		self.theta = 45.0
-
+		self.xMinimumValue = []
+		self.xMaximumValue = []
+		self.timeToContact = []
+		self.presentationDuration = []
+		self.blankDuration = []
+		self.postBlankDuration = []
+		self.beta = []
+		self.theta = []
+		
+		self.postPresentationDuration = float(config.expCfg['room']['postPresentationDuration'])
 		self.valuesForPD = map(float, config.expCfg['room']['presentationDurationValues'])
 		self.valuesForBD = map(float, config.expCfg['room']['blankDurationValues'])
 
-		
 		self.launchHeight_distType = []
 		self.launchHeight_distParams = []
 		self.launchHeight = []
@@ -1578,27 +1580,29 @@ class trial(viz.EventClass):
 	
 	
 	def calculatePhysicalParams(self):
-		 
-		#self.lateralDistance = self.initialVelocity_XYZ[0] * self.timeToContact
+			
+		# X velocity
 		self.lateralDistance = math.fabs(self.ballFinalPos_XYZ[0] - self.ballInitialPos_XYZ[0])
-		#self.distanceInDepth = self.ballInitialPos_XYZ[2] - self.room.passingPlane.node3D.getPosition()[2]
+		self.initialVelocity_XYZ[0] = self.lateralDistance/self.timeToContact
+		
+		# Z velocity
 		self.distanceInDepth = math.fabs(self.ballFinalPos_XYZ[2] - self.ballInitialPos_XYZ[2])
-		self.totalDistance = math.sqrt(np.power(self.lateralDistance, 2) + np.power(self.distanceInDepth, 2))
+		self.initialVelocity_XYZ[2] = -self.distanceInDepth/self.timeToContact
+			
+		#self.horizontalVelocity = math.sqrt(np.power(self.initialVelocity_XYZ[0],2) + np.power(self.initialVelocity_XYZ[2],2))
+		#self.ballSpeed = self.gravity * self.timeToContact/(2 * math.fabs(math.sin(self.theta)))
+		
+		# Vertical component of velocity
+		self.verticalDistance = self.ballFinalPos_XYZ[1] - self.ballInitialPos_XYZ[1]
+		self.initialVelocity_XYZ[1] = ((-0.5 * -self.gravity * self.timeToContact * self.timeToContact) + self.verticalDistance ) / self.timeToContact
+		
+		
+		self.totalDistance = math.sqrt(np.power(self.lateralDistance, 2) + np.power(self.distanceInDepth, 2) + np.power(self.verticalDistance, 2))
 		self.beta = math.atan((self.distanceInDepth/self.lateralDistance))*(180.0/np.pi)
 		self.theta = (180.0/np.pi)*math.atan((np.power(self.timeToContact,2) * self.gravity)/(2*self.totalDistance))
-		self.initialVelocity_XYZ[0] = self.lateralDistance/self.timeToContact
-		self.initialVelocity_XYZ[2] = -self.distanceInDepth/self.timeToContact
-		self.horizontalVelocity = math.sqrt(np.power(self.initialVelocity_XYZ[0],2) + np.power(self.initialVelocity_XYZ[2],2))
-		self.ballSpeed = self.gravity * self.timeToContact/(2 * math.fabs(math.sin(self.theta)))
-		self.initialVelocity_XYZ[1] = self.ballSpeed * math.fabs(math.sin(self.theta))
-
-		#self.theta = math.atan(self.totalDistance*self.gravity/(2*np.power(self.horizontalVelocity,2)))*(180.0/np.pi)
-		#self.initialVelocity_XYZ[1] = self.timeToContact * self.gravity/(2) # *math.sin(self.theta*np.pi/180)
 		
-		#self.ballSpeed = math.sqrt((self.totalDistance * self.gravity)/math.sin(2 * self.theta*np.pi/180))
-		#self.initialVelocity_XYZ[1] = math.sqrt(np.power(self.ballSpeed, 2) - np.power(self.initialVelocity_XYZ[0], 2) - np.power(self.initialVelocity_XYZ[2], 2))
-		print 'V_xyz=[',self.initialVelocity_XYZ,'] theta=',self.theta,' beta=', self.beta 
-		print 'X=', self.lateralDistance, ' R=', self.totalDistance, ' g=', self.gravity, ' Vxz=', self.horizontalVelocity, ' D=', self.distanceInDepth
+		#print 'V_xyz=[',self.initialVelocity_XYZ,'] theta=',self.theta,' beta=', self.beta 
+		#print 'X=', self.lateralDistance, ' R=', self.totalDistance, ' g=', self.gravity, ' Vxz=', self.horizontalVelocity, ' D=', self.distanceInDepth
 
 	def removeBall(self):
 		
@@ -1645,30 +1649,22 @@ class trial(viz.EventClass):
 		self.room.launchPlane.alpha(0.2)
 		#self.room.launchPlane.collideBox()
 		self.room.launchPlane.disable(viz.DYNAMICS)
-		self.room.launchPlane.visible(False)
+		#self.room.launchPlane.visible(False)
 		print 'Launch Plane Created!'
 
 	def placePassingPlane(self, planeSize):
 		
 		#adds a transparent plane that the ball ends up in this plane
 		self.room.passingPlane = visEnv.visObj(self.room,'box',size = self.passingPlaneSize)#[0.02, planeSize[0], planeSize[0]]
-		#self.physNode = physEnv.makePhysNode('plane',planeABCD)
 		
-		#self.room.passingPlane.enablePhysNode()
-		#self.room.passingPlane.linkPhysToVis()
+		self.room.passingPlane.enablePhysNode()
+		self.room.passingPlane.linkPhysToVis()
 		
-#		self.OcclusionBox = vizshape.addBox(size = [4,12,4])
-#		self.OcclusionBox.setPosition([-4,0,14])
-#		self.OcclusionBox.color([0,1,0.2])
-		#experimentObject.room.passingPlane.node3D.getPosition()
-		
-		#self.passingPlane = vizshape.addPlane(size = planeSize, axis=-vizshape.AXIS_Z, cullFace = False)
 		self.room.passingPlane.node3D.setPosition(self.passingPlanePosition)#[0, 1.5, 1.0]
 		#makes the wall appear white
 		self.room.passingPlane.node3D.color(viz.PURPLE)
 		self.room.passingPlane.node3D.alpha(0.3)
-		#self.passingPlane.collideBox()
-		#self.passingPlane.disable(viz.DYNAMICS)
+
 		print 'Passing Plane Created!'
 			
 	def placeBall(self,room):
@@ -1677,32 +1673,55 @@ class trial(viz.EventClass):
 		#=========================================================================
 		#================== Changed for New Ball Catching Experiment =============
 		#=========================================================================
-		#self.ballInitialPos_XYZ[0] = -2.5 + np.random.random()
-		#self.ballInitialPos_XYZ[1] = 1.5
-		self.ballInitialPos_XYZ = self.room.launchPlane.getPosition()
-
-		#self.xMinimumValue = self.room.passingPlane.node3D.getPosition()[0] - self.planeSize[0]/2.0 - self.lateralDistance
-		#self.xMaximumValue = self.room.passingPlane.node3D.getPosition()[0] + self.planeSize[0]/2.0 - self.lateralDistance
-		self.xMinimumValue = int( (-self.launchPlaneSize[0]/2.0) * 100)
-		self.xMaximumValue = int( (self.launchPlaneSize[0]/2.0) * 100)
-		print 'Initial max/min=[', self.xMinimumValue, self.xMaximumValue,']'
-		self.ballInitialPos_XYZ[0] = self.ballInitialPos_XYZ[0]+ np.random.choice(range(self.xMinimumValue, self.xMaximumValue,1))/100.0 
-
-		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.ballInitialPos_XYZ,viz.RED)#self.ballColor_RGB
-
-		#random.randrange(round(self.xMinimumValue*10), round(self.xMaximumValue*10))/10.0
-
 		
-		self.ballFinalPos_XYZ = self.room.passingPlane.node3D.getPosition()
-		minRange = int(-self.passingPlaneSize[0]*50)
-		maxRange = int(self.passingPlaneSize[0]*50)
-		print 'Final max/min=[', minRange, maxRange,']'
-		self.ballFinalPos_XYZ[0] = self.ballFinalPos_XYZ[0] + np.random.choice(range(minRange, maxRange,1))/100.0
+		#########################################################
+		################### STARTING POSITION ###################
+		
+		# Put ball in center of launch plane		
+		self.ballInitialPos_XYZ = self.room.launchPlane.getPosition()
+		
+		launchPlane_XYZ = self.room.launchPlane.getPosition()
+		
+		### X VALUE
+		xMinimumValue = launchPlane_XYZ[0]-self.launchPlaneSize[0]/2.0
+		xMaximumValue = launchPlane_XYZ[0]+self.launchPlaneSize[0]/2.0
+		self.ballInitialPos_XYZ[0] = xMinimumValue + np.random.random()*(xMaximumValue-xMinimumValue)
+		
+		### Y VALUE
+		yMinimumValue = launchPlane_XYZ[1]-self.launchPlaneSize[1]/2.0
+		yMaximumValue = launchPlane_XYZ[1]+self.launchPlaneSize[1]/2.0
+		self.ballInitialPos_XYZ[1] = yMinimumValue + np.random.random()*(yMaximumValue-yMinimumValue)
+		
+		# Move ball relative to center of launch plane
+		print 'Initial max/min=[', xMinimumValue, xMaximumValue,']'
+		
+		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.ballInitialPos_XYZ,viz.RED)#self.ballColor_RGB
+		
+		#########################################################
+		################### FINAL POSITION ###################
 
+		self.ballFinalPos_XYZ = self.room.passingPlane.node3D.getPosition()
+		self.passingPlane_XYZ = self.room.passingPlane.node3D.getPosition()
+		
+		### X VALUE
+		xMinimumValue = self.passingPlane_XYZ[0] - self.passingPlaneSize[0]/2.0
+		xMaximumValue = self.passingPlane_XYZ[0] + self.passingPlaneSize[0]/2.0
+		self.ballFinalPos_XYZ[0] = xMinimumValue + np.random.random()*(xMaximumValue-xMinimumValue)
+				
+		### Y VALUE
+		yMinimumValue = self.passingPlane_XYZ[1] - self.passingPlaneSize[1]/2.0
+		yMaximumValue = self.passingPlane_XYZ[1] + self.passingPlaneSize[1]/2.0
+		self.ballFinalPos_XYZ[1] = yMinimumValue + np.random.random()*(yMaximumValue-yMinimumValue)
+		
+		#########################################################
+		################### Initial Velocities ##################
+		
 		self.presentationDuration = random.choice(self.valuesForPD)
 		self.blankDuration = random.choice(self.valuesForBD)
-		self.postBlankDuration = 0.8 - self.blankDuration
+		
+		self.postBlankDuration = self.postPresentationDuration - self.blankDuration #0.8 - self.blankDuration
 		self.timeToContact = self.presentationDuration + self.blankDuration + self.postBlankDuration
+
 		print 'placeBall ==> [Initial Final] = [', self.ballInitialPos_XYZ, self.ballFinalPos_XYZ, ']'
 		
 		self.calculatePhysicalParams()
@@ -1714,10 +1733,13 @@ class trial(viz.EventClass):
 		
 		self.ballObj.physNode.setBounciness(self.ballElasticity)
 		
-		self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
 		
-		# FIX ME (KAMRAN) This does not work now !! The ball does not stick to the plane
-		#self.ballObj.physNode.setStickUponContact( self.room.passingPlane.physNode.geom )
+		if( type(self.room.passingPlane) is visEnv.visObj):
+			self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
+		
+		
+		
+		self.ballObj.physNode.setStickUponContact( self.room.passingPlane.physNode.geom )
 		
 		# Costly, in terms of computation
 		self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D)
