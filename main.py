@@ -966,8 +966,9 @@ class Experiment(viz.EventClass):
 			outputString = outputString + '< ballFinalPos_XYZ %f %f %f > ' % (self.currentTrial.ballFinalPos_XYZ[0],self.currentTrial.ballFinalPos_XYZ[1],self.currentTrial.ballFinalPos_XYZ[2])
 			outputString = outputString + '< initialVelocity_XYZ %f %f %f > ' % (self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2])
 			outputString = outputString + '< PD %f > ' % (self.currentTrial.presentationDuration)
+			outputString = outputString + '< PPD %f > ' % (self.currentTrial.postPresentationDuration) # GD
 			outputString = outputString + '< BD %f > ' % (self.currentTrial.blankDuration)
-			outputString = outputString + '< PBD %f > ' % (self.currentTrial.postBlankDuration)
+			outputString = outputString + '< BDR %f > ' % (self.currentTrial.blankDurationRatio) # GD
 			outputString = outputString + '< TTC %f > ' % (self.currentTrial.timeToContact)
 			outputString = outputString + '< Beta %f > ' % (self.currentTrial.beta)
 			outputString = outputString + '< Theta %f > ' % (self.currentTrial.theta)
@@ -1065,12 +1066,6 @@ class Experiment(viz.EventClass):
 		self.writeToTxtFile = False
 		print 'End Trial{', self.writeToTxtFile,'}'
 		endOfTrialList = len(self.blocks_bl[self.blockNumber].trials_tr)
-		
-		#print 'Ending block: ' + str(self.blockNumber) + 'trial: ' + str(self.trialNumber)
-		if ( self.trialNumber > 45 ):
-			print 'Hack Experiment Done!'
-			self.endExperiment()
-			#viz.quit()
 		
 		if( self.trialNumber < endOfTrialList ):
 			
@@ -1389,9 +1384,14 @@ class block():
 		# _tr indicates that the list is as long as the number of trials
 		self.trialTypeList_tr = []
 		
-		for typeIdx in range(len(self.trialTypesInBlock)):
-			for count in range(self.numOfEachTrialType_type[typeIdx]):
-				self.trialTypeList_tr.append(self.trialTypesInBlock[typeIdx])
+		for typeIdx, trialType in enumerate(self.trialTypesInBlock):
+			if trialType: # Will return false if trialType is an empty string
+				self.trialTypeList_tr.extend( [trialType] * self.numOfEachTrialType_type[typeIdx] )
+			
+				
+		#for typeIdx in range(len(self.trialTypesInBlock)):
+		#	for count in range(self.numOfEachTrialType_type[typeIdx]):
+		#		self.trialTypeList_tr.append(self.trialTypesInBlock[typeIdx])
 		
 		# Randomize trial order
 		from random import shuffle
@@ -1458,27 +1458,16 @@ class trial(viz.EventClass):
 		
 		self.gravity_distType = []
 		self.gravity_distParams = []
-		self.gravity = []
-		
-		self.passingLoc_distType = []
-		self.passingLoc_distParams = []
-		self.passingLoc = []
-		
-		self.ballElasticity_distType = []
-		self.ballElasticity_distParams = []
-		self.ballElasticity = []
-		
-		self.bounceDist_distType = []
-		self.bounceDist_distParams = []
-		self.bounceDist = []
-		
-		self.bounceSpeed_distType = []
-		self.bounceSpeed_distParams = []
-		self.bounceSpeed = []
+		self.gravity = []	
 
+		ballElasticity_distType = []
+		ballElasticity_distParams = []
+		ballElasticity = []
+		
 		#====================================================================
 		#====== Launching and Passing Planes sizes are determined here ======
 		#====================================================================
+		
 		self.passingPlaneSize = map(float, config.expCfg['room']['passingPlaneSize_WHL'])
 		self.launchPlaneSize = map(float, config.expCfg['room']['launchPlaneSize_WH'])
 		self.passingPlanePosition = map(float, config.expCfg['room']['passingPlanePos_XYZ'])
@@ -1494,24 +1483,19 @@ class trial(viz.EventClass):
 		self.postBlankDuration = []
 		self.beta = []
 		self.theta = []
+		self.initialVelocity_XYZ = []
 		
-		self.postPresentationDuration = float(config.expCfg['room']['postPresentationDuration'])
-		self.valuesForPD = map(float, config.expCfg['room']['presentationDurationValues'])
-		self.valuesForBD = map(float, config.expCfg['room']['blankDurationValues'])
+		self.presentationDuration = float(config.expCfg['trialTypes'][self.trialType]['presentationDuration'])
+		self.postPresentationDuration = float(config.expCfg['trialTypes'][self.trialType]['postPresentationDuration'])
+		
+		self.blankDurationRatio = float(config.expCfg['trialTypes'][self.trialType]['blankDurationRatio'])
+		self.blankDuration = self.postPresentationDuration * self.blankDurationRatio
+		
+		#self.valuesForPD = config.expCfg['trialTypes'][self.trialType]['postPresentationDuration']
+		#self.valuesForBD = config.expCfg['trialTypes'][self.trialType]['blankDurationRatio']
 
-		self.launchHeight_distType = []
-		self.launchHeight_distParams = []
-		self.launchHeight = []
+		self.timeToContact = self.presentationDuration + self.postPresentationDuration
 		
-		self.launchDistance_distType = []
-		self.launchDistance_distParams = []
-		self.launchDistance = []
-		
-		self.approachAngleDegs_distType = []
-		self.approachAngleDegs_distParams = []
-		self.approachAngleDegs = []
-		
-		self.ballBounceLoc_XYZ = [0,0,0]
 		self.ballInitialPos_XYZ = [0,0,0]
 		self.initialVelocity_XYZ = [0,0,0]
 		self.ballSpeed = 0.0
@@ -1537,6 +1521,7 @@ class trial(viz.EventClass):
 				except:
 					print 'Error in main.trial.init.drawNumberFromDist()'
 					print 'Variable name is: ' + varName
+					
 				try:
 					exec( 'self.' + varName + '_distType = distType' )
 					exec( 'self.' + varName + '_distParams = distParams' )
@@ -1544,39 +1529,9 @@ class trial(viz.EventClass):
 					# Draw value from a distribution
 					exec( 'self.' + varName + ' = drawNumberFromDist( distType , distParams);' )
 				except:
-					a=1
+					print 'Error in main.trial.init'
+					print 'Variable name is: ' + varName
 				
-		
-		##########################################################################
-		##########################################################################
-		##  Calculate ball trajectory
-		
-		#######################################
-		## Initial positions
-		
-		
-		self.ballBounceLoc_XYZ[0] = math.sin(math.radians(self.approachAngleDegs))*self.bounceDist;
-		self.ballBounceLoc_XYZ[1] = self.ballDiameter/2
-		self.ballBounceLoc_XYZ[2] = math.cos(math.radians(self.approachAngleDegs))*self.bounceDist;
-		
-		
-		#######################################
-		## Set and record velocities
-		
-		# vel = sqrt( v^2+2ad )
-		# tmp.initBallVelZ = sqrt( pow(tmp.bounceSpeed,2)+ 2*-9.8f*(tmp.initBallZ-tmp.ballBounceZ));
-		
-		self.initialVelocity_XYZ[1] = math.sqrt( (self.bounceSpeed*self.bounceSpeed)+ 
-			2 * -self.gravity * (self.ballInitialPos_XYZ[1]-self.ballBounceLoc_XYZ[1]));
-			
-		durationOfPreBounceFlight = (self.bounceSpeed - self.initialVelocity_XYZ[1]) / -self.gravity
-		
-		self.initialVelocity_XYZ[0] = (self.ballBounceLoc_XYZ[0]-self.ballInitialPos_XYZ[0]) / durationOfPreBounceFlight;
-		self.initialVelocity_XYZ[2] = (self.ballBounceLoc_XYZ[2]-self.ballInitialPos_XYZ[2]) / durationOfPreBounceFlight;
-		
-		# For debugging, compare these values!
-		self.predictedPreBounceFlightDur = durationOfPreBounceFlight
-		self.launchTime = 0.0 # Fix me (Kamran)
 	
 	
 	def calculatePhysicalParams(self):
@@ -1716,13 +1671,11 @@ class trial(viz.EventClass):
 		#########################################################
 		################### Initial Velocities ##################
 		
-		self.presentationDuration = random.choice(self.valuesForPD)
-		self.blankDuration = random.choice(self.valuesForBD)
-		
-		self.postBlankDuration = self.postPresentationDuration - self.blankDuration #0.8 - self.blankDuration
-		self.timeToContact = self.presentationDuration + self.blankDuration + self.postBlankDuration
-
-		print 'placeBall ==> [Initial Final] = [', self.ballInitialPos_XYZ, self.ballFinalPos_XYZ, ']'
+		#self.presentationDuration = random.choice(self.valuesForPD)
+		#self.blankDuration = random.choice(self.valuesForBD)
+		#self.postBlankDuration = self.postPresentationDuration - self.blankDuration #0.8 - self.blankDuration
+		#self.timeToContact = self.presentationDuration + self.blankDuration + self.postBlankDuration
+		#print 'placeBall ==> [Initial Final] = [', self.ballInitialPos_XYZ, self.ballFinalPos_XYZ, ']'
 		
 		self.calculatePhysicalParams()
 		print 'PlaceBall ==> Vx=', self.initialVelocity_XYZ[0], ' TTC=', self.timeToContact
