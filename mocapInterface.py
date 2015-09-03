@@ -340,9 +340,10 @@ class RigidTracker(PointTracker):
             self._transform.setQuat(pose.quat)
             
             # Implement offset
-            newPos = tuple(sum(t) for t in zip(pose.pos , tuple(self._localOffset) ) )
+            #newPos = tuple(sum(t) for t in zip(pose.pos , tuple(self._localOffset) ) )
             
-            self._transform.postTrans(newPos)
+            self._transform.postTrans(pose.pos)
+            self._transform.preTrans(self._localOffset)
             
     def save(self):
         

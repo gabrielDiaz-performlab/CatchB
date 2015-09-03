@@ -531,14 +531,14 @@ class Experiment(viz.EventClass):
 					viz.playSound(soundBank.bounce)
 					
 					# Compare pre-bounce flight dur with predicted pre-bounce flight dur
-					actualPreBounceFlightDur =  float(viz.getFrameTime()) - self.currentTrial.launchTime
-					durationError = self.currentTrial.predictedPreBounceFlightDur - actualPreBounceFlightDur
-					self.currentTrial.flightDurationError = durationError 
+					#actualPreBounceFlightDur =  float(viz.getFrameTime()) - self.currentTrial.launchTime
+					#durationError = self.currentTrial.predictedPreBounceFlightDur - actualPreBounceFlightDur
+					#self.currentTrial.flightDurationError = durationError 
 					
 					#print 'Predicted: ' + str(self.currentTrial.predictedPreBounceFlightDur)
 					#print 'Actual   : ' + str(actualPreBounceFlightDur)
 					
-					print 'Flight duration error: ' + str(durationError)
+					#print 'Flight duration error: ' + str(durationError)
 					
 				# BALL / PADDLE
 				if( self.currentTrial.ballHasHitPaddle == False and
@@ -570,39 +570,37 @@ class Experiment(viz.EventClass):
 
 						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2], viz.ABS_PARENT)
 
-				# BALL / PassingPlane
-				if( type(self.room.passingPlane) is visEnv.visObj and 
-					self.currentTrial.ballHasHitPassingPlane == False 
-					and (physNode1 == thePassingPlane.physNode and physNode2 == theBall.physNode or 
-						 physNode1 == theBall.physNode and physNode2 == thePassingPlane.physNode )):
-						
-					self.eventFlag.setStatus(8)
-					self.currentTrial.ballHasHitPassingPlane = True
-					viz.playSound(soundBank.bubblePop)
-					
-					#self.currentTrial.myMarkersList.append(vizshape.addCircle(0.02))
-					#self.currentTrial.myMarkersList[-1].color([1,1,0])
-					#self.currentTrial.myMarkersList[-1].setPosition(theBall.node3D.getPosition())
-
- ###FIX ME (KAMRAN) This did not work properly due to the fact that the local collision Position returns a wrong value
- ##Though it works for the ball-paddle but I should check it later
-
-					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
-					if( theBall.physNode.queryStickyState(thePassingPlane.physNode) ):
-					
-						theBall.updateAction.remove()
-						theBall.node3D.setParent(thePassingPlane.node3D)
-						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
-						theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
-						
-						self.currentTrial.ballOnPassingPlanePosLoc_XYZ = collPoint_XYZ
-						
-						# If you don't set position in this way (on the next frame using vizact.onupdate),
-						# then it doesn't seem to update correctly.  
-						# My guess is that this is because the ball's position is updated later on this frame using
-						# visObj.applyPhysToVis()
-						#print '===============> HI HOO', collPoint_XYZ
-						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2])
+#				# BALL / PassingPlane
+#				if( type(self.room.passingPlane) is visEnv.visObj and 
+#					self.currentTrial.ballHasHitPassingPlane == False 
+#					and (physNode1 == thePassingPlane.physNode and physNode2 == theBall.physNode or 
+#						 physNode1 == theBall.physNode and physNode2 == thePassingPlane.physNode )):
+#						
+#					self.eventFlag.setStatus(8)
+#					self.currentTrial.ballHasHitPassingPlane = True
+#					viz.playSound(soundBank.bubblePop)
+#					
+#					#self.currentTrial.myMarkersList.append(vizshape.addCircle(0.02))
+#					#self.currentTrial.myMarkersList[-1].color([1,1,0])
+#					#self.currentTrial.myMarkersList[-1].setPosition(theBall.node3D.getPosition())
+#
+#
+#					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
+#					if( theBall.physNode.queryStickyState(thePassingPlane.physNode) ):
+#					
+#						theBall.updateAction.remove()
+#						theBall.node3D.setParent(thePassingPlane.node3D)
+#						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
+#						theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
+#						
+#						self.currentTrial.ballOnPassingPlanePosLoc_XYZ = collPoint_XYZ
+#						
+#						# If you don't set position in this way (on the next frame using vizact.onupdate),
+#						# then it doesn't seem to update correctly.  
+#						# My guess is that this is because the ball's position is updated later on this frame using
+#						# visObj.applyPhysToVis()
+#						#print '===============> HI HOO', collPoint_XYZ
+#						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2])
 
 				if( physNode1 == theBackWall.physNode and physNode2 == theBall.physNode or 
 					physNode1 == theBall.physNode and physNode2 == theBackWall.physNode):
@@ -879,29 +877,33 @@ class Experiment(viz.EventClass):
 		currentSample =  self.config.eyeTracker.getLastSample()
 		
 		#print 'Eye Tracking Sample', currentSample.
-		outputString = outputString + '< eyeTimeStamp %f > ' % ( currentSample.timestamp )
-		outputString = outputString + '< IOD %f > ' % ( currentSample.iod)
-		outputString = outputString + '< IPD %f > ' % ( currentSample.ipd)
-		outputString = outputString + '< eyePOR_XY %f %f > ' % ( currentSample.por_x, currentSample.por_y)
-		outputString = outputString + '< eyeGazeDir_XYZ %f %f %f > ' % ( currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z)
-		outputString = outputString + '< eyeGazePoint_XYZ %f %f %f > ' % ( currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z)
+		if self.config.eyeTracker.getLastSample():
+			
+			outputString = outputString + '< eyeTimeStamp %f > ' % ( currentSample.timestamp )
+			outputString = outputString + '< IOD %f > ' % ( currentSample.iod)
+			outputString = outputString + '< IPD %f > ' % ( currentSample.ipd)
+			outputString = outputString + '< eyePOR_XY %f %f > ' % ( currentSample.por_x, currentSample.por_y)
+			outputString = outputString + '< eyeGazeDir_XYZ %f %f %f > ' % ( currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z)
+			outputString = outputString + '< eyeGazePoint_XYZ %f %f %f > ' % ( currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z)
+			
+
+			outputString = outputString + '< rightPupilRadius %f > ' % ( currentSample.rightEye.pupilRadius )
+			outputString = outputString + '< rightEyeLensDistance %f > ' %( currentSample.rightEye.eyeLensDistance )
+			outputString = outputString + '< rightEyeScreenDistance %f > ' %( currentSample.rightEye.eyeScreenDistance )
+			outputString = outputString + '< rightGazePoint_XYZ %f %f %f > ' % ( currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z)
+			outputString = outputString + '< rightGazeDir_XYZ %f %f %f > ' % ( currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z)
+			outputString = outputString + '< rightPOR_XY %f %f > ' % ( currentSample.rightEye.por_x, currentSample.rightEye.por_y)
+			outputString = outputString + '< rightPupilPos_XYZ %f %f %f > ' % ( currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z)
+
+			outputString = outputString + '< leftPupilRadius %f > ' % ( currentSample.leftEye.pupilRadius )
+			outputString = outputString + '< leftEyeLensDistance %f > ' %( currentSample.leftEye.eyeLensDistance )
+			outputString = outputString + '< leftEyeScreenDistance %f > ' %( currentSample.leftEye.eyeScreenDistance )
+			outputString = outputString + '< leftGazePoint_XYZ %f %f %f > ' % ( currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z)
+			outputString = outputString + '< leftGazeDir_XYZ %f %f %f > ' % ( currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z)
+			outputString = outputString + '< leftPOR_XY %f %f > ' % ( currentSample.leftEye.por_x, currentSample.leftEye.por_y)
+			outputString = outputString + '< leftPupilPos_XYZ %f %f %f > ' % ( currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z)
+			
 		
-
-		outputString = outputString + '< rightPupilRadius %f > ' % ( currentSample.rightEye.pupilRadius )
-		outputString = outputString + '< rightEyeLensDistance %f > ' %( currentSample.rightEye.eyeLensDistance )
-		outputString = outputString + '< rightEyeScreenDistance %f > ' %( currentSample.rightEye.eyeScreenDistance )
-		outputString = outputString + '< rightGazePoint_XYZ %f %f %f > ' % ( currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z)
-		outputString = outputString + '< rightGazeDir_XYZ %f %f %f > ' % ( currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z)
-		outputString = outputString + '< rightPOR_XY %f %f > ' % ( currentSample.rightEye.por_x, currentSample.rightEye.por_y)
-		outputString = outputString + '< rightPupilPos_XYZ %f %f %f > ' % ( currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z)
-
-		outputString = outputString + '< leftPupilRadius %f > ' % ( currentSample.leftEye.pupilRadius )
-		outputString = outputString + '< leftEyeLensDistance %f > ' %( currentSample.leftEye.eyeLensDistance )
-		outputString = outputString + '< leftEyeScreenDistance %f > ' %( currentSample.leftEye.eyeScreenDistance )
-		outputString = outputString + '< leftGazePoint_XYZ %f %f %f > ' % ( currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z)
-		outputString = outputString + '< leftGazeDir_XYZ %f %f %f > ' % ( currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z)
-		outputString = outputString + '< leftPOR_XY %f %f > ' % ( currentSample.leftEye.por_x, currentSample.leftEye.por_y)
-		outputString = outputString + '< leftPupilPos_XYZ %f %f %f > ' % ( currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z)
 		
 		'''
 	_fields_ = [ ("size", ctypes.c_size_t)
@@ -966,50 +968,11 @@ class Experiment(viz.EventClass):
 			outputString = outputString + '< ballFinalPos_XYZ %f %f %f > ' % (self.currentTrial.ballFinalPos_XYZ[0],self.currentTrial.ballFinalPos_XYZ[1],self.currentTrial.ballFinalPos_XYZ[2])
 			outputString = outputString + '< initialVelocity_XYZ %f %f %f > ' % (self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2])
 			outputString = outputString + '< PD %f > ' % (self.currentTrial.presentationDuration)
-			outputString = outputString + '< PPD %f > ' % (self.currentTrial.postPresentationDuration) # GD
+			outputString = outputString + '< PPD %f > ' % (self.currentTrial.postPresentationDuration)
 			outputString = outputString + '< BD %f > ' % (self.currentTrial.blankDuration)
-			#outputString = outputString + '< BDR %f > ' % (self.currentTrial.blankDurationRatio) # GD
 			outputString = outputString + '< TTC %f > ' % (self.currentTrial.timeToContact)
 			outputString = outputString + '< Beta %f > ' % (self.currentTrial.beta)
 			outputString = outputString + '< Theta %f > ' % (self.currentTrial.theta)
-			
-			#outputString = outputString + '* ballDiameter %f * ' % (self.currentTrial.ballDiameter)
-			#outputString = outputString + '* ballGravity %f * ' % (self.currentTrial.gravity)
-			#outputString = outputString + '* ballPassingLoc %f * ' % (self.currentTrial.passingLoc)
-			#outputString = outputString + '* ballElasticity %f * ' % (self.currentTrial.ballElasticity)
-			#outputString = outputString + '* ballBounceDist %f * ' % (self.currentTrial.bounceDist)
-			#outputString = outputString + '* ballBounceSpeed %f * ' % (self.currentTrial.bounceSpeed)
-			#outputString = outputString + '* ballLaunchHeight %f * ' % (self.currentTrial.launchHeight)
-			#outputString = outputString + '* ballLaunchDistance %f * ' % (self.currentTrial.launchDistance)
-			#outputString = outputString + '* ballApproachAngleDegs %f * ' % (self.currentTrial.approachAngleDegs)
-			
-			#outputString = outputString + '[ ballBounceLoc_XYZ %f %f %f ] ' % (self.currentTrial.ballBounceLoc_XYZ[0],self.currentTrial.ballBounceLoc_XYZ[1],self.currentTrial.ballBounceLoc_XYZ[2])
-#		
-#		elif( self.eventFlag.status == 3 ):
-#			# Error, in seconds, between predicted bounce time and actual bounce time
-#			outputString = outputString + '* flightDurationError %f * ' % (self.currentTrial.flightDurationError)
-#		elif( self.eventFlag.status == 4 ):
-#			#print 'Event flag 4!  Writing paddle position!'
-#			outputString = outputString + '[ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (self.currentTrial.ballOnPaddlePosLoc_XYZ[0],self.currentTrial.ballOnPaddlePosLoc_XYZ[1],self.currentTrial.ballOnPaddlePosLoc_XYZ[2])
-#		
-#		# The end of the trial
-#		if( (self.eventFlag.status == 6 or self.eventFlag.status == 7) ): 
-#			
-#			# For convenicne, this ensures the var  ballOnPaddlePosLoc_XYZ will show up once per  trial
-#			if ( self.currentTrial.ballHasHitPaddle == False ):
-#				outputString = outputString + '[ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (nan, nan, nan)
-#				#print '***** [ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (nan, nan, nan)
-		
-		##  MATRICES
-		
-#		viewMat = viz.MainWindow.getMatrix(viz.LEFT_EYE)
-#		invViewMat = viewMat.inverse()
-#		
-#		outputString = outputString + '< invViewMat %s > '  % (str(invViewMat.get()))
-#		
-#		proMat = viz.MainWindow.getProjectionMatrix(viz.LEFT_EYE)
-#		invProMat  = proMat.inverse()
-#		outputString = outputString + '< invProMat %s > '  % (str(invProMat.get()))
 	
 		return outputString
 
@@ -1072,8 +1035,8 @@ class Experiment(viz.EventClass):
 			recalAfterTrial_idx = self.blocks_bl[self.blockNumber].recalAfterTrial_idx
 			
 			if( recalAfterTrial_idx.count(self.trialNumber ) > 0):
-				viz.playSound(soundBank.gong)
-				# HACK (KAMRAN) vizact.ontimer2(0,0,self.toggleEyeCalib)
+				#viz.playSound(soundBank.gong)
+				vizact.ontimer2(0,0,self.toggleEyeCalib)
 
 			# Increment trial 
 			self.trialNumber += 1
@@ -1297,6 +1260,56 @@ class Experiment(viz.EventClass):
 		text2.renderOnlyToWindows([viz.VizWindow(1)])
 		text2.setPosition([0.8,0.9,0])
 		
+	def turnOnHangar(self):
+		
+		model = []
+
+		#def replaceWalls():
+		theRoom = self.room
+		theRoom.ceiling.node3D.remove()
+		theRoom.wall_PosZ.node3D.remove()
+		theRoom.wall_NegZ.node3D.remove()
+		theRoom.wall_PosX.node3D.remove()
+		theRoom.wall_NegX.node3D.remove()
+		theRoom.floor.node3D.setPosition(0,-.01,0,viz.RELATIVE)
+		theRoom.floor.node3D.visible(viz.OFF)
+
+		model = viz.addChild('hangar.osgb')
+		model.setScale([2]*3)
+		model.setPosition([0,0.45,30])
+		model.emissive([0]*3)
+		model.setEuler([-90,0,0])
+		
+		theRoom.hangar = model
+	
+	def turnOffWalls(self):
+		
+		model = []
+
+		#def replaceWalls():
+		theRoom = self.room
+		theRoom.ceiling.node3D.remove()
+		theRoom.wall_PosZ.node3D.remove()
+		theRoom.wall_NegZ.node3D.remove()
+		theRoom.wall_PosX.node3D.remove()
+		theRoom.wall_NegX.node3D.remove()
+		
+		with viz.cluster.MaskedContext(viz.MASTER):
+			viz.MainWindow.clearcolor([0.3]*3)
+		
+		with viz.cluster.MaskedContext(viz.CLIENT1):
+			viz.MainWindow.clearcolor([0.3]*3)
+			
+		#theRoom.floor.node3D.setPosition(0,-.01,0,viz.RELATIVE)
+		#theRoom.floor.node3D.visible(viz.OFF)
+
+		
+		theRoom.hangar = model
+	
+#	def placeTarget(self):
+#		target = vizshape.addCylinder(0.2,0.5,axis=3,color=viz.GREEN)
+#		target = 
+#		pass
 	
 ############################################################################################################
 ############################################################################################################
@@ -1548,7 +1561,6 @@ class trial(viz.EventClass):
 		self.verticalDistance = self.ballFinalPos_XYZ[1] - self.ballInitialPos_XYZ[1]
 		self.initialVelocity_XYZ[1] = ((-0.5 * -self.gravity * self.timeToContact * self.timeToContact) + self.verticalDistance ) / self.timeToContact
 		
-		
 		self.totalDistance = math.sqrt(np.power(self.lateralDistance, 2) + np.power(self.distanceInDepth, 2) + np.power(self.verticalDistance, 2))
 		self.beta = math.atan((self.distanceInDepth/self.lateralDistance))*(180.0/np.pi)
 		self.theta = (180.0/np.pi)*math.atan((np.power(self.timeToContact,2) * self.gravity)/(2*self.totalDistance))
@@ -1600,8 +1612,8 @@ class trial(viz.EventClass):
 		self.room.launchPlane.color(viz.CYAN)
 		self.room.launchPlane.alpha(0.2)
 		#self.room.launchPlane.collideBox()
-		self.room.launchPlane.disable(viz.DYNAMICS)
-		#self.room.launchPlane.visible(False)
+		#self.room.launchPlane.disable(viz.DYNAMICS)
+		self.room.launchPlane.visible(False)
 		print 'Launch Plane Created!'
 
 	def placePassingPlane(self, planeSize):
@@ -1609,14 +1621,15 @@ class trial(viz.EventClass):
 		#adds a transparent plane that the ball ends up in this plane
 		self.room.passingPlane = visEnv.visObj(self.room,'box',size = self.passingPlaneSize)#[0.02, planeSize[0], planeSize[0]]
 		
-		self.room.passingPlane.enablePhysNode()
-		self.room.passingPlane.linkPhysToVis()
+		#self.room.passingPlane.enablePhysNode()
+		#self.room.passingPlane.linkPhysToVis()
 		
 		self.room.passingPlane.node3D.setPosition(self.passingPlanePosition)#[0, 1.5, 1.0]
 		#makes the wall appear white
 		self.room.passingPlane.node3D.color(viz.PURPLE)
 		self.room.passingPlane.node3D.alpha(0.3)
-
+		self.room.passingPlane.node3D.visible(False)
+		
 		print 'Passing Plane Created!'
 			
 	def placeBall(self,room):
@@ -1647,7 +1660,7 @@ class trial(viz.EventClass):
 		# Move ball relative to center of launch plane
 		print 'Initial max/min=[', xMinimumValue, xMaximumValue,']'
 		
-		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.ballInitialPos_XYZ,viz.RED)#self.ballColor_RGB
+		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.ballInitialPos_XYZ,self.ballColor_RGB)
 		
 		#########################################################
 		################### FINAL POSITION ###################
@@ -1682,14 +1695,11 @@ class trial(viz.EventClass):
 		self.ballObj.linkToPhysNode()
 		
 		self.ballObj.physNode.setBounciness(self.ballElasticity)
-		
-		.6
-		if( type(self.room.passingPlane) is visEnv.visObj):
-			self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
-		
-		
-		
-		self.ballObj.physNode.setStickUponContact( self.room.passingPlane.physNode.geom )
+				
+		self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
+			
+		#if( type(self.room.passingPlane) is visEnv.visObj):
+			#self.ballObj.physNode.setStickUponContact( self.room.passingPlane.physNode.geom )
 		
 		# Costly, in terms of computation
 		self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D)
@@ -1721,6 +1731,8 @@ class trial(viz.EventClass):
 		#self.room.launchPlane.remove()
 		#self.room.passingPlane.remove()
 	
+
+
 ################################################################################################################   
 ################################################################################################################
 ################################################################################################################
@@ -1737,23 +1749,6 @@ class trial(viz.EventClass):
 experimentObject = Experiment(expConfigFileName)
 experimentObject.start()
 
-model = []
-
-#def replaceWalls():
-theRoom = experimentObject.room
-theRoom.ceiling.node3D.remove()
-theRoom.wall_PosZ.node3D.remove()
-theRoom.wall_NegZ.node3D.remove()
-theRoom.wall_PosX.node3D.remove()
-theRoom.wall_NegX.node3D.remove()
-theRoom.floor.node3D.setPosition(0,-.01,0,viz.RELATIVE)
-theRoom.floor.node3D.visible(viz.OFF)
-
-model = viz.addChild('hangar.osgb')
-model.setScale([2]*3)
-model.setPosition([0,0.45,30])
-model.emissive([0]*3)
-model.setEuler([-90,0,0])
 
 #experimentObject.room.lightSource.disable()
 #vizfx.addDirectionalLight(euler=(0,45,0))
@@ -1806,8 +1801,6 @@ right_sphere.toggleUpdate()
 rightGazeVector.toggleUpdate()
 right_sphere.node3D.alpha(0.7)
 rightEyeNode.alpha(0.01)
-
-
 
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 
