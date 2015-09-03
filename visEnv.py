@@ -172,12 +172,21 @@ class room():
     def setLighting(self):
         
         viz.MainView.getHeadLight().disable()
-        #viz.MainView.get
-        self.lightSource = viz.addLight() 
+        
+#        #viz.MainView.get
+#        self.lightSource = viz.addLight()
+#        self.lightSource.enable() 
+#        #self.lightSource.position(0, self.ceilingHeight, 0) 
+#        self.lightSource.spread(180) 
+#        self.lightSource.intensity(1)
+#        
+#        viz.MainView.getHeadLight().disable()
+        
+        self.lightSource = viz.addLight()
         self.lightSource.enable() 
-        self.lightSource.position(0, self.ceilingHeight, 0) 
+        #self.lightSource.position(0, self.ceilingHeight, 0) 
         self.lightSource.spread(180) 
-        self.lightSource.intensity(2)
+        self.lightSource.intensity(1)
     
         
         ### ADD A SHADOW

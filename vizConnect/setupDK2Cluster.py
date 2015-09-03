@@ -24,6 +24,7 @@ def getParentConfiguration():
 #################################
 
 def preVizGo():
+	viz.setMultiSample(4)
 	return True
 
 

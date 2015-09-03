@@ -746,7 +746,7 @@ class Experiment(viz.EventClass):
 			elif key == 'P':
 				mocapSys.saveRigid('paddle')
 			elif key == 'h':
-				print 'reset HMD Rigid Body'
+				#print 'reset HMD Rigid Body'
 				mocapSys.resetRigid('hmd')
 			elif key == 'H':
 				print 'save HMD Rigid Body'
@@ -968,7 +968,7 @@ class Experiment(viz.EventClass):
 			outputString = outputString + '< PD %f > ' % (self.currentTrial.presentationDuration)
 			outputString = outputString + '< PPD %f > ' % (self.currentTrial.postPresentationDuration) # GD
 			outputString = outputString + '< BD %f > ' % (self.currentTrial.blankDuration)
-			outputString = outputString + '< BDR %f > ' % (self.currentTrial.blankDurationRatio) # GD
+			#outputString = outputString + '< BDR %f > ' % (self.currentTrial.blankDurationRatio) # GD
 			outputString = outputString + '< TTC %f > ' % (self.currentTrial.timeToContact)
 			outputString = outputString + '< Beta %f > ' % (self.currentTrial.beta)
 			outputString = outputString + '< Theta %f > ' % (self.currentTrial.theta)
@@ -1157,6 +1157,7 @@ class Experiment(viz.EventClass):
 			
 	
 	def endExperiment(self):
+
 		# If recording data, I recommend ending the experiment using:
 		#vizact.ontimer2(.2,0,self.endExperiment)
 		# This will end the experiment a few frame later, making sure to get the last frame or two of data
@@ -1375,24 +1376,19 @@ class block():
 
 	#    Kinds of trial in this block
 		
-		# trialTypeList enumerates the types of trials
-		self.trialTypesInBlock = config.expCfg['blocks'][self.blockName]['trialTypesString'].split(',')
-		# The number of each type of trial
-		self.numOfEachTrialType_type = map(int,config.expCfg['blocks'][self.blockName]['trialTypeCountString'].split(','));
-		
 		# THe type of each trial
 		# _tr indicates that the list is as long as the number of trials
 		self.trialTypeList_tr = []
+		self.trialTypesInBlock = []
+		self.numOfEachTrialType_type = []
 		
-		for typeIdx, trialType in enumerate(self.trialTypesInBlock):
+		# Note that this list may contain empty entires.  This is checked inside the for loop
+		for typeIdx, trialType in enumerate(config.expCfg['blocks'][self.blockName]['trialTypesString'].split(',')):
 			if trialType: # Will return false if trialType is an empty string
+				self.numOfEachTrialType_type.append( int(config.expCfg['blocks'][self.blockName]['trialTypeCountString'].split(',')[typeIdx] ))
+				self.trialTypesInBlock.extend( config.expCfg['blocks'][self.blockName]['trialTypesString'].split(',')[typeIdx] )
 				self.trialTypeList_tr.extend( [trialType] * self.numOfEachTrialType_type[typeIdx] )
 			
-				
-		#for typeIdx in range(len(self.trialTypesInBlock)):
-		#	for count in range(self.numOfEachTrialType_type[typeIdx]):
-		#		self.trialTypeList_tr.append(self.trialTypesInBlock[typeIdx])
-		
 		# Randomize trial order
 		from random import shuffle
 		shuffle(self.trialTypeList_tr)
@@ -1487,9 +1483,10 @@ class trial(viz.EventClass):
 		
 		self.presentationDuration = float(config.expCfg['trialTypes'][self.trialType]['presentationDuration'])
 		self.postPresentationDuration = float(config.expCfg['trialTypes'][self.trialType]['postPresentationDuration'])
+		self.blankDuration = float(config.expCfg['trialTypes'][self.trialType]['blankDuration'])
 		
-		self.blankDurationRatio = float(config.expCfg['trialTypes'][self.trialType]['blankDurationRatio'])
-		self.blankDuration = self.postPresentationDuration * self.blankDurationRatio
+		#self.blankDurationRatio = float(config.expCfg['trialTypes'][self.trialType]['blankDurationRatio'])
+		#self.postPresentationDuration * self.blankDurationRatio
 		
 		#self.valuesForPD = config.expCfg['trialTypes'][self.trialType]['postPresentationDuration']
 		#self.valuesForBD = config.expCfg['trialTypes'][self.trialType]['blankDurationRatio']
@@ -1686,7 +1683,7 @@ class trial(viz.EventClass):
 		
 		self.ballObj.physNode.setBounciness(self.ballElasticity)
 		
-		
+		.6
 		if( type(self.room.passingPlane) is visEnv.visObj):
 			self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
 		
@@ -1740,6 +1737,29 @@ class trial(viz.EventClass):
 experimentObject = Experiment(expConfigFileName)
 experimentObject.start()
 
+model = []
+
+#def replaceWalls():
+theRoom = experimentObject.room
+theRoom.ceiling.node3D.remove()
+theRoom.wall_PosZ.node3D.remove()
+theRoom.wall_NegZ.node3D.remove()
+theRoom.wall_PosX.node3D.remove()
+theRoom.wall_NegX.node3D.remove()
+theRoom.floor.node3D.setPosition(0,-.01,0,viz.RELATIVE)
+theRoom.floor.node3D.visible(viz.OFF)
+
+model = viz.addChild('hangar.osgb')
+model.setScale([2]*3)
+model.setPosition([0,0.45,30])
+model.emissive([0]*3)
+model.setEuler([-90,0,0])
+
+#experimentObject.room.lightSource.disable()
+#vizfx.addDirectionalLight(euler=(0,45,0))
+
+####
+
 from gazeTools import gazeSphere
 from gazeTools import gazeVector
 
@@ -1786,6 +1806,10 @@ right_sphere.toggleUpdate()
 rightGazeVector.toggleUpdate()
 right_sphere.node3D.alpha(0.7)
 rightEyeNode.alpha(0.01)
+
+
+
+hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
 #	myMatrix = viz.Transform()
