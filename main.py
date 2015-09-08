@@ -33,7 +33,7 @@ import vizconnect
 from gazeTools import calibrationTools
 
 #expConfigFileName = 'badmintonTest.cfg'
-expConfigFileName = 'gd_pilot_A.cfg'
+expConfigFileName = 'gd_pilot_B.cfg'
 print '**************** USING' + expConfigFileName + '****************'
 
 ft = .3048
@@ -390,6 +390,7 @@ class Experiment(viz.EventClass):
 		self.viewAct = []
 		self.hmdLinkedToView = False
 		self.headTracker = []
+		
 		################################################################
 		################################################################
 		# Build block and trial list
@@ -408,9 +409,7 @@ class Experiment(viz.EventClass):
 			top=True,bottom=True,
 			front=True,back=True,
 			splitFaces=False, color = viz.GREEN, alpha = 0.4)
-		
-		#vizact.onupdate(viz.PRIORITY_LAST_UPDATE,self.updateGazePoints)
-		
+				
 		self.blocks_bl = []
 		
 		for bIdx in range(len(self.config.expCfg['experiment']['blockList'])):
@@ -427,10 +426,6 @@ class Experiment(viz.EventClass):
 		
 		self.minLaunchTriggerDuration = self.config.expCfg['experiment']['minLaunchTriggerDuration']
 		
-		# maxFlightDurTimerID times out balls a fixed dur after launch
-		self.maxFlightDurTimerID = 100 # FIX ME (KAMRAN)viz.getEventID('maxFlightDurTimerID') # Generates a unique ID. 
-		self.ballPDTimerID = 101	# FIX ME
-		self.ballBDTimerID = 102	# FIX ME
 		
 		if self.config.sysCfg['use_wiimote']:
 			self.registerWiimoteActions()
@@ -449,6 +444,11 @@ class Experiment(viz.EventClass):
 		
 		self.perFrameTimerID = viz.getEventID('perFrameTimerID') # Generates a unique ID. 
 		self.starttimer( self.perFrameTimerID, viz.FASTEST_EXPIRATION, viz.FOREVER)
+		
+		# maxFlightDurTimerID times out balls a fixed dur after launch
+		self.maxFlightDurTimerID = viz.getEventID('maxFlightDurTimerID') #100 # FIX ME (KAMRAN)viz.getEventID('maxFlightDurTimerID') # Generates a unique ID. 
+		self.ballPresDurTimerID = viz.getEventID('ballPresDurTimerID') #101	# FIX ME
+		self.ballBlankDurTimerID = viz.getEventID('ballBlankDurTimerID') #102	# FIX ME
 		
 		############################################################
 		#############################################################
@@ -481,12 +481,15 @@ class Experiment(viz.EventClass):
 			self.currentTrial.removeBall()
 			self.room.standingBox.visible( viz.TOGGLE )
 			self.endTrial()
-		elif( timerID == self.ballPDTimerID ):
 			
-			if( self.currentTrial.blankDuration != 0.0 ):
+		elif( timerID == self.ballPresDurTimerID ):
+			# make ball invisible
+			if( self.currentTrial.blankDur != 0.0 ):
 				self.currentTrial.ballObj.node3D.visible( False )
-				self.starttimer(self.ballBDTimerID,self.currentTrial.blankDuration);
-		elif( timerID == self.ballBDTimerID ):
+				self.starttimer(self.ballBlankDurTimerID,self.currentTrial.blankDur);
+				
+		elif( timerID == self.ballBlankDurTimerID ):
+			
 			self.currentTrial.ballObj.node3D.visible( True )
 			
 	def _checkForCollisions(self):
@@ -821,8 +824,10 @@ class Experiment(viz.EventClass):
 					print 'Start Trial {', self.writeToTxtFile,'}'
 
 					self.currentTrial.launchBall();
+					
+	
 					self.starttimer(self.maxFlightDurTimerID,self.currentTrial.ballFlightMaxDur);
-					self.starttimer(self.ballPDTimerID,self.currentTrial.presentationDuration);
+					self.starttimer(self.ballPresDurTimerID,self.currentTrial.preBlankDur);
 	
 			else:
 				
@@ -847,8 +852,10 @@ class Experiment(viz.EventClass):
 		# 4 ball has hit paddle
 		# 5 ball has hit back wall
 		# 6 ball has timed out
-				
-		outputString = '< frameTime %f > ' % (viz.getFrameTime())
+
+		outputString = ''
+		
+		outputString = outputString + '< frameTime %f > ' % (viz.getFrameTime())
 		
 		outputString = outputString + '* calibrationInProgress %d * ' % (calibTools.calibrationInProgress)
 		
@@ -869,6 +876,7 @@ class Experiment(viz.EventClass):
 		outputString = outputString + '< calibrationCounter %d >' % (calibTools.calibrationCounter)
 		calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
 		outputString = outputString + '< calibrationPosition %f %f %f >' % (calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2])
+		
 		####============================================================================###
 		####=====Sample Eye Tracking Data being printed out just for test (Kamran) =====###
 		####============================================================================###
@@ -967,61 +975,15 @@ class Experiment(viz.EventClass):
 			outputString = outputString + '< ballInitialPos_XYZ %f %f %f > ' % (self.currentTrial.ballInitialPos_XYZ[0],self.currentTrial.ballInitialPos_XYZ[1],self.currentTrial.ballInitialPos_XYZ[2])
 			outputString = outputString + '< ballFinalPos_XYZ %f %f %f > ' % (self.currentTrial.ballFinalPos_XYZ[0],self.currentTrial.ballFinalPos_XYZ[1],self.currentTrial.ballFinalPos_XYZ[2])
 			outputString = outputString + '< initialVelocity_XYZ %f %f %f > ' % (self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2])
-			outputString = outputString + '< PD %f > ' % (self.currentTrial.presentationDuration)
-			outputString = outputString + '< PPD %f > ' % (self.currentTrial.postPresentationDuration)
-			outputString = outputString + '< BD %f > ' % (self.currentTrial.blankDuration)
+			
+			outputString = outputString + '< preBlankDur %f > ' % (self.currentTrial.preBlankDur) #GD 9/8
+			outputString = outputString + '< postBlankDur %f > ' % (self.currentTrial.postBlankDur) #GD 9/8
+			outputString = outputString + '< blankDur %f > ' % (self.currentTrial.blankDur) #GD 9/8
+
 			outputString = outputString + '< TTC %f > ' % (self.currentTrial.timeToContact)
 			outputString = outputString + '< Beta %f > ' % (self.currentTrial.beta)
 			outputString = outputString + '< Theta %f > ' % (self.currentTrial.theta)
 	
-		return outputString
-
-
-	def getEyeData(self):
-		
-		# Legend:
-		# ** for 1 var
-		# () for 2 vars
-		# [] for 3 vars
-		# <> for 4 vars
-		# @@ for 16 vars (view and projection matrices)
-
-		outputString = ''		
-		
-	
-		#pyArr = viz.add('arrington.dle')
-		#eyeA = pyArr.EYE_A;
-		
-
-#		class VPX_RealType(Structure):
-#			 _fields_ = [("x", c_float),("y", c_float)]
-#
-#		## Position
-#		arrington = self.config.eyeTrackingCal.arrington;
-#		
-#		#eyePos_XY = pyArr.getPosition(self.arrington.RAW)
-#		#outputString = outputString + '( eyePos_XY %f %f ) ' %(eyePos_XY[0],eyePos_XY[1])
-#		
-#		Eye_A  = c_int(0)
-#
-#		eyePos = VPX_RealType()
-#		eyePosPointer = pointer(eyePos)
-#		
-#		arrington.VPX_GetGazePoint2(Eye_A ,eyePosPointer)
-#		outputString = outputString + '( eyePos %f  %f ) ' % (eyePos.x, eyePos.y)
-#		
-#		## Time
-#		eyeTime = c_double();
-#		eyeTimePointer = pointer(eyeTime)		
-#		arrington.VPX_GetDataTime2(Eye_A ,eyeTimePointer)
-#		outputString = outputString + '* eyeDataTime %f * ' % eyeTime.value
-#		
-#		## Quality
-#		eyeQual = c_int();
-#		eyeQualPointer = pointer(eyeQual)		
-#		arrington.VPX_GetDataQuality2(Eye_A ,eyeQualPointer)
-#		outputString = outputString + '* eyeQuality %i * ' % eyeQual.value
-#		
 		return outputString
 		
 	def endTrial(self):
@@ -1041,8 +1003,8 @@ class Experiment(viz.EventClass):
 			# Increment trial 
 			self.trialNumber += 1
 			self.killtimer(self.maxFlightDurTimerID)
-			self.killtimer(self.ballPDTimerID)
-			self.killtimer(self.ballBDTimerID)
+			self.killtimer(self.ballPresDurTimerID)
+			self.killtimer(self.ballBlankDurTimerID)
 			
 			self.eventFlag.setStatus(6)
 			#self.inProgress = False
@@ -1091,14 +1053,7 @@ class Experiment(viz.EventClass):
 			
 		expDataString = self.getOutput()
 		self.expDataFile.write(expDataString + '\n')
-		
-#		if( self.config.sysCfg['use_eyetracking']):
-#			
-#			eyeDataString = self.getEyeData()
-#			self.eyeDataFile.write(eyeDataString + '\n')
-		
-		# Eyetracker data
-	
+
 	def registerWiimoteActions(self):
 				
 		wii = viz.add('wiimote.dle')#Add wiimote extension
@@ -1463,7 +1418,7 @@ class trial(viz.EventClass):
 #		
 		self.ballDiameter_distType = []
 		self.ballDiameter_distParams = []
-		self.ballDiameter = config.expCfg['room']['ballDiameter']
+		self.ballDiameter = []
 		
 		self.gravity_distType = []
 		self.gravity_distParams = []
@@ -1488,23 +1443,18 @@ class trial(viz.EventClass):
 		self.xMaximumValue = []
 		self.timeToContact = []
 		self.presentationDuration = []
-		self.blankDuration = []
+		self.blankDur = []
 		self.postBlankDuration = []
 		self.beta = []
 		self.theta = []
 		self.initialVelocity_XYZ = []
+	
 		
-		self.presentationDuration = float(config.expCfg['trialTypes'][self.trialType]['presentationDuration'])
-		self.postPresentationDuration = float(config.expCfg['trialTypes'][self.trialType]['postPresentationDuration'])
-		self.blankDuration = float(config.expCfg['trialTypes'][self.trialType]['blankDuration'])
+		self.preBlankDur = float(config.expCfg['trialTypes'][self.trialType]['preBlankDur'])
+		self.blankDur = float(config.expCfg['trialTypes'][self.trialType]['blankDur'])
+		self.postBlankDur = float(config.expCfg['trialTypes'][self.trialType]['postBlankDur'])
 		
-		#self.blankDurationRatio = float(config.expCfg['trialTypes'][self.trialType]['blankDurationRatio'])
-		#self.postPresentationDuration * self.blankDurationRatio
-		
-		#self.valuesForPD = config.expCfg['trialTypes'][self.trialType]['postPresentationDuration']
-		#self.valuesForBD = config.expCfg['trialTypes'][self.trialType]['blankDurationRatio']
-
-		self.timeToContact = self.presentationDuration + self.postPresentationDuration
+		self.timeToContact = self.preBlankDur + self.blankDur + self.postBlankDur
 		
 		self.ballInitialPos_XYZ = [0,0,0]
 		self.initialVelocity_XYZ = [0,0,0]
@@ -1681,28 +1631,21 @@ class trial(viz.EventClass):
 		#########################################################
 		################### Initial Velocities ##################
 		
-		#self.presentationDuration = random.choice(self.valuesForPD)
-		#self.blankDuration = random.choice(self.valuesForBD)
-		#self.postBlankDuration = self.postPresentationDuration - self.blankDuration #0.8 - self.blankDuration
-		#self.timeToContact = self.presentationDuration + self.blankDuration + self.postBlankDuration
-		#print 'placeBall ==> [Initial Final] = [', self.ballInitialPos_XYZ, self.ballFinalPos_XYZ, ']'
-		
 		self.calculatePhysicalParams()
 		print 'PlaceBall ==> Vx=', self.initialVelocity_XYZ[0], ' TTC=', self.timeToContact
-		print 'PD = ', self.presentationDuration, ' BD = ', self.blankDuration, ' PBD = ', self.postBlankDuration
+		print 'PD = ', self.presentationDuration, ' BD = ', self.blankDur, ' PBD = ', self.postBlankDuration
+		
+		
+		# Setup physics and collision
 		
 		self.ballObj.enablePhysNode()
 		self.ballObj.linkToPhysNode()
-		
 		self.ballObj.physNode.setBounciness(self.ballElasticity)
-				
 		self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
-			
-		#if( type(self.room.passingPlane) is visEnv.visObj):
-			#self.ballObj.physNode.setStickUponContact( self.room.passingPlane.physNode.geom )
+					
+		self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D) # Costly, in terms of computation
 		
-		# Costly, in terms of computation
-		self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D)
+		# Setup state flags 
 		
 		self.ballInRoom = True
 		self.ballInInitialState = True
@@ -1722,15 +1665,8 @@ class trial(viz.EventClass):
 		self.ballInInitialState = False
 		self.ballLaunched = True
 		
-		#self.myMarkersList.append(vizshape.addCircle(0.05))
-		#self.myMarkersList[-1].color([1,0,1])
-		#self.myMarkersList[-1].setPosition(self.ballInitialPos_XYZ)
-		
 		self.launchTime = viz.getFrameTime()
-				
-		#self.room.launchPlane.remove()
-		#self.room.passingPlane.remove()
-	
+			
 
 
 ################################################################################################################   

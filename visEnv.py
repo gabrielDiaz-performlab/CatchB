@@ -258,6 +258,8 @@ class visObj(viz.EventClass):
         self.isDynamic = 0
         self.isVisible = 1
         self.inFloorCollision = 0
+
+        self.physNode = False
         
         # Note that size info is particular to the shape
         # For ball, just a radius
@@ -341,7 +343,7 @@ class visObj(viz.EventClass):
                 winsound.Beep(1000,250)
             
             #print 'Making sphere node3D'
-            newnode3D = vizshape.addSphere(radius = float(self.size), alpha = self.alpha,color=viz.BLUE,slices=10, stacks=10)
+            newnode3D = vizshape.addSphere(radius = float(self.size), alpha = self.alpha,color=viz.BLUE,slices=20, stacks=20)
         
         elif('cylinder' in self.shape):
             
@@ -399,8 +401,10 @@ class visObj(viz.EventClass):
             
     def setPosition(self,position):
 
-        self.physNode.setPosition(position)
         self.node3D.setPosition(position)
+        
+        if self.physNode:
+            self.physNode.setPosition(position)
         
     def setColor(self,color3f):
         
