@@ -185,14 +185,14 @@ def initTrackers(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 		if initFlag&vizconnect.INIT_WRAPPERS:
 			vizconnect.addTracker(rawTracker[_name], _name, make='Oculus VR', model='DK2')
 	
-#		#VC: init the offsets
-#		if initFlag&vizconnect.INIT_OFFSETS:
-#			_link = vizconnect.getTracker(_name).getLink()
-#			#VC: clear link offsets
-#			_link.reset(viz.RESET_OPERATORS)
-#			
-#			#VC: reset orientation
-#			_link.preEuler([10, 20, 30], target=viz.LINK_ORI_OP, priority=-20)
+		#VC: init the offsets
+		if initFlag&vizconnect.INIT_OFFSETS:
+			_link = vizconnect.getTracker(_name).getLink()
+			#VC: clear link offsets
+			_link.reset(viz.RESET_OPERATORS)
+			
+			#VC: reset orientation
+			_link.preEuler([10, 20, 30], target=viz.LINK_ORI_OP, priority=-20)
 
 	#VC: return values can be modified here
 	return None

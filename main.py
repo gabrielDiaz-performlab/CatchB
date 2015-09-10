@@ -465,8 +465,8 @@ class Experiment(viz.EventClass):
 			
 			self.expDataFile = open(dataOutPutDir + 'exp_data-' + dateTimeStr + '.txt','a')
 			
-			if( self.config.sysCfg['use_eyetracking']):
-				self.eyeDataFile = open(dataOutPutDir + 'eye_data-' + dateTimeStr + '.txt','a')
+			#if( self.config.sysCfg['use_eyetracking']):
+				#self.eyeDataFile = open(dataOutPutDir + 'eye_data-' + dateTimeStr + '.txt','a')
 			
 			vizact.onupdate(viz.PRIORITY_LAST_UPDATE,self.writeDataToText)
 
@@ -977,8 +977,9 @@ class Experiment(viz.EventClass):
 			outputString = outputString + '< initialVelocity_XYZ %f %f %f > ' % (self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2])
 			
 			outputString = outputString + '< preBlankDur %f > ' % (self.currentTrial.preBlankDur) #GD 9/8
-			outputString = outputString + '< postBlankDur %f > ' % (self.currentTrial.postBlankDur) #GD 9/8
 			outputString = outputString + '< blankDur %f > ' % (self.currentTrial.blankDur) #GD 9/8
+			outputString = outputString + '< postBlankDur %f > ' % (self.currentTrial.postBlankDur) #GD 9/8
+			
 
 			outputString = outputString + '< TTC %f > ' % (self.currentTrial.timeToContact)
 			outputString = outputString + '< Beta %f > ' % (self.currentTrial.beta)
@@ -1008,6 +1009,7 @@ class Experiment(viz.EventClass):
 			
 			self.eventFlag.setStatus(6)
 			#self.inProgress = False
+			
 		if( self.trialNumber == endOfTrialList ):
 			
 			# Increment block
@@ -1065,12 +1067,20 @@ class Experiment(viz.EventClass):
 			
 			mocapSys = self.config.mocap;
 		
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_DOWN,mocapSys.resetRigid,'hmd') 
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_UP,mocapSys.saveRigid,'hmd') 
+			#vizact.onsensorup(self.config.wiimote,wii.BUTTON_DOWN,mocapSys.resetRigid,'hmd') 
+			#vizact.onsensorup(self.config.wiimote,wii.BUTTON_UP,mocapSys.saveRigid,'hmd') 
 			
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_LEFT,mocapSys.resetRigid,'paddle') 
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_RIGHT,mocapSys.saveRigid,'paddle') 
+			#vizact.onsensorup(self.config.wiimote,wii.BUTTON_LEFT,mocapSys.resetRigid,'paddle') 
+			#vizact.onsensorup(self.config.wiimote,wii.BUTTON_RIGHT,mocapSys.saveRigid,'paddle') 
 			
+			def resetHelmetOrientation():
+				
+				# Get diff between current heading and world X
+				rt_YPR = vizconnect.getTracker('rift_tracker').getEuler()
+				oriLink = vizconnect.getTracker('rift_tracker').getLink()
+				oriLink.reset(viz.RESET_OPERATORS)
+				oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], -rt_YPR[2]], target=viz.LINK_ORI_OP, priority=-20)
+				
 			vizact.onsensorup(self.config.wiimote,wii.BUTTON_1,vizconnect.getTracker('rift_tracker').resetHeading)
 			
 	
@@ -1451,8 +1461,8 @@ class trial(viz.EventClass):
 	
 		
 		self.preBlankDur = float(config.expCfg['trialTypes'][self.trialType]['preBlankDur'])
-		self.blankDur = float(config.expCfg['trialTypes'][self.trialType]['blankDur'])
 		self.postBlankDur = float(config.expCfg['trialTypes'][self.trialType]['postBlankDur'])
+		self.blankDur = float(config.expCfg['trialTypes']['default']['blankDur'])
 		
 		self.timeToContact = self.preBlankDur + self.blankDur + self.postBlankDur
 		
@@ -1634,7 +1644,6 @@ class trial(viz.EventClass):
 		self.calculatePhysicalParams()
 		print 'PlaceBall ==> Vx=', self.initialVelocity_XYZ[0], ' TTC=', self.timeToContact
 		print 'PD = ', self.presentationDuration, ' BD = ', self.blankDur, ' PBD = ', self.postBlankDuration
-		
 		
 		# Setup physics and collision
 		
