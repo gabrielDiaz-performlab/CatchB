@@ -72,7 +72,7 @@ class physEnv(viz.EventClass):
 		
 		self.emptyCollisionBuffer()
 		
-		numCycles = 20
+		numCycles = 10
 		
 		timeStep = viz.getFrameElapsed() / numCycles #self.frameRate / numCycles
 		
