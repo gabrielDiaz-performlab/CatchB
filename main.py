@@ -903,7 +903,7 @@ class Experiment(viz.EventClass):
 			
 		else:
 			paddlePos_XYZ = [NaN,NaN,NaN]
-			paddleQUAT_WXYZ = [NaN,NaN,NaN,NaN]
+			paddleQUAT_XYZW = [NaN,NaN,NaN,NaN]
 			
 		###############################################
 		################################################
@@ -922,6 +922,18 @@ class Experiment(viz.EventClass):
 			ballVel_XYZ = [NaN,NaN,NaN]
 		##
 		
+		###############GIW Data#
+		
+		eyeGazePoint_XYZ = [currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z]
+		cyclopeanGIW_XYZ = (val/max(eyeGazePoint_XYZ) for val in eyeGazePoint_XYZ)
+		
+		rightGazePoint_XYZ=[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z], # H or W?
+		rightGIW_XYZ = (val/max(rightGazePoint_XYZ) for val in rightGazePoint_XYZ)
+		
+		leftGazeDir_XYZ=[currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z],
+		leftGIW_XYZ = (val/max(leftGazeDir_XYZ) for val in leftGazeDir_XYZ)
+		
+		#####
 		
 		dataDict = dict( frameTime = viz.getFrameTime(),
 			trialNumber = self.trialNumber,
@@ -939,28 +951,34 @@ class Experiment(viz.EventClass):
 			eyeTimeStamp = currentSample.timestamp,
 			IOD=currentSample.iod,
 			IPD=currentSample.ipd,
-			eyePOR_XY=[currentSample.por_x, currentSample.por_y],
-			eyeGazeDir_XYZ=[currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z],
-			eyeGazePoint_XYZ=[currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z],
+			
+			cycPOR_XY=[currentSample.por_x, currentSample.por_y],
+			cycGazeEIH_XYZ = [currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z],
+			cyclopeanGIW_XYZ = cyclopeanGIW_XYZ,
+			#cycGazePoint_XYZ=[currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z],
 			
 			rightPupilRadius=currentSample.rightEye.pupilRadius,
 			rightEyeLensDistance=currentSample.rightEye.eyeLensDistance,
 			rightEyeScreenDistance=currentSample.rightEye.eyeScreenDistance,
-			rightGazePoint_XYZ=[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z],
-			rightGazeDir_XYZ=[currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z],
-			rightPOR_XY=[currentSample.rightEye.por_x, currentSample.rightEye.por_y],
-			rightPupilPos_XYZ=[currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z],
+			rightGIW_XYZ = rightGIW_XYZ,
+			#rightGazePoint_XYZ=[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z], # H or W?
+			
+			rightEIH_XYZ=[currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z], # Head centered FOR
+			rightPOR_XY=[currentSample.rightEye.por_x, currentSample.rightEye.por_y], 
+			rightPupilPos_XYZ=[currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z], # Pixel values
 		
 			leftPupilRadius=currentSample.leftEye.pupilRadius,
 			leftEyeLensDistance=currentSample.leftEye.eyeLensDistance,
 			leftEyeScreenDistance=currentSample.leftEye.eyeScreenDistance,
-			leftGazePoint_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z],
-			leftGazeDir_XYZ=[currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z],
+			leftGIW_XYZ= leftGIW_XYZ,
+			leftEIH_XYZ=[currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z],
+			#leftGazePoint_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z],
+
 			leftPOR_XY=[currentSample.leftEye.por_x, currentSample.leftEye.por_y],
 			leftPupilPos_XYZ=[currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z],
 		
 			paddlePos_XYZ=[paddlePos_XYZ[0],paddlePos_XYZ[1],paddlePos_XYZ[2]],
-			paddleQUAT_WXYZ=[paddleQUAT_XYZW[0],paddleQUAT_XYZW[1],paddleQUAT_XYZW[2],paddleQUAT_XYZW[3]],
+			paddleQUAT_XYZW =[paddleQUAT_XYZW[0],paddleQUAT_XYZW[1],paddleQUAT_XYZW[2],paddleQUAT_XYZW[3]],
 		
 			ballPos_XYZ=[ballPos_XYZ [0],ballPos_XYZ[1],ballPos_XYZ [2]],
 			ballVel_XYZ=[ballVel_XYZ[0],ballVel_XYZ[1],ballVel_XYZ[2]],
@@ -985,246 +1003,6 @@ class Experiment(viz.EventClass):
 		logging.info(dict(dataDict))
 		return
 		
-		
-#		logging.info(dict(name='frameTime=viz.getFrameTime()))
-#		logging.info(dict(name='trialNumber=self.trialNumber))
-#		logging.info(dict(name='eventFlag=self.eventFlag.status))
-#				
-#		logging.info(dict(name='trialType=self.currentTrial.trialType))
-#		viewPos_XYZ = viz.MainView.getPosition(viz.MASTER)
-#		logging.info(dict(name='viewPos_XYZ=viewPos_XYZ))
-				
-		#logging.info(dict(name='viewMat=viz.MainView.getMatrix()))
-		#logging.info(dict(name='viewQUAT_XYZW=viz.MainView.getQuat()))
-		
-#		# Calibtools
-#		logging.info(dict(name='calibrationInProgress=calibTools.calibrationInProgress))
-#		logging.info(dict(name='isCalibrated=self.calibrationDoneSMI))
-#		logging.info(dict(name='calibrationCounter=calibTools.calibrationCounter))
-#		calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
-#		logging.info(dict(name='calibrationPosition=[ calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2] ]))
-
-#		####============================================================================###
-#		####=====Sample Eye Tracking Data being printed out just for test (Kamran) =====###
-#		####============================================================================###
-#		#print 'Eye Tracking Matrix', self.config.eyeTracker.getLastGazeMatrix()
-		
-		
-		
-		
-		
-		 
-		
-		
-		
-			
-		#if( self.eventFlag.status == 1 ):
-		# Launch mode.  Print initial conditions.
-
-		
-	
-	
-	def getOutput(self):
-		
-		"""
-		Returns a string describing the current state of the experiment, useful for recording.
-		"""
-		
-		# Legend:
-		# ** for 1 var
-		# () for 2 vars
-		# [] for 3 vars
-		# <> for 4 vars
-		# @@ for 16 vars (view and projection matrices)
-		
-		#### Eventflag
-		# 1 ball launched
-		# 3 ball has hit floor 
-		# 4 ball has hit paddle
-		# 5 ball has hit back wall
-		# 6 ball has timed out
-
-		outputString = ''
-		
-		outputString = outputString + '< frameTime %f > ' % (viz.getFrameTime())
-		
-		outputString = outputString + '* calibrationInProgress %d * ' % (calibTools.calibrationInProgress)
-		
-		outputString = outputString + '< eventFlag %f > ' % (self.eventFlag.status)
-		
-		outputString = outputString + '* trialType %s * ' % (self.currentTrial.trialType)
-		
-		viewPos_XYZ = viz.MainView.getPosition()
-		outputString = outputString + '< viewPos_XYZ %f %f %f > ' % (viewPos_XYZ[0],viewPos_XYZ[1],viewPos_XYZ[2])
-		
-		viewMat = viz.MainView.getMatrix()
-
-		viewQUAT_XYZW = viewMat.getQuat()
-		
-		outputString = outputString + '< viewQUAT_WXYZ %f %f %f %f > ' % (viewQUAT_XYZW[0],viewQUAT_XYZW[1],viewQUAT_XYZW[2],viewQUAT_XYZW[3])
-		
-		outputString = outputString + '< isCalibrated %d >' % (self.calibrationDoneSMI)
-		outputString = outputString + '< calibrationCounter %d >' % (calibTools.calibrationCounter)
-		calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
-		outputString = outputString + '< calibrationPosition %f %f %f >' % (calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2])
-		
-		####============================================================================###
-		####=====Sample Eye Tracking Data being printed out just for test (Kamran) =====###
-		####============================================================================###
-		#print 'Eye Tracking Matrix', self.config.eyeTracker.getLastGazeMatrix()
-		
-		currentSample =  self.config.eyeTracker.getLastSample()
-		
-		#print 'Eye Tracking Sample', currentSample.
-		if self.config.eyeTracker.getLastSample():
-			
-			outputString = outputString + '< eyeTimeStamp %f > ' % ( currentSample.timestamp )
-			outputString = outputString + '< IOD %f > ' % ( currentSample.iod)
-			outputString = outputString + '< IPD %f > ' % ( currentSample.ipd)
-			outputString = outputString + '< eyePOR_XY %f %f > ' % ( currentSample.por_x, currentSample.por_y)
-			outputString = outputString + '< eyeGazeDir_XYZ %f %f %f > ' % ( currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z)
-			outputString = outputString + '< eyeGazePoint_XYZ %f %f %f > ' % ( currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z)
-			
-
-			outputString = outputString + '< rightPupilRadius %f > ' % ( currentSample.rightEye.pupilRadius )
-			outputString = outputString + '< rightEyeLensDistance %f > ' %( currentSample.rightEye.eyeLensDistance )
-			outputString = outputString + '< rightEyeScreenDistance %f > ' %( currentSample.rightEye.eyeScreenDistance )
-			outputString = outputString + '< rightGazePoint_XYZ %f %f %f > ' % ( currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z)
-			outputString = outputString + '< rightGazeDir_XYZ %f %f %f > ' % ( currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z)
-			outputString = outputString + '< rightPOR_XY %f %f > ' % ( currentSample.rightEye.por_x, currentSample.rightEye.por_y)
-			outputString = outputString + '< rightPupilPos_XYZ %f %f %f > ' % ( currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z)
-
-			outputString = outputString + '< leftPupilRadius %f > ' % ( currentSample.leftEye.pupilRadius )
-			outputString = outputString + '< leftEyeLensDistance %f > ' %( currentSample.leftEye.eyeLensDistance )
-			outputString = outputString + '< leftEyeScreenDistance %f > ' %( currentSample.leftEye.eyeScreenDistance )
-			outputString = outputString + '< leftGazePoint_XYZ %f %f %f > ' % ( currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z)
-			outputString = outputString + '< leftGazeDir_XYZ %f %f %f > ' % ( currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z)
-			outputString = outputString + '< leftPOR_XY %f %f > ' % ( currentSample.leftEye.por_x, currentSample.leftEye.por_y)
-			outputString = outputString + '< leftPupilPos_XYZ %f %f %f > ' % ( currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z)
-			
-		
-		
-		'''
-	_fields_ = [ ("size", ctypes.c_size_t)
-				,("timestamp", ctypes.c_ulonglong)
-				,("iod", ctypes.c_double)
-				,("ipd", ctypes.c_double)
-				,("por_x", ctypes.c_double)
-				,("por_y", ctypes.c_double)
-				,("gazeDir_x", ctypes.c_double)
-				,("gazeDir_y", ctypes.c_double)
-				,("gazeDir_z", ctypes.c_double)
-				,("gazePoint_x", ctypes.c_double)
-				,("gazePoint_y", ctypes.c_double)
-				,("gazePoint_z", ctypes.c_double)
-				,("leftEye", _EyeDataHMDStruct)
-				,("rightEye", _EyeDataHMDStruct)
-	]
-		'''
-		################################################
-		################################################
-		#### Racquet data
-		
-		paddlePos_XYZ = []
-		paddleQUAT_XYZW = []
-		paddleAngVel_XYZ = []
-		
-		if( self.room.paddle ):
-			
-			paddlePos_XYZ = self.room.paddle.node3D.getPosition()
-			paddleMat = self.room.paddle.node3D.getMatrix()
-			paddleQUAT_XYZW = paddleMat.getQuat()
-			
-		else:
-			paddlePos_XYZ = [NaN,NaN,NaN]
-			paddleQUAT_WXYZ = [NaN,NaN,NaN,NaN]
-			
-		outputString = outputString + '< paddlePos_XYZ %f %f %f > ' % (paddlePos_XYZ[0],paddlePos_XYZ[1],paddlePos_XYZ[2])
-		
-		outputString = outputString + '< paddleQUAT_WXYZ %f %f %f %f > ' % (paddleQUAT_XYZW[0],paddleQUAT_XYZW[1],paddleQUAT_XYZW[2],paddleQUAT_XYZW[3])
-		
-		################################################
-		################################################
-		#### BALL DATA
-
-		theBall = self.currentTrial.ballObj;
-		if(theBall is not -1):
-			
-			ballPos_XYZ = theBall.node3D.getPosition()
-			outputString = outputString + '< ballPos_XYZ %f %f %f > ' % (ballPos_XYZ [0],ballPos_XYZ[1],ballPos_XYZ [2])
-			
-			ballVel_XYZ = theBall.getVelocity()
-			outputString = outputString + '< ballVel_XYZ %f %f %f > ' % (ballVel_XYZ[0],ballVel_XYZ[1],ballVel_XYZ[2])
-		
-		#ballPix_XYDist = viz.MainWindow.worldToScreen(ballPos_XYZ,viz.LEFT_EYE)
-		#outputString = outputString + '< ballPix_XYDist %f %f %f > ' % (ballPix_XYDist[0],ballPix_XYDist[1],ballPix_XYDist[2])
-			
-			
-		if( self.eventFlag.status == 1 ):
-		# Launch mode.  Print initial conditions.
-
-			outputString = outputString + '< ballInitialPos_XYZ %f %f %f > ' % (self.currentTrial.ballInitialPos_XYZ[0],self.currentTrial.ballInitialPos_XYZ[1],self.currentTrial.ballInitialPos_XYZ[2])
-			outputString = outputString + '< ballFinalPos_XYZ %f %f %f > ' % (self.currentTrial.ballFinalPos_XYZ[0],self.currentTrial.ballFinalPos_XYZ[1],self.currentTrial.ballFinalPos_XYZ[2])
-			outputString = outputString + '< initialVelocity_XYZ %f %f %f > ' % (self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2])
-			
-			outputString = outputString + '< preBlankDur %f > ' % (self.currentTrial.preBlankDur) #GD 9/8
-			outputString = outputString + '< blankDur %f > ' % (self.currentTrial.blankDur) #GD 9/8
-			outputString = outputString + '< postBlankDur %f > ' % (self.currentTrial.postBlankDur) #GD 9/8
-			
-
-			outputString = outputString + '< TTC %f > ' % (self.currentTrial.timeToContact)
-			outputString = outputString + '< Beta %f > ' % (self.currentTrial.beta)
-			outputString = outputString + '< Theta %f > ' % (self.currentTrial.theta)
-	
-		return outputString
-		
-	def endTrial(self):
-		
-		self.writeToTxtFile = False
-		print 'End Trial{', self.writeToTxtFile,'}'
-		endOfTrialList = len(self.blocks_bl[self.blockNumber].trials_tr)
-		
-		if( self.trialNumber < endOfTrialList ):
-			
-			recalAfterTrial_idx = self.blocks_bl[self.blockNumber].recalAfterTrial_idx
-			
-			if( recalAfterTrial_idx.count(self.trialNumber ) > 0):
-				#viz.playSound(soundBank.gong)
-				vizact.ontimer2(0,0,self.toggleEyeCalib)
-
-			# Increment trial 
-			self.trialNumber += 1
-			self.killtimer(self.maxFlightDurTimerID)
-			self.killtimer(self.ballPresDurTimerID)
-			self.killtimer(self.ballBlankDurTimerID)
-			
-			self.eventFlag.setStatus(6)
-			#self.inProgress = False
-			
-		if( self.trialNumber == endOfTrialList ):
-			
-			# Increment block
-			
-			# arg2 of 1 allows for overwriting eventFlag 6 (new trial)
-			self.eventFlag.setStatus(7,True) 
-			self.inProgress = False
-			
-			self.blockNumber += 1
-			self.trialNumber = 0
-			
-			# Increment block or end experiment
-			if( self.blockNumber == len(self.blocks_bl) ):
-				
-				# Run this once on the next frame
-				# This maintains the ability to record one frame of data
-				vizact.ontimer2(0,0,self.endExperiment)
-				return
-				
-		if( self.inProgress ):
-				
-			print 'Starting block: ' + str(self.blockNumber) + ' Trial: ' + str(self.trialNumber)
-			self.currentTrial = self.blocks_bl[self.blockNumber].trials_tr[self.trialNumber]
-	
 
 
 	def writeDataToText(self):
