@@ -900,8 +900,8 @@ class Experiment(viz.EventClass):
 		if( self.room.paddle ):
 			
 			paddlePos_XYZ = self.room.paddle.node3D.getPosition()
-			paddleMat = self.room.paddle.node3D.getMatrix()
-			paddleQuat_XYZW = paddleMat.getQuat()
+			paddleMat = self.room.paddle.node3D.getMatrix().data
+			paddleQuat_XYZW = self.room.paddle.node3D.getMatrix().getQuat()
 			
 		else:
 			paddlePos_XYZ = [NaN,NaN,NaN]
@@ -1102,12 +1102,15 @@ class Experiment(viz.EventClass):
 			def resetHelmetOrientation():
 				
 				# Get diff between current heading and world X
-				rt_YPR = vizconnect.getTracker('rift_tracker').getEuler()
+				rt_YPR = vizconnect.getTracker('rift_tracker').getLink().getEuler()
+				#rt_quat = vizconnect.getTracker('rift_tracker').getQuat()
 				oriLink = vizconnect.getTracker('rift_tracker').getLink()
 				oriLink.reset(viz.RESET_OPERATORS)
+				#rtLink.preQuat([-rt_quat[0],-rt_quat[1],-rt_quat[2],-rt_quat[3],])
 				oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], -rt_YPR[2]], target=viz.LINK_ORI_OP, priority=-20)
 				
 			vizact.onsensorup(self.config.wiimote,wii.BUTTON_1,vizconnect.getTracker('rift_tracker').resetHeading)
+			vizact.onsensordown(self.config.wiimote,wii.BUTTON_UP,resetHelmetOrientation)
 			
 			
 	
@@ -1330,7 +1333,7 @@ class Experiment(viz.EventClass):
 
 		
 		theRoom.hangar = model
-	
+			
 #	def placeTarget(self):
 #		target = vizshape.addCylinder(0.2,0.5,axis=3,color=viz.GREEN)
 #		target = 
@@ -1831,3 +1834,8 @@ hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 #newBall.renderOnlyToWindows([viz.VizWindow(viz.MASTER)])
 
 #newBall.renderOnlyToWindows([clientWindowID])
+#
+#rt = vizconnect.getTracker('rift_tracker')
+#rtLink = rt.getLink()
+#
+#link

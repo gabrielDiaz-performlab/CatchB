@@ -4,11 +4,11 @@ import math
 import ctypes
 
 # Module is only supported with Vizard 5.1
-cv = viz.compareVersion('5.1')
-if cv < 0:
-	raise EnvironmentError('SMI module is incompatible with Vizard {}. Please contact support@worldviz.com for latest version.'.format(viz.version()))
-elif cv > 0:
-	raise EnvironmentError('SMI module requires Vizard 5.1')
+#cv = viz.compareVersion('5.1')
+#if cv < 0:
+#	raise EnvironmentError('SMI module is incompatible with Vizard {}. Please contact support@worldviz.com for latest version.'.format(viz.version()))
+#elif cv > 0:
+#	raise EnvironmentError('SMI module requires Vizard 5.1')
 
 # Ensure we are not 64-bit
 if viz.getOption('platform.bit','32') != '32':
