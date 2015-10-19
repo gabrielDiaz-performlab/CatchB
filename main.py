@@ -930,27 +930,26 @@ class Experiment(viz.EventClass):
 			
 			cycEyeOnScreen_XY = [currentSample.por_x, currentSample.por_y]
 			cycEyeInHead_XYZ = [currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z]
-			
 			cycGazeInWorldNotNorm_XYZ= [currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z]
-			cycGazeInWorld_XYZ = (val/max(cycGazeInWorldNotNorm_XYZ) for val in cycGazeInWorldNotNorm_XYZ)
+			cycGazeInWorld_XYZ = [val/max(cycGazeInWorldNotNorm_XYZ) for val in cycGazeInWorldNotNorm_XYZ]
 			
 			rightEyeOnScreen_XY = [currentSample.rightEye.por_x, currentSample.rightEye.por_y]
 			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z]
-			rightGazeInWorldNotNorm_XYZ=[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z], # H or W?
-			rightGazeInWorld_XYZ = (val/max(rightGazeInWorldNotNorm_XYZ) for val in rightGazeInWorldNotNorm_XYZ) # Normalize
+			rightGazeInWorldNotNorm_XYZ=[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z] # H or W?
+			rightGazeInWorld_XYZ = [val/max(rightGazeInWorldNotNorm_XYZ) for val in rightGazeInWorldNotNorm_XYZ] # Normalize
 			rightEyeScreenDistance = currentSample.rightEye.eyeScreenDistance
 			rightEyeLensDistance  = currentSample.rightEye.eyeLensDistance
 			rightPupilRadius = currentSample.rightEye.pupilRadius
-			rightPupilPos_XYZ = [currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z], # Pixel values
+			rightPupilPos_XYZ = [currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z] # Pixel values
 			
 			leftEyeOnScreen_XY = [currentSample.leftEye.por_x, currentSample.leftEye.por_y]
 			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z]
-			leftGazeInWorldNotNorm_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z], # H or W?
-			leftGazeInWorld_XYZ = (val/max(leftGazeInWorldNotNorm_XYZ) for val in leftGazeInWorldNotNorm_XYZ) # Normalize
+			leftGazeInWorldNotNorm_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z] # H or W?
+			leftGazeInWorld_XYZ = [val/max(leftGazeInWorldNotNorm_XYZ) for val in leftGazeInWorldNotNorm_XYZ] # Normalize
 			leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
 			leftEyeLensDistance  = currentSample.leftEye.eyeLensDistance
 			leftPupilRadius = currentSample.leftEye.pupilRadius
-			leftPupilPos_XYZ = [currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z], # Pixel values
+			leftPupilPos_XYZ = [currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z] # Pixel values
 			
 			eyeTimeStamp = currentSample.timestamp
 			IOD = currentSample.iod
