@@ -400,15 +400,10 @@ class Experiment(viz.EventClass):
 		self.inProgress = True;
 
 		self.enableWritingToLog = False
-		self.calibrationDoneSMI = 0.0
+		self.calibrationDoneSMI = False
 		
 		self.gazeVector = []
 		self.eyeBallVector = []
-		self.myDisplay = vizshape.addBox(size=(.071,0.02,0.126),
-			right=True,left=True,
-			top=True,bottom=True,
-			front=True,back=True,
-			splitFaces=False, color = viz.GREEN, alpha = 0.4)
 				
 		self.blocks_bl = []
 		
@@ -725,7 +720,7 @@ class Experiment(viz.EventClass):
 
 		if key == 'c' and self.config.eyeTracker:
 			
-			self.calibrationDoneSMI = 1.0 # TODO: This should be toggled after the SMI Calibration Method
+			self.calibrationDoneSMI = True
 			print 'calibrationDoneSMI ==> ', self.calibrationDoneSMI
 			eyeTracker = experimentObject.config.eyeTracker
 			eyeTracker.calibrate()
@@ -918,13 +913,16 @@ class Experiment(viz.EventClass):
 			
 			ballPos_XYZ = theBall.node3D.getPosition()
 			ballVel_XYZ = theBall.getVelocity()
-			ballVisible = self.currentTrial.ballObj.node3D.getVisible(),
+			ballVisible = self.currentTrial.ballObj.node3D.getVisible()
 			
 		else:
+			
 			ballPos_XYZ = [NaN,NaN,NaN]
 			ballVel_XYZ = [NaN,NaN,NaN]
 			ballVisible = NaN
-		
+			
+			
+			
 		# GIW Data#
 		if( currentSample ):
 			
@@ -1015,7 +1013,7 @@ class Experiment(viz.EventClass):
 			ballFinalPos_XYZ = [self.currentTrial.ballFinalPos_XYZ[0],self.currentTrial.ballFinalPos_XYZ[1],self.currentTrial.ballFinalPos_XYZ[2]],
 			ballInitialVelocity_XYZ = [self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2]],
 			ballTTC = self.currentTrial.timeToContact,
-			ballLaunch_AE = [self.currentTrial.beta,self.currentTrial.theta],
+			#ballLaunch_AE = [self.currentTrial.beta,self.currentTrial.theta],
 			
 			# Trajectory
 			preBlankDur = self.currentTrial.preBlankDur,
@@ -1100,13 +1098,15 @@ class Experiment(viz.EventClass):
 			
 			def resetHelmetOrientation():
 				
+				mocapSys = self.config.mocap;mocapSys.resetRigid('hmd')
+				
 				# Get diff between current heading and world X
 				rt_YPR = vizconnect.getTracker('rift_tracker').getLink().getEuler()
-				#rt_quat = vizconnect.getTracker('rift_tracker').getQuat()
 				oriLink = vizconnect.getTracker('rift_tracker').getLink()
 				oriLink.reset(viz.RESET_OPERATORS)
-				#rtLink.preQuat([-rt_quat[0],-rt_quat[1],-rt_quat[2],-rt_quat[3],])
-				oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], -rt_YPR[2]], target=viz.LINK_ORI_OP, priority=-20)
+				#oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], 0], target=viz.LINK_ORI_OP, priority=-20)
+				#oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], -rt_YPR[2]], target=viz.LINK_ORI_OP, priority=-20)
+				
 				
 			vizact.onsensorup(self.config.wiimote,wii.BUTTON_1,vizconnect.getTracker('rift_tracker').resetHeading)
 			vizact.onsensordown(self.config.wiimote,wii.BUTTON_UP,resetHelmetOrientation)
@@ -1649,6 +1649,7 @@ class trial(viz.EventClass):
 		#self.room.passingPlane.linkPhysToVis()
 		
 		self.room.passingPlane.node3D.setPosition(self.passingPlanePosition)#[0, 1.5, 1.0]
+		
 		#makes the wall appear white
 		self.room.passingPlane.node3D.color(viz.PURPLE)
 		self.room.passingPlane.node3D.alpha(0.3)
@@ -1812,6 +1813,9 @@ right_sphere.node3D.alpha(0.7)
 rightEyeNode.alpha(0.01)
 
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
+
+
+oT = vizconnect.getRawTracker('rift_tracker')
 
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
 #	myMatrix = viz.Transform()

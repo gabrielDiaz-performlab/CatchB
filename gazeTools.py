@@ -140,19 +140,24 @@ class calibrationTools():
 		self.cyclopEyeSphere = cyclopEyeSphere
 		self.minimumAngle = float(self.config.expCfg['room']['minimumStimuliSize'])
 		self.minimumAngle = (self.minimumAngle * np.pi)/(60*180) # We want the calibration point subtend 15 arcmin to the subject's eye
+		
 		self.calibrationSphereRadius = 0.02
 		self.localAction = None
+		
 		self.calibrationCounter = 0
-		self.calibrationSphere = vizshape.addSphere(self.calibrationSphereRadius, color = viz.PURPLE)
+		
 		self.maximumAngularError = float(self.config.expCfg['room']['maximumAngularError'])
 		self.textObjectPosition = map(float,self.config.expCfg['room']['textObjectPosition'])
+
 		self.calibrationPositionRange_X = map(float,self.config.expCfg['room']['calibrationPointsRange_X'])
 		self.calibrationPositionRange_Y = map(float,self.config.expCfg['room']['calibrationPointsRange_Y'])
 		self.calibrationPositionRange_Z = map(float,self.config.expCfg['room']['calibrationPointsRange_Z'])
 		self.numberOfCalibrationPoints = float(self.config.expCfg['room']['calibrationPointPerPlane'])
 		#self.setSphereRadius(0, 0, 0.02)
+
 	def dotproduct(self, v1, v2):
 	  return sum((a*b) for a, b in zip(v1, v2))
+
 	def length(self, v):
 	  return math.sqrt(self.dotproduct(v, v))
 
@@ -284,6 +289,7 @@ class calibrationTools():
 			self.toggleRoomWallsVisibility()
 			self.calibrationInProgress = True
 			self.calibrationCounter = 0
+			
 			self.calibrationSphere = vizshape.addSphere(self.calibrationSphereRadius, color = viz.PURPLE)
 			self.calibrationSphere.emissive(viz.PURPLE)
 			self.calibrationSphere.setParent(self.parentNode)
