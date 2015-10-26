@@ -868,7 +868,7 @@ class Experiment(viz.EventClass):
 		# 6 ball has timed out
 		
 		NaN = float('NaN')
-		
+
 		# Only write data is the experiment is ongoing
 		if( self.enableWritingToLog is False or self.inProgress is False):
 			return
@@ -928,8 +928,9 @@ class Experiment(viz.EventClass):
 			
 			cycEyeOnScreen_XY = [currentSample.por_x, currentSample.por_y]
 			cycEyeInHead_XYZ = [currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z]
+			
 			cycGazeInWorldNotNorm_XYZ= [currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z]
-			cycGazeInWorld_XYZ = [val/max(cycGazeInWorldNotNorm_XYZ) for val in cycGazeInWorldNotNorm_XYZ]
+			cycGazeInWorld_XYZ = [val/np.linalg.norm(cycGazeInWorldNotNorm_XYZ) for val in cycGazeInWorldNotNorm_XYZ]
 			
 			rightEyeOnScreen_XY = [currentSample.rightEye.por_x, currentSample.rightEye.por_y]
 			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z]
