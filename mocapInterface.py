@@ -137,7 +137,7 @@ class RigidTracker(PointTracker):
         
         self._pose = Pose(pos=(0, 0, 0), quat=(1, 0, 0, 0), cond=-1)
         self._transform = viz.Transform()
-        self._localOffset = [0,0,0]
+        self._localOffset = localOffest_xyz
         
         self.filepath = []
         self.filename = []
@@ -200,8 +200,8 @@ class RigidTracker(PointTracker):
                 marker = self._raw_markers[mIdx]
 
                 if marker is None or not 0 < marker.cond : #or not 0 < marker.cond < 100:
-                    logging.error('missing marker %d for reset', m)
-                    print 'missing marker %d for reset'  %m
+                    logging.error('missing marker %d for reset', mIdx)
+                    print 'missing marker %d for reset'  %mIdx
                     return -1
                     
                 globalPositions.append(marker.pos)
@@ -213,8 +213,11 @@ class RigidTracker(PointTracker):
         cx = sum(x for x, _, _ in com) / len(com)
         cy = sum(y for _, y, _ in com) / len(com)
         cz = sum(z for _, _, z in com) / len(com)
+        
+        # Shift body center according to offsets
+        # Note that offsets are supplied in vizard coordinates
+        
         logging.info('body center: (%s, %s, %s)', cx, cy, cz)
-    
 
         # Construct marker_map, a dictionary of pos tuples
         # using marker ID's as keys
@@ -295,7 +298,7 @@ class RigidTracker(PointTracker):
         self.callback(
             viz.UPDATE_EVENT, lambda e: target.setEuler(self.get_euler()))        
             
-    def link_pose(self, target):
+    def link_pose(self, target, stringArg = None):
         '''Link an object to this rigid body for continual updates.
 
         Parameters
@@ -303,8 +306,20 @@ class RigidTracker(PointTracker):
         target : viz.Object
             An object to link to this rigid tracker.
         '''
+        def updatePose(target,stringArg):
+            
+            newPose = self.get_transform()
+            evalString = 'newPose.' + stringArg
+            eval(evalString)
+            #newPose.preEuler([90,0,0])
+            target.setMatrix(newPose)
+            
         self.callback(
-            viz.UPDATE_EVENT, lambda e: target.setMatrix(self.get_transform()))
+            #viz.UPDATE_EVENT, lambda e: target.setMatrix(self.get_transform()))
+            viz.UPDATE_EVENT, lambda e: updatePose(target,stringArg))
+            
+        #self.callback(
+        #   viz.UPDATE_EVENT, lambda e: target.setMatrix(self.get_transform()))
 
     def update_pose(self, pose):
         '''Update the pose (and transform) for this rigid body.
@@ -325,9 +340,10 @@ class RigidTracker(PointTracker):
             self._transform.setQuat(pose.quat)
             
             # Implement offset
-            newPos = tuple(sum(t) for t in zip(pose.pos , tuple(self._localOffset) ) )
+            #newPos = tuple(sum(t) for t in zip(pose.pos , tuple(self._localOffset) ) )
             
-            self._transform.postTrans(newPos)
+            self._transform.postTrans(pose.pos)
+            self._transform.preTrans(self._localOffset)
             
     def save(self):
         
@@ -365,7 +381,9 @@ class RigidTracker(PointTracker):
         '''Reset this rigid body based on the current locations of its markers.
         '''
 
-        logging.info('resetting rigid body %s', self.marker_ids)
+        #logging.info('resetting rigid body %s', self.marker_ids)
+        
+        print ('Tryingn to reset rigid body %s', self.filename)
 
         localPositions = self._getLocalPositions()
         
@@ -374,15 +392,17 @@ class RigidTracker(PointTracker):
             
         OWL.owlTracker(self._index, OWL.OWL_DISABLE)
         
-        for i, (x, y, z) in enumerate(localPositions):
         
+        for i, (x, y, z) in enumerate(localPositions):
+            print 'Resetting marker: ' + str(i)
             OWL.owlMarkerfv(OWL.MARKER(self._index, i),
                             OWL.OWL_SET_POSITION,
                             [x,y,z])
                             
         OWL.owlTracker(self._index, OWL.OWL_ENABLE)
 
-
+        print ('Done. resetting rigid body %s', self.filename)
+        
 class phasespaceInterface(viz.EventClass):
     '''Handle the details of getting mocap data from phasespace.
 
@@ -424,7 +444,7 @@ class phasespaceInterface(viz.EventClass):
             
             self.rigidFileNames_ridx= ['hmd-nvisMount.rb','paddle-hand.rb']
             self.rigidAvgMarkerList_rIdx_mId = [[1,2],[3,5]]
-            self.rigidOffsetMM_ridx_WorldXYZ = [[0,0,0],[0,0,0]]
+            self.rigidOffset_ridx_XYZ = [[0,0,0],[0,0,0]]
                         
             self.owlParamMarkerCount = 20
             self.owlParamFrequ = OWL.OWL_MAX_FREQUENCY
@@ -443,7 +463,7 @@ class phasespaceInterface(viz.EventClass):
             self.serverAddress 			= self.config['phasespace']['phaseSpaceIP']
             self.rigidFileNames_ridx	= self.config['phasespace']['rigidBodyList']
 
-            self.rigidOffsetMM_ridx_WorldXYZ = eval(self.config['phasespace']['rigidOffsetMM_ridx_WorldXYZ'])
+            self.rigidOffset_ridx_XYZ = eval(self.config['phasespace']['rigidOffset_ridx_XYZ'])
             self.rigidAvgMarkerList_rIdx_mId = eval(self.config['phasespace']['rigidAvgMarkerList_rIdx_mId'])
             
             self.owlParamModeNum	= self.config['phasespace']['owlParamModeNum']
@@ -492,18 +512,17 @@ class phasespaceInterface(viz.EventClass):
             rigidOffsetMM_WorldXYZ  = [0,0,0]
             rigidAvgMarkerList_mIdx   = [0]
             
-            if( len(self.rigidOffsetMM_ridx_WorldXYZ) < rigidIdx ):
+            if( len(self.rigidOffset_ridx_XYZ) < rigidIdx ):
                 print 'Rigid offset not set! Using offset of [0,0,0]'
             else:
-                rigidOffsetMM_WorldXYZ = self.rigidOffsetMM_ridx_WorldXYZ[rigidIdx]
+                rigidOffsetMM_WorldXYZ = self.rigidOffset_ridx_XYZ[rigidIdx]
             
             if( len(self.rigidAvgMarkerList_rIdx_mId) < rigidIdx ):
                 print 'Average markers not provided! Using default (marker 0)'
             else:
                 rigidAvgMarkerList_mIdx  = self.rigidAvgMarkerList_rIdx_mId[rigidIdx]
             
-            #rigidOffsetMM_WorldXYZ = self.rigidOffsetMM_ridx_WorldXYZ[rigidIdx]
-            
+            #rigidOffsetMM_WorldXYZ = self.rigidOffset_ridx_XYZ[rigidIdx]
             #rigidNameAndPathStr = self.phaseSpaceFilePath + self.rigidFileNames_ridx[rigidIdx]
             #self.rbTrackers_rbIdx.append( self.track_rigid(rigidNameAndPathStr , rigidAvgMarkerList_mId ) ) # rigidOffsetMM_WorldXYZ
             
@@ -535,7 +554,12 @@ class phasespaceInterface(viz.EventClass):
     def update_thread(self):
         while self._running:
             self.update()
-            elapsed = viz.tick() - self._updated
+            try:
+                elapsed = viz.tick() - self._updated
+            except:
+                tick = viz.tick()
+                upd = self._updated
+                
             wait = 1. / self.owlParamFrequ - elapsed
             while wait < 0:
                 wait += 1. / self.owlParamFrequ
@@ -570,9 +594,9 @@ class phasespaceInterface(viz.EventClass):
         ox, oy, oz = self.origin
         
         def psPoseToVizardPose(x, y, z): # converts Phasespace pos to vizard cond
-            return sz * z + oz, sy * y + oy, sx * x + ox
+            return -sz * z + oz, sy * y + oy, -sx * x + ox
         def psQuatToVizardQuat(w, a, b, c): # converts Phasespace quat to vizard quat
-            return c, b, a, -w
+            return -c, b, -a, -w
 
         for marker in markers:
             if( marker.cond > 0 and marker.cond < self.owlParamMarkerCondThresh ):
@@ -780,7 +804,9 @@ class phasespaceInterface(viz.EventClass):
         if( rigidBody ):
             
             #if( self.mainViewUpdateAction ):
+            self.stop_thread()
             rigidBody.reset()
+            self.start_thread()
         else:
             
             print ('Error: Rigid body not initialized');

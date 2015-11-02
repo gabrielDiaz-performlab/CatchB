@@ -1,11 +1,12 @@
 import viz
 import dvr_arr as dvr
 
-class DVRwriter(viz.EventClass):
+class DVRwriter():
 	def __init__(self, filename, metadata, viewport, noeye=False):
-		viz.EventClass.__init__(self)
 		
-		self.callback(viz.EXIT_EVENT, self.__exit__)
+		#viz.EventClass.__init__(self)
+		
+		#sviz.callback(viz.EXIT_EVENT, self.__exit__, mask = viz.CLIENT1)
 		
 		self.metadata = metadata
 		

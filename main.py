@@ -4,7 +4,7 @@ Runs an experiment.
 
 import viz
 import viztask
-import vrlabConfig
+#import vrlabConfig
 import vizshape
 import vizact
 from drawNumberFromDist import *
@@ -13,11 +13,28 @@ import physEnv
 import ode
 import datetime
 from ctypes import * # eyetrackka
+import vizconnect
+import random
+import math
+#from smi_beta import *
+import smi_beta
+import numpy as np
+import pandas as pd
+#For hardware configuration
+viz.res.addPath('resources')
+sys.path.append('utils')
+from configobj import ConfigObj
+from configobj import flatten_errors
+from validate import Validator
+import platform
+import os.path
+import vizconnect
+from gazeTools import calibrationTools
+import logging
 
-
-expConfigFileName = 'badmintonTest.cfg'
-#expConfigFileName = 'shortTest.cfg'
-#expConfigFileName = 'fullTest.cfg'
+#expConfigFileName = 'badmintonTest.cfg'
+expConfigFileName = 'gd_pilot_C.cfg'
+print '**************** USING' + expConfigFileName + '****************'
 
 ft = .3048
 inch = 0.0254
@@ -32,6 +49,9 @@ nan = float('NaN')
 #vizact.onkeydown( 'm', viz.window.screenCapture, 'image.bmp' )
 
 
+# Pulled from vrlabConfig.py
+# expCfg = ConfigObj(expCfgName, configspec='expCfgSpec.ini', raise_errors = True, file_error = True)
+# 
 class soundBank():
 	def __init__(self):
 		 
@@ -55,6 +75,276 @@ class soundBank():
 		
 soundBank = soundBank()
 
+class Configuration():
+	
+	def __init__(self, expCfgName = ""):
+		"""
+		Opens and interprets both the system config (as defined by the <platform>.cfg file) and the experiment config
+		(as defined by the file in expCfgName). Both configurations MUST conform the specs given in sysCfgSpec.ini and
+		expCfgSpec.ini respectively. It also initializes the system as specified in the sysCfg.
+		"""
+		self.eyeTracker = []
+		
+
+		#self.bodyCam = None
+
+		self.writables = list()
+		if expCfgName:
+			self.__createExpCfg(expCfgName)
+		else:
+			self.expCfg = None
+			
+		self.__createSysCfg()
+		
+		for pathName in self.sysCfg['set_path']:
+			viz.res.addPath(pathName)
+			
+		self.vizconnect = vizconnect.go( 'vizConnect/' + self.sysCfg['vizconfigFileName'])
+		self.__postVizConnectSetup()
+		
+	def __postVizConnectSetup(self):
+		''' 
+		This is where one can run any system-specific code that vizconnect can't handle
+		'''
+		dispDict = vizconnect.getRawDisplayDict()
+		
+		self.clientWindow = dispDict['exp_display']
+		self.riftWindow = dispDict['rift_display']
+		
+	
+
+		if( self.sysCfg['use_wiimote']):
+			# Create wiimote holder
+			self.wiimote = 0
+			self.__connectWiiMote()
+
+		if self.sysCfg['use_hmd'] and self.sysCfg['hmd']['type'] == 'DK2':
+			self.__setupOculusMon()
+		
+		if self.sysCfg['use_eyetracking']:
+			self.use_eyeTracking = True
+			self.__connectSMIDK2()
+		else:
+			self.use_eyeTracking = False
+	
+			
+		self.writer = None #Will get initialized later when the system starts
+		self.writables = list()
+		
+		#viz.callback(viz.EXIT_EVENT, self.stopDVR)
+#		vizact.ontimer2(5,1,self.stopDVR)
+		
+		if self.sysCfg['use_phasespace']:
+			
+			from mocapInterface import phasespaceInterface			
+			self.mocap = phasespaceInterface(self.sysCfg);
+			
+			self.use_phasespace = True
+		else:
+			self.use_phasespace = False
+			
+		
+		#viz.setMultiSample(self.sysCfg['antiAliasPasses'])
+		#viz.MainWindow.clip(0.01 ,200)
+		
+		#viz.vsync(1)
+		#self.__setWinPriority(5)
+		viz.setOption("viz.glfinish", 1)
+		viz.setOption("viz.dwm_composition", 0)
+		
+	def __createExpCfg(self, expCfgName):
+
+		"""
+
+		Parses and validates a config obj
+		Variables read in are stored in configObj
+		
+		"""
+		
+		print "Loading experiment config file: " + expCfgName
+		
+		# This is where the parser is called.
+		expCfg = ConfigObj(expCfgName, configspec='expCfgSpec.ini', raise_errors = True, file_error = True)
+
+		validator = Validator()
+		expCfgOK = expCfg.validate(validator)
+		if expCfgOK == True:
+			print "Experiment config file parsed correctly"
+		else:
+			print 'Experiment config file validation failed!'
+			res = expCfg.validate(validator, preserve_errors=True)
+			for entry in flatten_errors(expCfg, res):
+			# each entry is a tuple
+				section_list, key, error = entry
+				if key is not None:
+					section_list.append(key)
+				else:
+					section_list.append('[missing section]')
+				section_string = ', '.join(section_list)
+				if error == False:
+					error = 'Missing value or section.'
+				print section_string, ' = ', error
+			sys.exit(1)
+		if expCfg.has_key('_LOAD_'):
+			for ld in expCfg['_LOAD_']['loadList']:
+				print 'Loading: ' + ld + ' as ' + expCfg['_LOAD_'][ld]['cfgFile']
+				curCfg = ConfigObj(expCfg['_LOAD_'][ld]['cfgFile'], configspec = expCfg['_LOAD_'][ld]['cfgSpec'], raise_errors = True, file_error = True)
+				validator = Validator()
+				expCfgOK = curCfg.validate(validator)
+				if expCfgOK == True:
+					print "Experiment config file parsed correctly"
+				else:
+					print 'Experiment config file validation failed!'
+					res = curCfg.validate(validator, preserve_errors=True)
+					for entry in flatten_errors(curCfg, res):
+					# each entry is a tuple
+						section_list, key, error = entry
+						if key is not None:
+							section_list.append(key)
+						else:
+							section_list.append('[missing section]')
+						section_string = ', '.join(section_list)
+						if error == False:
+							error = 'Missing value or section.'
+						print section_string, ' = ', error
+					sys.exit(1)
+				expCfg.merge(curCfg)
+		
+		self.expCfg = expCfg
+
+	
+	def __setWinPriority(self,pid=None,priority=5):
+		
+		""" Set The Priority of a Windows Process.  Priority is a value between 0-5 where
+			2 is normal priority.  Default sets the priority of the current
+			python process but can take any valid process ID. """
+			
+		import win32api,win32process,win32con
+		
+		priorityclasses = [win32process.IDLE_PRIORITY_CLASS,
+						   win32process.BELOW_NORMAL_PRIORITY_CLASS,
+						   win32process.NORMAL_PRIORITY_CLASS,
+						   win32process.ABOVE_NORMAL_PRIORITY_CLASS,
+						   win32process.HIGH_PRIORITY_CLASS,
+						   win32process.REALTIME_PRIORITY_CLASS]
+		if pid == None:
+			pid = win32api.GetCurrentProcessId()
+		
+		handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+		win32process.SetPriorityClass(handle, priorityclasses[priority])
+		
+	def __createSysCfg(self):
+		"""
+		Set up the system config section (sysCfg)
+		"""
+		
+		# Get machine name
+		sysCfgName = platform.node()+".cfg"
+		
+		if not(os.path.isfile(sysCfgName)):
+			sysCfgName = "defaultSys.cfg"
+			
+		print "Loading system config file: " + sysCfgName
+		
+		# Parse system config file
+		sysCfg = ConfigObj(sysCfgName, configspec='sysCfgSpec.ini', raise_errors = True)
+		
+		validator = Validator()
+		sysCfgOK = sysCfg.validate(validator)
+		
+		if sysCfgOK == True:
+			print "System config file parsed correctly"
+		else:
+			print 'System config file validation failed!'
+			res = sysCfg.validate(validator, preserve_errors=True)
+			for entry in flatten_errors(sysCfg, res):
+			# each entry is a tuple
+				section_list, key, error = entry
+				if key is not None:
+					section_list.append(key)
+				else:
+					section_list.append('[missing section]')
+				section_string = ', '.join(section_list)
+				if error == False:
+					error = 'Missing value or section.'
+				print section_string, ' = ', error
+			sys.exit(1)
+		self.sysCfg = sysCfg
+	
+		
+	def __setupOculusMon(self):
+		"""
+		Setup for the oculus rift dk2
+		Relies upon a cluster enabling a single client on the local machine
+		THe client enables a mirrored desktop view of what's displays inside the oculus DK2
+		Note that this does some juggling of monitor numbers for you.
+		"""
+		
+		#viz.window.setFullscreenMonitor(self.sysCfg['displays'])
+		#hmd = oculus.Rift(renderMode=oculus.RENDER_CLIENT)
+
+		displayList = self.sysCfg['displays'];
+		
+		if len(displayList) < 2:
+			print 'Display list is <1.  Need two displays.'
+		else:
+			print 'Using display number ' + str(displayList[0]) + ' for oculus display.'
+			print 'Using display number ' + str(displayList[1]) + ' for mirrored display.'
+		
+		### Set the rift and exp displays
+		
+		riftMon = []
+		expMon = displayList[1]
+		
+		with viz.cluster.MaskedContext(viz.MASTER):
+			
+			# Set monitor to the oculus rift
+			monList = viz.window.getMonitorList()
+			
+			for mon in monList:
+				if mon.name == 'Rift DK2':
+					riftMon = mon.id
+			
+			viz.window.setFullscreenMonitor(riftMon)
+			viz.window.setFullscreen(1)
+			
+		with viz.cluster.MaskedContext(viz.CLIENT1):
+			
+			count = 1
+			while( riftMon == expMon ):
+				expMon = count
+				
+			viz.window.setFullscreenMonitor(expMon)
+			viz.window.setFullscreen(1)
+
+	def __connectWiiMote(self):
+		
+		wii = viz.add('wiimote.dle')#Add wiimote extension
+		
+		# Replace old wiimote
+		if( self.wiimote ):
+			print 'Wiimote removed.'
+			self.wiimote.remove()
+			
+		self.wiimote = wii.addWiimote()# Connect to first available wiimote
+		
+		vizact.onexit(self.wiimote.remove) # Make sure it is disconnected on quit
+		
+		self.wiimote.led = wii.LED_1 | wii.LED_4 #Turn on leds to show connection
+	
+	def __connectSMIDK2(self):
+		
+		if self.sysCfg['sim_trackerData']:
+			self.eyeTracker = smi_beta.iViewHMD(simulate=True)
+		else:
+			self.eyeTracker = smi_beta.iViewHMD()
+	
+	def __record_data__(self, e):
+		
+		if self.use_DVR and self.writer != None:
+			#print "Writing..."
+			self.writer.write(self.writables)
+		
 
 class Experiment(viz.EventClass):
 	
@@ -62,7 +352,7 @@ class Experiment(viz.EventClass):
 	Experiment manages the basic operation of the experiment.
 	"""
 	
-	def __init__(self, config):
+	def __init__(self, expConfigFileName):
 		
 		# Event classes can register their own callback functions
 		# This makes it possible to register callback functions (e.g. activated by a timer event)
@@ -77,17 +367,8 @@ class Experiment(viz.EventClass):
 		## Use config to setup hardware, motion tracking, frustum, eyeTrackingCal.
 		##  This draws upon the system config to setup the hardware / HMD
 		
-		self.config = config 
+		self.config = Configuration(expConfigFileName)
 
-		# Eventually, self.config.writables is passed to DVRwriter
-		# self.config.writables is a list
-		# dvrwriter will attempt to run .getOutput on every member of the list
-		# One could then add experiment, theBall, theRacquet, eyeTrackingCal to the list, assuming 
-		# they include the member function .getOutput().
-		# I prefer to do all my data collection in one place: experiment.getOutput()
-		
-		self.config.writables = [self]
-		
 		################################################################
 		################################################################
 		## Set states
@@ -97,15 +378,18 @@ class Experiment(viz.EventClass):
 		self.setEnabled(False)
 		self.test_char = None
 
+		self.calibrationFrameCounter = 0
+		self.totalCalibrationFrames = 100
+		
+		#self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
 		################################################################
 		################################################################
 		# Create visual and physical objects (the room)
 	
-		self.room = visEnv.room(config)
-		
-		# self.room.physEnv 
-		self.updateViewAct = []
+		self.room = visEnv.room(self.config)
+		self.viewAct = []
 		self.hmdLinkedToView = False
+		self.headTracker = []
 		
 		################################################################
 		################################################################
@@ -114,49 +398,41 @@ class Experiment(viz.EventClass):
 		self.blockNumber = 0;
 		self.trialNumber = 0;
 		self.inProgress = True;
+
+		self.enableWritingToLog = False
+		self.calibrationDoneSMI = False
 		
+		self.gazeVector = []
+		self.eyeBallVector = []
+				
 		self.blocks_bl = []
 		
-		for bIdx in range(len(config.expCfg['experiment']['blockList'])):
-			self.blocks_bl.append(block(config,bIdx));
+		for bIdx in range(len(self.config.expCfg['experiment']['blockList'])):
+			self.blocks_bl.append(block(self.config,bIdx, self.room));
 		
 		self.currentTrial = self.blocks_bl[self.blockNumber].trials_tr[self.trialNumber]
 		
 #		################################################################
 #		################################################################
 #		##  Misc. Design specific items here.
-#		if( config.sysCfg['use_wiimote ']):
-#			# Create wiimote holder
-#			self.wiimote = 0
-#			self.connectWiiMote()
-		
-		if( config.wiimote ):
-			self.registerWiimoteActions()
 		
 		# Setup launch trigger
 		self.launchKeyIsCurrentlyDown = False
 		
-		self.minLaunchTriggerDuration = config.expCfg['experiment']['minLaunchTriggerDuration']
+		self.minLaunchTriggerDuration = self.config.expCfg['experiment']['minLaunchTriggerDuration']
 		
-		# maxFlightDurTimerID times out balls a fixed dur after launch
-		self.maxFlightDurTimerID = viz.getEventID('maxFlightDurTimerID') # Generates a unique ID. 
 		
-		self.setupHMD()
-		self.setupPaddle()
-				
-#		self.discTarg = visEnv.visObj(self.room,'cylinder',[0.5,1])
-#		self.discTarg.visNode.setPosition([0,1,20])
-#		self.discTarg.visNode.setAxisAngle(1,0,0,90)
-#		self.discTarg.applyVisToPhys()
+		if self.config.sysCfg['use_wiimote']:
+			self.registerWiimoteActions()
 		
+		if self.config.sysCfg['use_phasespace']:
+			self.linkObjectsUsingMocap()
 			
 		##############################################################
 		##############################################################
 		## Callbacks and timers
 		
 		vizact.onupdate(viz.PRIORITY_PHYSICS,self._checkForCollisions)
-		
-		#self.callback(viz.TIMER_EVENT, self.timer_event)
 		self.callback(viz.KEYDOWN_EVENT,  self.onKeyDown)
 		self.callback(viz.KEYUP_EVENT, self.onKeyUp)
 		self.callback( viz.TIMER_EVENT,self._timerCallback )
@@ -164,45 +440,44 @@ class Experiment(viz.EventClass):
 		self.perFrameTimerID = viz.getEventID('perFrameTimerID') # Generates a unique ID. 
 		self.starttimer( self.perFrameTimerID, viz.FASTEST_EXPIRATION, viz.FOREVER)
 		
-		# DVR snaps a shot of the frame, records eye data, and contents of self.writables is written out to the movie
-		self.callback(viz.POST_SWAP_EVENT, self.config.__record_data__, viz.PRIORITY_LAST_UPDATE)
-	
-		# Use text output!
-		if( config.sysCfg['use_DVR'] >0):
-			
-			vizact.ontimer(3,self.checkDVRStatus)
-			
-			now = datetime.datetime.now()
-			dateTimeStr = str(now.year) + '-' + str(now.month) + '-' + str(now.day) + '-' + str(now.hour) + '-' + str(now.minute)
-			
-			dataOutPutDir = config.sysCfg['writer']['outFileDir']
-			
-			self.expDataFile = open(dataOutPutDir + 'exp_data-' + dateTimeStr + '.txt','a')
-			
-			if( self.config.sysCfg['use_eyetracking']):
-				self.eyeDataFile = open(dataOutPutDir + 'eye_data-' + dateTimeStr + '.txt','a')
-			
-			vizact.onupdate(viz.PRIORITY_LAST_UPDATE,self.writeDataToText)
+		# maxFlightDurTimerID times out balls a fixed dur after launch
+		self.maxFlightDurTimerID = viz.getEventID('maxFlightDurTimerID') 
+		self.ballPresDurTimerID = viz.getEventID('ballPresDurTimerID') 
+		self.ballBlankDurTimerID = viz.getEventID('ballBlankDurTimerID')
 		
-		# Create an event flag object
-		# This var is set to an int on every frame
-		# The int saves a record of what was happening on that frame
-		# It can be configured to signify the start of a trial, the bounce of a ball, or whatever
+		############################################################
+		#############################################################
+		# Setup per-frame data output
+		self.setupFileIO()
+		
+		with viz.cluster.MaskedContext(viz.MASTER):
+			vizact.onupdate(viz.PRIORITY_LAST_UPDATE,self.addDataToLog)
 		
 		self.eventFlag = eventFlag()
 		
+		
 	def _timerCallback(self,timerID):
 		
-		
 		if( timerID == self.maxFlightDurTimerID ):
-			
-			
-			#print 'Ball timed out. Removing ball!'
-			
+
+			print 'Removing ball!'
 			self.currentTrial.removeBall()
 			self.room.standingBox.visible( viz.TOGGLE )
 			self.endTrial()
-		
+			
+		elif( timerID == self.ballPresDurTimerID ):
+			
+			# make ball invisible
+			if( self.currentTrial.blankDur != 0.0 ):
+				self.currentTrial.ballObj.node3D.visible( False )
+				self.starttimer(self.ballBlankDurTimerID,self.currentTrial.blankDur);
+				self.eventFlag.setStatus(8)
+				
+		elif( timerID == self.ballBlankDurTimerID ):
+			
+			self.currentTrial.ballObj.node3D.visible( True )
+			self.eventFlag.setStatus(9)
+			
 	def _checkForCollisions(self):
 		
 		thePhysEnv = self.room.physEnv;
@@ -213,8 +488,12 @@ class Experiment(viz.EventClass):
 		
 		theFloor = self.room.floor
 		theBackWall = self.room.wall_NegZ
-		theBall = self.currentTrial.ballObj		
-		thePaddle = self.room.paddle
+		theBall = self.currentTrial.ballObj				
+		
+		if(self.room.paddle):
+			thePaddle = self.room.paddle
+		if(self.room.passingPlane):
+			thePassingPlane = self.room.passingPlane
 		
 		for idx in range(len(thePhysEnv.collisionList_idx_physNodes)):
 			
@@ -223,7 +502,7 @@ class Experiment(viz.EventClass):
 			
 			# BALL / FLOOR
 			
-			if( theBall > 0 ):
+			if( theBall ):
 				if( self.currentTrial.ballHasBouncedOnFloor == False and
 					(physNode1 == theFloor.physNode and physNode2 == theBall.physNode or 
 					physNode1 == theBall.physNode and physNode2 == theFloor.physNode )):
@@ -234,6 +513,7 @@ class Experiment(viz.EventClass):
 					 
 					# This is an example of how to get contact information
 					bouncePos_XYZ,normal,depth,geom1,geom2 = thePhysEnv.contactObjects_idx[0].getContactGeomParams()
+					print 'Bounce Point', bouncePos_XYZ
 					
 					self.currentTrial.ballOnPaddlePos_XYZ = bouncePos_XYZ
 					
@@ -241,14 +521,14 @@ class Experiment(viz.EventClass):
 					viz.playSound(soundBank.bounce)
 					
 					# Compare pre-bounce flight dur with predicted pre-bounce flight dur
-					actualPreBounceFlightDur =  float(viz.getFrameTime()) - self.currentTrial.launchTime
-					durationError = self.currentTrial.predictedPreBounceFlightDur - actualPreBounceFlightDur
-					self.currentTrial.flightDurationError = durationError 
+					#actualPreBounceFlightDur =  float(viz.getFrameTime()) - self.currentTrial.launchTime
+					#durationError = self.currentTrial.predictedPreBounceFlightDur - actualPreBounceFlightDur
+					#self.currentTrial.flightDurationError = durationError 
 					
 					#print 'Predicted: ' + str(self.currentTrial.predictedPreBounceFlightDur)
 					#print 'Actual   : ' + str(actualPreBounceFlightDur)
 					
-					print 'Flight duration error: ' + str(durationError)
+					#print 'Flight duration error: ' + str(durationError)
 					
 				# BALL / PADDLE
 				if( self.currentTrial.ballHasHitPaddle == False and
@@ -263,18 +543,54 @@ class Experiment(viz.EventClass):
 					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
 					if( theBall.physNode.queryStickyState(thePaddle.physNode) ):
 					
-						theBall.visNode.setParent(thePaddle.visNode)
-						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
-						theBall.visNode.setPosition(collPoint_XYZ)
+						theBall.updateAction.remove() # Could also be acheived by turning of physics via the physnode
 						
+						theBall.node3D.setParent(thePaddle.node3D)
+						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
+						theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
+						
+						
+						print 'Collision Location ', collPoint_XYZ
 						self.currentTrial.ballOnPaddlePosLoc_XYZ = collPoint_XYZ
 						
 						# If you don't set position in this way (on the next frame using vizact.onupdate),
 						# then it doesn't seem to update correctly.  
 						# My guess is that this is because the ball's position is updated later on this frame using
 						# visObj.applyPhysToVis()
-						
-						vizact.onupdate(viz.PRIORITY_LINKS,theBall.visNode.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2])
+
+						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2], viz.ABS_PARENT)
+
+#				# BALL / PassingPlane
+#				if( type(self.room.passingPlane) is visEnv.visObj and 
+#					self.currentTrial.ballHasHitPassingPlane == False 
+#					and (physNode1 == thePassingPlane.physNode and physNode2 == theBall.physNode or 
+#						 physNode1 == theBall.physNode and physNode2 == thePassingPlane.physNode )):
+#						
+#					self.eventFlag.setStatus(8)
+#					self.currentTrial.ballHasHitPassingPlane = True
+#					viz.playSound(soundBank.bubblePop)
+#					
+#					#self.currentTrial.myMarkersList.append(vizshape.addCircle(0.02))
+#					#self.currentTrial.myMarkersList[-1].color([1,1,0])
+#					#self.currentTrial.myMarkersList[-1].setPosition(theBall.node3D.getPosition())
+#
+#
+#					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
+#					if( theBall.physNode.queryStickyState(thePassingPlane.physNode) ):
+#					
+#						theBall.updateAction.remove()
+#						theBall.node3D.setParent(thePassingPlane.node3D)
+#						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
+#						theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
+#						
+#						self.currentTrial.ballOnPassingPlanePosLoc_XYZ = collPoint_XYZ
+#						
+#						# If you don't set position in this way (on the next frame using vizact.onupdate),
+#						# then it doesn't seem to update correctly.  
+#						# My guess is that this is because the ball's position is updated later on this frame using
+#						# visObj.applyPhysToVis()
+#						#print '===============> HI HOO', collPoint_XYZ
+#						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2])
 
 				if( physNode1 == theBackWall.physNode and physNode2 == theBall.physNode or 
 					physNode1 == theBall.physNode and physNode2 == theBackWall.physNode):
@@ -283,14 +599,42 @@ class Experiment(viz.EventClass):
 					#print 'Ball has hit the back wall.'
 					
 					viz.playSound(soundBank.bounce)
+	
+	def setupFileIO(self):
+		
+		# set up a logger and add handlers
+		self.logger = logging.getLogger()
+		now = datetime.datetime.now()
 
+		dateTimeStr = str(now.year) + '-' + str(now.month) + '-' + str(now.day) + '-' + str(now.hour) + '-' + str(now.minute)
+		
+		dataOutPutDir = self.config.sysCfg['writer']['outFileDir'] + '//' +str(dateTimeStr) + '//'
+		
+		if not os.path.exists(dataOutPutDir):
+			os.makedirs(dataOutPutDir)
+			
+		self.fhandler = logging.FileHandler(filename= dataOutPutDir + 'exp_data-' + dateTimeStr + '.dict', mode='w')
+		formatter = logging.Formatter('%(message)s')
+		self.fhandler.setFormatter(formatter)
+		self.logger.addHandler(self.fhandler)
+		self.logger.setLevel(logging.DEBUG)
+		
+		from shutil import copyfile
+		
+		# Copy config files
+		copyfile('.\\' + expConfigFileName, dataOutPutDir+expConfigFileName ) # exp config
+		copyfile('.\\expCfgSpec.ini', dataOutPutDir + 'expCfgSpec.ini' )# exp config spec1
+		
+		copyfile('.\\'+os.environ['COMPUTERNAME'] + '.cfg', dataOutPutDir+os.environ['COMPUTERNAME'] + '.cfg')# system config 
+		copyfile('.\\sysCfgSpec.ini', dataOutPutDir+ 'sysCfgSpec.ini') # system config spec
+		
 	def start(self):
 		
 		##This is called when the experiment should begin.
 		self.setEnabled(True)
-		self.config.start()
-
+		
 	def toggleEyeCalib(self):
+		
 		"""
 		Toggles the calibration for eye tracking.
 		Note, that for this to work, toggling 
@@ -302,14 +646,22 @@ class Experiment(viz.EventClass):
 		self.model = viz.add('pit.osgb',parent = self.room)
 		"""
 		
+		if( self.config.sysCfg['use_eyetracking'] is False ):
+			print 'Eyetracker not setup'
+			return
+			
 		if not self.config.mocap:
 			pass
-		elif( self.updateViewAct.getEnabled() ):
-			self.updateViewAct.setEnabled(0)
-		else:
-			self.updateViewAct.setEnabled(1)
+		elif( self.hmdLinkedToView and self.viewAct.getEnabled() ):
+
+			self.viewAct.setEnabled(viz.OFF)
+
+		elif( self.hmdLinkedToView and self.viewAct.getEnabled() == False ):
+			
+			self.viewAct.setEnabled(viz.ON)
 		
 		viz.mouse.setOverride(viz.TOGGLE)
+
 		self.config.eyeTrackingCal.toggleCalib()
 		
 		self.inCalibrateMode = not self.inCalibrateMode
@@ -328,23 +680,33 @@ class Experiment(viz.EventClass):
 			self.room.walls.visible(viz.TOGGLE)
 			self.room.objects.visible(viz.TOGGLE)
 		
+		
+		self.config.eyeTrackingCal.updateOffset('s')
+		self.config.eyeTrackingCal.updateOffset('w')
 			
 	def createCamera(self):
 		"""
 		Head camera is generally initialized as part of the system calls. Additional changes should be added here.
 		"""
 		pass		
+
+	def updateGazePoints(self):
+		displayOffset = 0.15
+		self.myDisplay.setPosition(viz.MainView.getPosition() - [0.0, 0.0, displayOffset])
+		
 		
 	def onKeyDown(self, key):
 		"""
 		Interactive commands can be given via the keyboard. Some are provided here. You'll likely want to add more.
 		"""
-		mocapSys = self.config.mocap;
+		
 		
 		if( self.config.use_phasespace == True ):
+			mocapSys = self.config.mocap;
 			hmdRigid = mocapSys.returnPointerToRigid('hmd')
 			paddleRigid = mocapSys.returnPointerToRigid('paddle')
 		else:
+			mocapSys = []
 			hmdRigid = []
 			paddleRigid = []
 		
@@ -352,34 +714,58 @@ class Experiment(viz.EventClass):
 		##########################################################
 		## Keys used in the default mode
 		
-		if 'R' == key:
+		if  key == 'R':
 			#riftOriTracker = vizconnect.getTracker('rift').getNode3d()
 			pass
-		if 'c' == key: # and self.config.eyeTrackingCal != None: # eyeTrackingCal is the where the interace to the eyetracker calib lives
-			self.toggleEyeCalib()
-			# a bit of a hack.  THe crossahair / calib ponit in viewpoint mapping is a bit off
-			# until you hit a key.  So, I'm doing that for you.
+
+		if key == 'c' and self.config.eyeTracker:
 			
-			self.config.eyeTrackingCal.updateOffset('s')
-			self.config.eyeTrackingCal.updateOffset('w')
+			self.calibrationDoneSMI = True
+			eyeTracker = experimentObject.config.eyeTracker
+			eyeTracker.calibrate()
+			print 'calibrationDoneSMI ==> ', self.calibrationDoneSMI
+
+		if key == 'q':
+			calibTools.updateCalibrationPoint()
+
+		if key == 'k':
+			print 'Data Recording Started for Calibration'
+			calibTools.calibrationSphere.color(viz.YELLOW)
+			self.enableWritingToLog = True
+			self.calibrationFrameCounter = 0
+
+		if key == 'e':
+			print 'Static Calibration Method is Called'
+			self.totalCalibrationFrames = 100
+			calibTools.staticCalibrationMethod()
+
+		if key == 'z':
+			print 'Dynamic Calibration Method is Called'
+			self.totalCalibrationFrames = 2000
+			self.enableWritingToLog = True
+			calibTools.dynamicCalibrationMethod()
+
 			
-			
-		if (self.inCalibrateMode is False):
+
+		if ( self.inCalibrateMode is False ):
 			
 			if key == 'M':
-				if( self.updateViewAct is not -1 ):
-					self.updateViewAct.setEnabled(viz.TOGGLE)
+				
 				# Toggle the link between the HMD and Mainview
-				#if( self.updateViewAct.getEnabled() ):
-				#	self.updateViewAct.getEnabled(viz.TOGGLE)
-					
+				if( self.hmdLinkedToView ):
+					if( self.viewAct.getEnabled()):
+						self.viewAct.disable()
+					else:
+						self.viewAct.enable()
 			elif key == 'p':
 				mocapSys.resetRigid('paddle')
 			elif key == 'P':
 				mocapSys.saveRigid('paddle')
 			elif key == 'h':
+				#print 'reset HMD Rigid Body'
 				mocapSys.resetRigid('hmd')
 			elif key == 'H':
+				print 'save HMD Rigid Body'
 				mocapSys.saveRigid('hmd')
 			elif key == 'W':
 				self.connectWiiMote()
@@ -387,50 +773,39 @@ class Experiment(viz.EventClass):
 				self.launchKeyDown()
 				
 			elif key == 'D':
-				
 				dvrWriter = self.config.writer;
 				dvrWriter.toggleOnOff()
 			
-					
-	
+			elif key == 'r':
+				
+				vizconnect.getTracker('rift_tracker').resetHeading()
+			
 		##########################################################
 		##########################################################
 		## Eye-tracker calibration mode
-		
-		if self.inCalibrateMode:
-			if key == 'w':
-				self.config.eyeTrackingCal.updateOffset('w')
-			elif key == 's':
-				self.config.eyeTrackingCal.updateOffset('s')
-			elif key == 'i':
-				self.config.eyeTrackingCal.updateDelta('w')
-			elif key == 'k':
-				self.config.eyeTrackingCal.updateDelta('s')
-			elif key == 'j':
-				self.config.eyeTrackingCal.updateDelta('a')
-			elif key == 'l':
-				self.config.eyeTrackingCal.updateDelta('d')
-	
+
 	
 	def onKeyUp(self,key):
 				
 		if( key == 'v'):
 			self.launchKeyUp()
-			
 
 	def launchKeyDown(self):
 		
+		
 		if( self.inProgress == True and   # Experiment ongoing
-					self.launchKeyIsCurrentlyDown == False and
-					self.currentTrial.ballInRoom == False ): # There is not already a ball
+		 self.launchKeyIsCurrentlyDown == False and
+		self.currentTrial.ballInRoom == False ): # There is not already a ball
 					
-					# Start timing trigger duration 
-					# At end of trigger, launch the ball.
-					self.launchKeyIsCurrentlyDown = True
-					self.timeLaunchKeyWasPressed = viz.tick()
-					self.room.standingBox.visible( viz.TOGGLE )
-					self.currentTrial.placeBall(self.room)
-					
+			# Start timing trigger duration 
+			# At end of trigger, launch the ball.
+			self.launchKeyIsCurrentlyDown = True
+			self.timeLaunchKeyWasPressed = viz.tick()
+			self.room.standingBox.visible( viz.TOGGLE )
+			
+			self.currentTrial.placeLaunchPlane(self.currentTrial.launchPlaneSize)			
+			self.currentTrial.placePassingPlane(self.currentTrial.passingPlaneSize)
+			self.currentTrial.placeBall(self.room)
 	
 	def launchKeyUp(self):			
 			
@@ -458,17 +833,22 @@ class Experiment(viz.EventClass):
 				if( triggerDuration >= self.minLaunchTriggerDuration ):
 					
 					self.eventFlag.setStatus(1)
+					self.inProgress = True
 					#print 'Ball launched'
-				
+					self.enableWritingToLog = True
+					print 'Start Trial {', self.enableWritingToLog,'}'
+
 					self.currentTrial.launchBall();
+					
+	
 					self.starttimer(self.maxFlightDurTimerID,self.currentTrial.ballFlightMaxDur);
+					self.starttimer(self.ballPresDurTimerID,self.currentTrial.preBlankDur);
 	
 			else:
 				
 				return
-
-	def getOutput(self):
-		
+	
+	def addDataToLog(self):
 		"""
 		Returns a string describing the current state of the experiment, useful for recording.
 		"""
@@ -486,363 +866,433 @@ class Experiment(viz.EventClass):
 		# 4 ball has hit paddle
 		# 5 ball has hit back wall
 		# 6 ball has timed out
-				
-		outputString = '* frameTime %f * ' % (viz.getFrameTime())
 		
-		outputString = outputString + '* inCalibrateBool %f * ' % (self.inCalibrateMode)
+		NaN = float('NaN')
+
+		# Only write data is the experiment is ongoing
+		if( self.enableWritingToLog is False or self.inProgress is False):
+			return
+	
+		self.calibrationFrameCounter = self.calibrationFrameCounter + 1
+		if ( calibTools.calibrationInProgress == True and self.calibrationFrameCounter > self.totalCalibrationFrames  ):
+			self.enableWritingToLog = False
+			print 'Calibration Frames Recorded:', self.calibrationFrameCounter 
+			calibTools.calibrationSphere.color(viz.PURPLE)
+			self.calibrationFrameCounter = 0
+			return
+		################################################
+		## Gather misc data 
 		
-		outputString = outputString + '* eventFlag %f * ' % (self.eventFlag.status)
+		frameNum = viz.getFrameNumber()
 		
-		outputString = outputString + '* trialType %s * ' % (self.currentTrial.trialType)
+		viewPos_XYZ = viz.MainView.getPosition(viz.MASTER)
+		if(calibTools.calibrationSphere):
+			calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
+		else:
+			calibrationPoint_XYZ = [NaN, NaN, NaN]
 		
-		viewPos_XYZ = viz.MainView.getPosition()
-		outputString = outputString + '[ viewPos_XYZ %f %f %f ] ' % (viewPos_XYZ[0],viewPos_XYZ[1],viewPos_XYZ[2])
-		
-		viewMat = viz.MainView.getMatrix()
-		
-		viewQUAT_XYZW = viewMat.getQuat()
-		
-		outputString = outputString + '< viewQUAT_WXYZ %f %f %f %f > ' % (viewQUAT_XYZW [0],viewQUAT_XYZW [1],viewQUAT_XYZW [2],viewQUAT_XYZW[3])
-		
+		currentSample =  self.config.eyeTracker.getLastSample()
+
 		################################################
 		################################################
-		#### Racquet data
+		#### Gather racquet data
 		
 		paddlePos_XYZ = []
-		paddleQUAT_XYZW = []
-		paddleAngVel_XYZ = []
+		paddleQuat_XYZW = []
+		#paddleAngVel_XYZ = []
 		
 		if( self.room.paddle ):
 			
-			paddlePos_XYZ = self.room.paddle.visNode.getPosition()
-			paddleMat = self.room.paddle.visNode.getMatrix()
-			paddleQUAT_XYZW = paddleMat.getQuat()
+			paddlePos_XYZ = self.room.paddle.node3D.getPosition()
+			paddleMat = self.room.paddle.node3D.getMatrix().data
+			paddleQuat_XYZW = self.room.paddle.node3D.getMatrix().getQuat()
 			
 		else:
-			paddlePos_XYZ = [nan,nan,nan]
-			paddleQUAT_WXYZ = [nan,nan,nan,nan]
+			paddlePos_XYZ = [NaN,NaN,NaN]
+			paddleQuat_XYZW = [NaN,NaN,NaN,NaN]
 			
-		outputString = outputString + '[ paddlePos_XYZ %f %f %f ] ' % (paddlePos_XYZ[0],paddlePos_XYZ[1],paddlePos_XYZ[2])
-		
-		outputString = outputString + '< paddleQUAT_WXYZ %f %f %f %f > ' % (paddleQUAT_XYZW[0],paddleQUAT_XYZW[1],paddleQUAT_XYZW[2],paddleQUAT_XYZW[3])
-		
+		###############################################
 		################################################
-		################################################
-		#### BALL DATA
+		#### Gather ball data
 
-		if( self.currentTrial.ballInRoom  ):
-		# If ball is in room, set ball position and velocity	
+		theBall = self.currentTrial.ballObj;
+		
+		#if(theBall is not -1):
+		if(theBall):
 			
-			theBall = self.currentTrial.ballObj;
-			
-			ballPos_XYZ = theBall.visNode.getPosition()
-			outputString = outputString + '[ ballPos_XYZ %f %f %f ] ' % (ballPos_XYZ [0],ballPos_XYZ[1],ballPos_XYZ [2])
-			
+			ballPos_XYZ = theBall.node3D.getPosition()
 			ballVel_XYZ = theBall.getVelocity()
-			outputString = outputString + '[ ballVel_XYZ %f %f %f ] ' % (ballVel_XYZ[0],ballVel_XYZ[1],ballVel_XYZ[2])
-			
-			ballPix_XYDist = viz.MainWindow.worldToScreen(ballPos_XYZ,viz.LEFT_EYE)
-			outputString = outputString + '[ ballPix_XYDist %f %f %f ] ' % (ballPix_XYDist[0],ballPix_XYDist[1],ballPix_XYDist[2])
+			ballVisible = self.currentTrial.ballObj.node3D.getVisible()
 			
 		else:
 			
-			# Ball not in room.  set pos / vel to Nan
-			ballPos_XYZ = [nan,nan,nan]
-			outputString = outputString + '[ ballPos_XYZ %f %f %f ] ' % (ballPos_XYZ [0],ballPos_XYZ [1],ballPos_XYZ [2])
+			ballPos_XYZ = [NaN,NaN,NaN]
+			ballVel_XYZ = [NaN,NaN,NaN]
+			ballVisible = NaN
 			
-			ballVel_XYZ = [nan,nan,nan]
-			outputString = outputString + '[ ballVel_XYZ %f %f %f ] ' % (ballVel_XYZ [0],ballVel_XYZ [1],ballVel_XYZ [2])
 			
-			ballPix_XYDist = [nan,nan,nan]
-			outputString = outputString + '[ ballPix_XYDist %f %f %f ] ' % (ballPix_XYDist [0],ballPix_XYDist [1],ballPix_XYDist [2])
 			
-		if( self.eventFlag.status == 1 ):
-		# Launch mode.  Print initial conditions.
+		# GIW Data#
+		if( currentSample ):
 			
-			outputString = outputString + '* ballDiameter %f * ' % (self.currentTrial.ballDiameter)
-			outputString = outputString + '* ballGravity %f * ' % (self.currentTrial.gravity)
-			outputString = outputString + '* ballPassingLoc %f * ' % (self.currentTrial.passingLoc)
-			outputString = outputString + '* ballElasticity %f * ' % (self.currentTrial.ballElasticity)
-			outputString = outputString + '* ballBounceDist %f * ' % (self.currentTrial.bounceDist)
-			outputString = outputString + '* ballBounceSpeed %f * ' % (self.currentTrial.bounceSpeed)
-			outputString = outputString + '* ballLaunchHeight %f * ' % (self.currentTrial.launchHeight)
-			outputString = outputString + '* ballLaunchDistance %f * ' % (self.currentTrial.launchDistance)
-			outputString = outputString + '* ballApproachAngleDegs %f * ' % (self.currentTrial.approachAngleDegs)
+			cycEyeOnScreen_XY = [currentSample.por_x, currentSample.por_y]
+			cycEyeInHead_XYZ = [currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z]
 			
-			outputString = outputString + '[ ballBounceLoc_XYZ %f %f %f ] ' % (self.currentTrial.ballBounceLoc_XYZ[0],self.currentTrial.ballBounceLoc_XYZ[1],self.currentTrial.ballBounceLoc_XYZ[2])
-			outputString = outputString + '[ ballInitialPos_XYZ %f %f %f ] ' % (self.currentTrial.initialPos_XYZ[0],self.currentTrial.initialPos_XYZ[1],self.currentTrial.initialPos_XYZ[2])
-			outputString = outputString + '[ initialVelocity_XYZ %f %f %f ] ' % (self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2])
-		
-		elif( self.eventFlag.status == 3 ):
-			# Error, in seconds, between predicted bounce time and actual bounce time
-			outputString = outputString + '* flightDurationError %f * ' % (self.currentTrial.flightDurationError)
-		elif( self.eventFlag.status == 4 ):
-			#print 'Event flag 4!  Writing paddle position!'
-			outputString = outputString + '[ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (self.currentTrial.ballOnPaddlePosLoc_XYZ[0],self.currentTrial.ballOnPaddlePosLoc_XYZ[1],self.currentTrial.ballOnPaddlePosLoc_XYZ[2])
-		
-		# The end of the trial
-		if( (self.eventFlag.status == 6 or self.eventFlag.status == 7) ): 
+			cycGazeInWorldNotNorm_XYZ= [currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z]
+			cycGazeInWorld_XYZ = [val/np.linalg.norm(cycGazeInWorldNotNorm_XYZ) for val in cycGazeInWorldNotNorm_XYZ]
 			
-			# For convenicne, this ensures the var  ballOnPaddlePosLoc_XYZ will show up once per  trial
-			if ( self.currentTrial.ballHasHitPaddle == False ):
-				outputString = outputString + '[ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (nan, nan, nan)
-				#print '***** [ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (nan, nan, nan)
+			rightEyeOnScreen_XY = [currentSample.rightEye.por_x, currentSample.rightEye.por_y]
+			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z]
+			rightGazeInWorldNotNorm_XYZ=[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z] # H or W?
+			rightGazeInWorld_XYZ = [val/np.linalg.norm(rightGazeInWorldNotNorm_XYZ) for val in rightGazeInWorldNotNorm_XYZ] # Normalize
+			rightEyeScreenDistance = currentSample.rightEye.eyeScreenDistance
+			rightEyeLensDistance  = currentSample.rightEye.eyeLensDistance
+			rightPupilRadius = currentSample.rightEye.pupilRadius
+			rightPupilPos_XYZ = [currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z] # Pixel values
+			
+			leftEyeOnScreen_XY = [currentSample.leftEye.por_x, currentSample.leftEye.por_y]
+			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z]
+			leftGazeInWorldNotNorm_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z] # H or W?
+			leftGazeInWorld_XYZ = [val/np.linalg.norm(leftGazeInWorldNotNorm_XYZ) for val in leftGazeInWorldNotNorm_XYZ] # Normalize
+			leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
+			leftEyeLensDistance  = currentSample.leftEye.eyeLensDistance
+			leftPupilRadius = currentSample.leftEye.pupilRadius
+			leftPupilPos_XYZ = [currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z] # Pixel values
+			
+			eyeTimeStamp = currentSample.timestamp
+			IOD = currentSample.iod
+			IPD = currentSample.ipd
+			
+		else:
 		
-		##  MATRICES
+			cycEyeOnScreen_XY = [NaN,NaN]
+			cycEyeInHead_XYZ = [NaN,NaN,NaN]
+			cycGazeInWorld_XYZ= [NaN,NaN,NaN]
+			
+			rightEyeOnScreen_XY = [NaN,NaN]
+			rightEyeInHead_XYZ = [NaN,NaN,NaN]
+			rightGazeInWorld_XYZ= [NaN,NaN,NaN]
+			rightEyeScreenDistance = NaN
+			rightEyeLensDistance = NaN
+			rightPupilRadius = NaN
+			rightPupilPos_XYZ = [NaN,NaN,NaN]
+			
+			leftEyeOnScreen_XY = [NaN,NaN]
+			leftEyeInHead_XYZ = [NaN,NaN,NaN]
+			leftGazeInWorld_XYZ= [NaN,NaN,NaN]
+			leftEyeScreenDistance = NaN
+			leftEyeLensDistance = NaN
+			leftPupilRadius = NaN
+			leftPupilPos_XYZ = [NaN,NaN,NaN]
+			
+			eyeTimeStamp = NaN
+			IOD = NaN
+			IPD = NaN
+			
+			
+		#####
 		
-		viewMat = viz.MainWindow.getMatrix(viz.LEFT_EYE)
-		invViewMat = viewMat.inverse()
+		dataDict = dict( 
+			
+			frameTime = viz.getFrameTime(),
+			trialNumber = self.trialNumber,
+			eventFlag = self.eventFlag.status,
+			trialType = self.currentTrial.trialType,
+			
+			# mainView
+			viewPos_XYZ = viewPos_XYZ,
+			viewMat_4x4 = viz.MainView.getMatrix().data,
+			viewQuat_XYZW = viz.MainView.getQuat(),
+
+			# Calibration
+			calibrationInProgress = calibTools.calibrationInProgress,
+			isCalibrated = self.calibrationDoneSMI,
+			calibrationCounter = calibTools.calibrationCounter,
+			calibrationPosition = [ calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2] ],
+			
+			# Paddle
+			paddlePos_XYZ=[paddlePos_XYZ[0],paddlePos_XYZ[1],paddlePos_XYZ[2]],
+			paddleQuat_XYZW =[paddleQuat_XYZW[0],paddleQuat_XYZW[1],paddleQuat_XYZW[2],paddleQuat_XYZW[3]],
+			paddleMat_4x4 = paddleMat,
+			
+			# Ball
+			ballPos_XYZ = [ballPos_XYZ [0],ballPos_XYZ[1],ballPos_XYZ [2]],
+			ballVel_XYZ = [ballVel_XYZ[0],ballVel_XYZ[1],ballVel_XYZ[2]],
+			ballVisible = ballVisible,
+			ballInitialPos_XYZ = [self.currentTrial.ballInitialPos_XYZ[0],self.currentTrial.ballInitialPos_XYZ[1],self.currentTrial.ballInitialPos_XYZ[2]],
+			ballFinalPos_XYZ = [self.currentTrial.ballFinalPos_XYZ[0],self.currentTrial.ballFinalPos_XYZ[1],self.currentTrial.ballFinalPos_XYZ[2]],
+			ballInitialVelocity_XYZ = [self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2]],
+			ballTTC = self.currentTrial.timeToContact,
+			#ballLaunch_AE = [self.currentTrial.beta,self.currentTrial.theta],
+			
+			# Trajectory
+			preBlankDur = self.currentTrial.preBlankDur,
+			blankDur = self.currentTrial.blankDur,
+			postBlankDur = self.currentTrial.postBlankDur,
+			
+			# Eye geometry
+			eyeTimeStamp = eyeTimeStamp,
+			IOD = IOD,
+			IPD = IPD,
+			
+			# Cyclopean gaze
+			cycEyeOnScreen_XY=cycEyeOnScreen_XY,
+			cycEyeInHead_XYZ = cycEyeInHead_XYZ,
+			cycGazeInWorld_XYZ = cycGazeInWorld_XYZ,
+			
+			# Right gaze
+			rightPupilRadius = rightPupilRadius,
+			rightEyeLensDistance = rightEyeLensDistance,
+			rightEyeScreenDistance = rightEyeScreenDistance,
+			rightGazeInWorld_XYZ = rightGazeInWorld_XYZ,
+			rightEyeInHead_XYZ =  rightEyeInHead_XYZ,
+			rightEyeOnScreen_XY = rightEyeOnScreen_XY,
+			rightPupilPos_XYZ = rightPupilPos_XYZ,
+			
+			# Left gaze
+			leftPupilRadius = leftPupilRadius,
+			leftEyeLensDistance = leftEyeLensDistance,
+			leftEyeScreenDistance = leftEyeScreenDistance,
+			leftGazeInWorld_XYZ = leftGazeInWorld_XYZ,
+			leftEyeInHead_XYZ =  leftEyeInHead_XYZ,
+			leftEyeOnScreen_XY = leftEyeOnScreen_XY,
+			leftPupilPos_XYZ = leftPupilPos_XYZ,
+
+			)
 		
-		outputString = outputString + '@ invViewMat %s @ '  % (str(invViewMat.get()))
+		logging.info(dict(dataDict))
+		return
 		
-		proMat = viz.MainWindow.getProjectionMatrix(viz.LEFT_EYE)
-		invProMat  = proMat.inverse()
-		outputString = outputString + '@ invProMat %s @ '  % (str(invProMat.get()))
+
+
+#	def writeDataToText(self):
+#		
+#		#return # Hacked for my test
+#		# Only write data is the experiment is ongoing
+#		if( (self.enableWritingToLog is False) ): # (self.inProgress is False) or 
+#			return
+#			
+#		if(calibTools.calibrationCounter > 50):
+#			print 'Finished Writing Data for Dynamic Calibration'
+#			self.enableWritingToLog = False
+#			return
+#		self.calibrationFrameCounter = self.calibrationFrameCounter + 1
+#		if ( calibTools.calibrationInProgress == True and self.calibrationFrameCounter > self.totalCalibrationFrames  ):
+#			self.enableWritingToLog = False
+#			print 'Calibration Frames Recorded:', self.calibrationFrameCounter 
+#			calibTools.calibrationSphere.color(viz.PURPLE)
+#			self.calibrationFrameCounter = 0
+#			return
+#			
+#		expDataString = self.getOutput()
+#		self.expDataFile.write(expDataString + '\n')
+
+	def registerWiimoteActions(self):
+				
+		wii = viz.add('wiimote.dle')#Add wiimote extension
+		
+		vizact.onsensordown(self.config.wiimote,wii.BUTTON_B,self.launchKeyDown) 
+		vizact.onsensorup(self.config.wiimote,wii.BUTTON_B,self.launchKeyUp) 
+		vizact.onsensordown(self.config.wiimote,wii.BUTTON_DOWN,self.config.eyeTracker.calibrate)
+		
+		if( self.config.use_phasespace == True ):
+			
+			mocapSys = self.config.mocap;
+		
+			#vizact.onsensorup(self.config.wiimote,wii.BUTTON_DOWN,mocapSyc.resetRigid,'hmd') 
+			#vizact.onsensorup(self.config.wiimote,wii.BUTTON_UP,mocapSys.saveRigid,'hmd') 
+			
+			#vizact.onsensorup(self.config.wiimote,wii.BUTTON_LEFT,mocapSys.resetRigid,'paddle') 
+			#vizact.onsensorup(self.config.wiimote,wii.BUTTON_RIGHT,mocapSys.saveRigid,'paddle') 
+			
+			def resetHelmetOrientation():
+				
+				mocapSys = self.config.mocap;mocapSys.resetRigid('hmd')
+				
+				# Get diff between current heading and world X
+				rt_YPR = vizconnect.getTracker('rift_tracker').getLink().getEuler()
+				oriLink = vizconnect.getTracker('rift_tracker').getLink()
+				oriLink.reset(viz.RESET_OPERATORS)
+				#oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], 0], target=viz.LINK_ORI_OP, priority=-20)
+				#oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], -rt_YPR[2]], target=viz.LINK_ORI_OP, priority=-20)
+				
+				
+			vizact.onsensorup(self.config.wiimote,wii.BUTTON_1,vizconnect.getTracker('rift_tracker').resetHeading)
+			vizact.onsensordown(self.config.wiimote,wii.BUTTON_UP,resetHelmetOrientation)
+			
+			
 	
-		return outputString #%f %d' % (viz.getFrameTime(), self.inCalibrateMode)
-						
-		
-#	def getOutput(self):
-#		
-#
-#		"""
-#		Returns a string describing the current state of the experiment, useful for recording.
-#		"""
-#		
-#		# Legend:
-#		# ** for 1 var
-#		# () for 2 vars
-#		# [] for 3 vars
-#		# <> for 4 vars
-#		# @@ for 16 vars (view and projection matrices)
-#		
-#		#### Eventflag
-#		# 1 ball launched
-#		# 3 ball has hit floor 
-#		# 4 ball has hit paddle
-#		# 5 ball has hit back wall
-#		# 6 ball has timed out
-#				
-#		outputString = '* frameTime %f * ' % (viz.getFrameTime())
-#		
-#		outputString = outputString + '* inCalibrateBool %f * ' % (self.inCalibrateMode)
-#		
-#		outputString = outputString + '* eventFlag %f * ' % (self.eventFlag.status)
-#		
-#		outputString = outputString + '* trialType %s * ' % (self.currentTrial.trialType)
-#		
-#		viewPos_XYZ = viz.MainView.getPosition()
-#		outputString = outputString + '[ viewPos_XYZ %f %f %f ] ' % (viewPos_XYZ[0],viewPos_XYZ[1],viewPos_XYZ[2])
-#		
-#		viewQUAT_XYZW = viz.MainView.getQuat()
-#		outputString = outputString + '< viewQUAT_XYZW %f %f %f %f > ' % (viewQUAT_XYZW [0],viewQUAT_XYZW [1],viewQUAT_XYZW [2],viewQUAT_XYZW[3])
-#		
-#		################################################
-#		################################################
-#		#### Racquet data
-#		
-#		paddlePos_XYZ = []
-#		paddleQUAT_XYZW = []
-#		paddleAngVel_XYZ = []
-#		
-#		if( self.room.paddle ):
-#			
-#			paddlePos_XYZ = self.room.paddle.visNode.getPosition()
-#			paddleQUAT_XYZW = self.room.paddle.visNode.getQuat()
-#			
-#			#paddleVel_XYZ = self.room.paddle.getVelocity()
-#			#paddleAngVel_XYZ = self.room.paddle.getAngularVelocity()
-#			
-#			
-#		else:
-#			paddlePos_XYZ = [nan,nan,nan]
-#			paddleQUAT_XYZW = [nan,nan,nan,nan]
-#			paddleVel_XYZ = [nan,nan,nan]
-#			paddleAngVel_XYZ = [nan,nan,nan]
-#			
-#		outputString = outputString + '[ paddlePos_XYZ %f %f %f ] ' % (paddlePos_XYZ[0],paddlePos_XYZ[1],paddlePos_XYZ[2])
-#		outputString = outputString + '< paddleQUAT_XYZW %f %f %f %f > ' % (paddleQUAT_XYZW[0],paddleQUAT_XYZW[1],paddleQUAT_XYZW[2],paddleQUAT_XYZW[3])
-#		
-#		#outputString = outputString + '[ paddleVel_XYZ %f %f %f ] ' % (paddleVel_XYZ[0],paddleVel_XYZ[1],paddleVel_XYZ[2])
-#		#outputString = outputString + '[ paddleAngVel_XYZ %f %f %f ] ' % (paddleAngVel_XYZ[0],paddleAngVel_XYZ[1],paddleAngVel_XYZ[2])
-#		
-#		################################################
-#		################################################
-#		#### BALL DATA
-#
-#		
-#		if( self.currentTrial.ballInRoom  ):
-#		# If ball is in room, set ball position and velocity	
-#			
-#			theBall = self.currentTrial.ballObj;
-#			
-#			ballPos_XYZ = theBall.visNode.getPosition()
-#			outputString = outputString + '[ ballPos_XYZ %f %f %f ] ' % (ballPos_XYZ [0],ballPos_XYZ [1],ballPos_XYZ [2])
-#			
-#			ballVel_XYZ = theBall.getVelocity()
-#			#theBall.visNode.getVelocity()
-#			outputString = outputString + '[ ballVel_XYZ %f %f %f ] ' % (ballVel_XYZ[0],ballVel_XYZ[1],ballVel_XYZ[2])
-#			
-#			ballPix_XY = viz.MainWindow.worldToScreen(ballPos_XYZ,viz.LEFT_EYE)
-#			outputString = outputString + '[ ballPix_XY %f %f %f ] ' % (ballPix_XY [0],ballPix_XY [1],ballPix_XY [2])
-#			
-#		else:
-#			
-#			# Ball not in room.  set pos / vel to Nan
-#			ballPos_XYZ = [nan,nan,nan]
-#			outputString = outputString + '[ ballPos_XYZ %f %f %f ] ' % (ballPos_XYZ [0],ballPos_XYZ [1],ballPos_XYZ [2])
-#			
-#			ballVel_XYZ = [nan,nan,nan]
-#			outputString = outputString + '[ ballVel_XYZ %f %f %f ] ' % (ballVel_XYZ [0],ballVel_XYZ [1],ballVel_XYZ [2])
-#			
-#			ballPix_XY = [nan,nan,nan]
-#			outputString = outputString + '[ ballPix_XY %f %f %f ] ' % (ballPix_XY [0],ballPix_XY [1],ballPix_XY [2])
-#			
-#		if( self.eventFlag.status == 1 ):
-#		# Launch mode.  Print initial conditions.
-#			
-#			outputString = outputString + '* ballDiameter %f * ' % (self.currentTrial.ballDiameter)
-#			outputString = outputString + '* ballGravity %f * ' % (self.currentTrial.gravity)
-#			outputString = outputString + '* ballPassingLoc %f * ' % (self.currentTrial.passingLoc)
-#			outputString = outputString + '* ballElasticity %f * ' % (self.currentTrial.ballElasticity)
-#			outputString = outputString + '* ballBounceDist %f * ' % (self.currentTrial.bounceDist)
-#			outputString = outputString + '* ballBounceSpeed %f * ' % (self.currentTrial.bounceSpeed)
-#			outputString = outputString + '* ballLaunchHeight %f * ' % (self.currentTrial.launchHeight)
-#			outputString = outputString + '* ballLaunchDistance %f * ' % (self.currentTrial.launchDistance)
-#			outputString = outputString + '* ballApproachAngleDegs %f * ' % (self.currentTrial.approachAngleDegs)
-#			
-#			outputString = outputString + '[ ballBounceLoc_XYZ %f %f %f ] ' % (self.currentTrial.ballBounceLoc_XYZ[0],self.currentTrial.ballBounceLoc_XYZ[1],self.currentTrial.ballBounceLoc_XYZ[2])
-#			outputString = outputString + '[ ballInitialPos_XYZ %f %f %f ] ' % (self.currentTrial.initialPos_XYZ[0],self.currentTrial.initialPos_XYZ[1],self.currentTrial.initialPos_XYZ[2])
-#			outputString = outputString + '[ initialVelocity_XYZ %f %f %f ] ' % (self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2])
-#		
-##				elif( self.eventFlag == 3 ):
-##					# bouncePos_XYZ
-##					print 'Event flag 3!  Writing ball position!'
-##					outputString = outputString + '[ ballOnPaddlePos_XYZ %f %f %f ] ' % (self.currentTrial.ballOnPaddlePos_XYZ[0],self.currentTrial.ballOnPaddlePos_XYZ[1],self.currentTrial.ballOnPaddlePos_XYZ[2])
-#			
-#		elif( self.eventFlag.status == 4 ):
-#			#print 'Event flag 4!  Writing paddle position!'
-#			outputString = outputString + '[ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (self.currentTrial.ballOnPaddlePosLoc_XYZ[0],self.currentTrial.ballOnPaddlePosLoc_XYZ[1],self.currentTrial.ballOnPaddlePosLoc_XYZ[2])
-#		
-#		# The end of the trial
-#		if( (self.eventFlag.status == 6 or self.eventFlag.status == 7) ): 
-#			
-#			# For convenience, this ensures the var  ballOnPaddlePosLoc_XYZ will show up once per trial
-#			if ( self.currentTrial.ballHasHitPaddle == False ):
-#				outputString = outputString + '[ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (nan, nan, nan)
-#				print '***** [ ballOnPaddlePosLoc_XYZ %f %f %f ] ' % (nan, nan, nan)
-#				
-#		##  MATRICES
-#		
-#		viewMat = viz.MainWindow.getMatrix(viz.LEFT_EYE)
-#		invViewMat = viewMat.inverse()
-#		
-#		outputString = outputString + '@ invViewMat %s @ '  % (str(invViewMat.get()))
-#		
-#		proMat = viz.MainWindow.getProjectionMatrix(viz.LEFT_EYE)
-#		invProMat  = proMat.inverse()
-#		outputString = outputString + '@ invProMat %s @ '  % (str(invProMat.get()))
-#		#outputString = outputString + '@ invProMat %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f @ '  % (invProMat.get())
-#		
-#		return outputString #%f %d' % (viz.getFrameTime(), self.inCalibrateMode)
-#	
-#	def vizQuatToMatlabQuat(self,vizQuat):
-#		
-#		# Viz is in ABCW
-#		
-#		# I want WABC, with Z and Y axes flipped
-#		oldTrans = viz.Transform()
-#		oldTrans.setQuat(vizQuat)		
-#		oldTrans.postAxisAngle(1,0,0,-90) # rotate -90 degs around X
-#		return oldTrans.getQuat()
-#		
-##		# negate Z axis
-##		
-###		
-###		#newTrans = viz.Transform()
-###		
-###		newTransVec = [];
-###		
-###		for rIdx in range(3):
-###			newTransVec.append(oldTrans.val(rIdx,0))
-###			newTransVec.append(oldTrans.val(rIdx,1))
-###			newTransVec.append(oldTrans.val(rIdx,3))
-###			newTransVec.append(oldTrans.val(rIdx,2))
-###		
-###		newTrans = viz.Transform()
-###		newTrans.setQuat(newTransVec)
-##		
-##		print 'VizQ: ' + str(oldTrans.getAxisAngle())
-##		print 'NewQ: ' + str(newTrans.getAxisAngle())
-##		
-##		a=1
-		
-		
-	def getEyeData(self):
-		
-		# Legend:
-		# ** for 1 var
-		# () for 2 vars
-		# [] for 3 vars
-		# <> for 4 vars
-		# @@ for 16 vars (view and projection matrices)
+	def endExperiment(self):
 
-		outputString = ''		
-		
-		
-		
-		#pyArr = viz.add('arrington.dle')
-		#eyeA = pyArr.EYE_A;
-		
+		# If recording data, I recommend ending the experiment using:
+		#vizact.ontimer2(.2,0,self.endExperiment)
+		# This will end the experiment a few frame later, making sure to get the last frame or two of data
+		# This could cause problems if, for example, you end the exp on the same that the ball dissapears
+		# ...because the eventflag for the last trial would never be recorded
 
-		class VPX_RealType(Structure):
-			 _fields_ = [("x", c_float),("y", c_float)]
+		viz.playSound(soundBank.gong)
+		
+		# shut 'er down
+		self.logger.removeHandler(self.fhandler)
+		self.fhandler.flush()
+		self.fhandler.close()
+		
+		print 'End of Trial & Block ==> TxT file Saved & Closed'
+		print 'end experiment'
+		self.inProgress = False
+		
+		
+	def checkDVRStatus(self):
+	
+		dvrWriter = self.config.writer;
+		
+		if( dvrWriter.isPaused == 1 ):
+			print '************************************ DVR IS PAUSED ************************************'
 
-		## Position
-		arrington = self.config.eyeTrackingCal.arrington;
+	
+	def linkObjectsUsingMocap(self):
 		
-		#eyePos_XY = pyArr.getPosition(self.arrington.RAW)
-		#outputString = outputString + '( eyePos_XY %f %f ) ' %(eyePos_XY[0],eyePos_XY[1])
+		mocap = self.config.mocap
+		mocap.start_thread()
 		
-		Eye_A  = c_int(0)
+		self.setupPaddle()
+		
+		trackerDict = vizconnect.getTrackerDict()
+		
+		if( 'rift_tracker' in trackerDict.keys() ):
+			
+			mocap = self.config.mocap
+			self.viewAct = vizact.onupdate(viz.PRIORITY_LINKS, self.updateHeadTracker)
+			
+		else:
+			print '*** Experiment:linkObjectsUsingMocap: Rift not enabled as a tracker'
+			return
+		
+	def updateHeadTracker(self):
+		"""
+		A specailized per-frame function
+		That updates an empty viznode with:
+		- position info from mocap
+		- orientation from rift
+		
+		"""
 
-		eyePos = VPX_RealType()
-		eyePosPointer = pointer(eyePos)
+		riftOriTracker = vizconnect.getTracker('rift_tracker').getNode3d()			
+		self.headTracker = vizconnect.getRawTracker('head_tracker')
+		ori_xyz = riftOriTracker.getEuler()
+		self.headTracker.setEuler( ori_xyz  )
 		
-		arrington.VPX_GetGazePoint2(Eye_A ,eyePosPointer)
-		outputString = outputString + '( eyePos %f  %f ) ' % (eyePos.x, eyePos.y)
+		headRigidTracker = self.config.mocap.get_rigidTracker('hmd')	
+		self.headTracker.setPosition( headRigidTracker.get_position() )	
+	
 		
-		## Time
-		eyeTime = c_double();
-		eyeTimePointer = pointer(eyeTime)		
-		arrington.VPX_GetDataTime2(Eye_A ,eyeTimePointer)
-		outputString = outputString + '* eyeDataTime %f * ' % eyeTime.value
+	def setupPaddle(self):
+
+		mocap = self.config.mocap
 		
-		## Quality
-		eyeQual = c_int();
-		eyeQualPointer = pointer(eyeQual)		
-		arrington.VPX_GetDataQuality2(Eye_A ,eyeQualPointer)
-		outputString = outputString + '* eyeQuality %i * ' % eyeQual.value
+		# Performs several functions
+		# Creates either a fake paddle, a visual paddle, or a vis/phy/mocap paddle
 		
-		return outputString
+		# FOr debugging. Creates a fake paddle in teh center of the room
+		if( self.config.expCfg['experiment']['useFakePaddle'] ):
+				
+#				if(any("paddle" in idx for idx in self.room.visObjNames_idx)):
+#					print 'removed paddle'
+#					self.room.paddle.remove()
+					
+				# Put a fake stationary paddle in the room
+				paddleSize = [4, 4]
+				self.room.paddle = visEnv.visObj(self.room,'cylinder_Z',paddleSize)
+				self.room.paddle.enablePhysNode()
+				self.room.paddle.node3D.setPosition([0,1.6,-1])
+				self.room.paddle.node3D.color([0,1,0])
+				
+				#self.room.paddle.physNode
+
+				return
+			
+		# If there is a visObj paddle and a paddle rigid, link em up!
+		if any("paddle" in idx for idx in self.room.visObjNames_idx): 
+			paddleRigid  = mocap.get_rigidTracker('paddle')
+			if(paddleRigid ):
+				
+				print 'Setup paddle'
+				paddle = self.room.paddle
+				
+				self.room.paddle.node3D.alpha(0.5)
+				
+				paddleRigidTracker = mocap.get_rigidTracker('paddle')	
+				paddleRigidTracker.link_pose(paddle.node3D,'preEuler([90,0,0])')
+				
+				paddle.enablePhysNode()
+				paddle.physNode.isLinked = 1
+				
+				paddleToPhysLink = viz.link( paddle.node3D, paddle.physNode.node3D)
+				
+				def printPaddlePos():
+					#print 'VIS ' + str(paddle.node3D.getPosition())
+					print 'node ' + str(paddle.physNode.node3D.getPosition())
+					print 'geom ' + str(paddle.physNode.geom.getPosition())
+					print 'body' + str(paddle.physNode.body.getPosition())
+					
+				#vizact.ontimer2(0.25,viz.FOREVER,printPaddlePos)
 		
+	def labelDisplays():
+		
+		winList = viz.getWindowList()
+		hmdWin = winList[0]
+		expWin = winList[1]
+
+		text1 = viz.addText('HMD',viz.SCREEN)
+		text1.renderOnlyToWindows([hmdWin])
+		text1.alignment(viz.ALIGN_RIGHT_BOTTOM)
+		text1.setPosition([0.8,0.9,0])
+
+		text2 = viz.addText('EXP',viz.SCREEN)
+		text2.renderOnlyToWindows([viz.VizWindow(1)])
+		text2.setPosition([0.8,0.9,0])
+		
+	def turnOnHangar(self):
+		
+		model = []
+
+		#def replaceWalls():
+		theRoom = self.room
+		theRoom.ceiling.node3D.remove()
+		theRoom.wall_PosZ.node3D.remove()
+		theRoom.wall_NegZ.node3D.remove()
+		theRoom.wall_PosX.node3D.remove()
+		theRoom.wall_NegX.node3D.remove()
+		theRoom.floor.node3D.setPosition(0,-.01,0,viz.RELATIVE)
+		theRoom.floor.node3D.visible(viz.OFF)
+
+		model = viz.addChild('hangar.osgb')
+		model.setScale([2]*3)
+		model.setPosition([0,0.45,30])
+		model.emissive([0]*3)
+		model.setEuler([-90,0,0])
+		
+		theRoom.hangar = model
+	
 	def endTrial(self):
 		
+		self.enableWritingToLog = False
+		print 'End Trial{', self.enableWritingToLog,'}'
+
 		endOfTrialList = len(self.blocks_bl[self.blockNumber].trials_tr)
-		
-		#print 'Ending block: ' + str(self.blockNumber) + 'trial: ' + str(self.trialNumber)
 		
 		if( self.trialNumber < endOfTrialList ):
 			
 			recalAfterTrial_idx = self.blocks_bl[self.blockNumber].recalAfterTrial_idx
 			
 			if( recalAfterTrial_idx.count(self.trialNumber ) > 0):
-				viz.playSound(soundBank.gong)
-				vizact.ontimer2(0,0,self.toggleEyeCalib)
+				vizact.ontimer2(0,0,experimentObject.config.eyeTracker.calibrate)
 
 			# Increment trial 
 			self.trialNumber += 1
 			self.killtimer(self.maxFlightDurTimerID)
+			self.killtimer(self.ballPresDurTimerID)
+			self.killtimer(self.ballBlankDurTimerID)
 			
 			self.eventFlag.setStatus(6)
 			
@@ -861,6 +1311,7 @@ class Experiment(viz.EventClass):
 				
 				# Run this once on the next frame
 				# This maintains the ability to record one frame of data
+				self.enableWritingToLog = False
 				vizact.ontimer2(0,0,self.endExperiment)
 				return
 				
@@ -868,220 +1319,47 @@ class Experiment(viz.EventClass):
 				
 			print 'Starting block: ' + str(self.blockNumber) + ' Trial: ' + str(self.trialNumber)
 			self.currentTrial = self.blocks_bl[self.blockNumber].trials_tr[self.trialNumber]
-	
-	def writeDataToText(self):
 		
-		# Only write data is the experiment is ongoing
-		if( self.inProgress is False ):
-			return
-			
-		now = datetime.datetime.now()
-		dateTimeStr = str(now.hour) + ':' + str(now.minute) + ':' + str(now.second) + ':' + str(now.microsecond)
 		
-		expDataString = self.getOutput()
-		self.expDataFile.write(expDataString + '\n')
+	def turnOffWalls(self):
 		
-		if( self.config.sysCfg['use_eyetracking']):
-			
-			eyeDataString = self.getEyeData()
-			self.eyeDataFile.write(eyeDataString + '\n')
-		
-		# Eyetracker data
-	
-	def registerWiimoteActions(self):
-				
-		wii = viz.add('wiimote.dle')#Add wiimote extension
-		
-		vizact.onsensordown(self.config.wiimote,wii.BUTTON_B,self.launchKeyDown) 
-		vizact.onsensorup(self.config.wiimote,wii.BUTTON_B,self.launchKeyUp) 
-		
-		if( self.config.use_phasespace == True ):
-			
-			mocapSys = self.config.mocap;
-		
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_DOWN,mocapSys.resetRigid,'hmd') 
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_UP,mocapSys.saveRigid,'hmd') 
-			
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_LEFT,mocapSys.resetRigid,'paddle') 
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_RIGHT,mocapSys.saveRigid,'paddle') 
-			
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_A,self.printQuats)
-			
-	
-	def endExperiment(self):
-		# If recording data, I recommend ending the experiment using:
-		#vizact.ontimer2(.2,0,self.endExperiment)
-		# This will end the experiment a few frame later, making sure to get the last frame or two of data
-		# This could cause problems if, for example, you end the exp on the same that the ball dissapears
-		# ...because the eventflag for the last trial would never be recorded
-		
-		#end experiment
-		print 'end experiment'
-		self.inProgress = False
-		viz.playSound(soundBank.gong)
-		
-	def printQuats(self):
-		
-		viewMat = viz.MainView.getMatrix()
-		viewQUAT_XYZW = viewMat.getQuat()
-		
-		#outputString = outputString + '< viewQUAT_XYZW %f %f %f %f > ' % (viewQUAT_XYZW [3],viewQUAT_XYZW [0],viewQUAT_XYZW [1],viewQUAT_XYZW[2])
-		string = '< viewQUAT_WXYZ %f %f %f %f > ' % (viewQUAT_XYZW [3],viewQUAT_XYZW [0],viewQUAT_XYZW [2],viewQUAT_XYZW[1])
-		print string
-		
-		paddleMat = self.room.paddle.visNode.getMatrix()
-		paddleQUAT_XYZW = paddleMat.getQuat()
-		string = '< paddleQUAT_XYZW %f %f %f %f > ' % (paddleQUAT_XYZW[3],paddleQUAT_XYZW[0],paddleQUAT_XYZW[2],paddleQUAT_XYZW[1])
-		print string
-	
-	def checkDVRStatus(self):
-	
-		dvrWriter = self.config.writer;
-		
-		if( dvrWriter.isPaused == 1 ):
-			print '************************************ DVR IS PAUSED ************************************'
+		model = []
 
-
-	def setupHMD(self):
+		#def replaceWalls():
+		theRoom = self.room
+		theRoom.ceiling.node3D.remove()
+		theRoom.wall_PosZ.node3D.remove()
+		theRoom.wall_NegZ.node3D.remove()
+		theRoom.wall_PosX.node3D.remove()
+		theRoom.wall_NegX.node3D.remove()
 		
-		mocap = self.config.mocap
-		mocap.start_thread()
+		with viz.cluster.MaskedContext(viz.MASTER):
+			viz.MainWindow.clearcolor([0.3]*3)
 		
-		hmdPosNode = viz.addGroup()
-		headRigidTracker = mocap.get_rigidTracker('hmd')	
-		headRigidTracker.link_position(hmdPosNode)
-		
-		import vizconnect
-		riftOriTracker = vizconnect.getTracker('rift').getNode3d()
-		headTracker = vizconnect.getRawTracker('headtracker')
-
-		def updateHeadTracker():
+		with viz.cluster.MaskedContext(viz.CLIENT1):
+			viz.MainWindow.clearcolor([0.3]*3)
 			
-			ori_xyz = riftOriTracker.getEuler()
-			headTracker.setEuler( ori_xyz  )
+		#theRoom.floor.node3D.setPosition(0,-.01,0,viz.RELATIVE)
+		#theRoom.floor.node3D.visible(viz.OFF)
+
+		
+		theRoom.hangar = model
 			
-			pos_xyz = headRigidTracker.get_position()
-			headTracker.setPosition( pos_xyz )
-			
-			#print 'Ori: ' + str( ori_xyz) + ' Pos: ' + str(pos_xyz)
-		
-		import vizact
-		self.updateViewAct = vizact.onupdate(40, updateHeadTracker)
-		
-		
-
-		#return mocap
-		
-#		
-#		#viewList = viz.getViewList()
-#		#viz.link(viewList[0],viewList[1])
-#		
-#		import vizconnect
-#		#vizconnect.getDisplay('custom_window').setParent(viz.MainView)
-##		
-##		hmd = self.config.hmd.hmd
-##		mocap = self.config.mocap
-##		mocap.start_thread()
-##		
-##		hmdPosNode = viz.addGroup()
-##		headTracker = mocap.get_rigidTracker('hmd')	
-##		headTracker.link_position(hmdPosNode)
-##		
-##		self.viewLinks = []
-###		
-##		for view in viz.getViewList():
-##			#(viz.MainView.setPosition,headTracker.getPosition)
-##			
-##			#Only link orientation 
-##			link = viz.link(hmdPosNode,view)
-##			link.setMask( viz.LINK_POS )
-##			self.viewLinks.append(link )
-##			
-##		self.hmdLinkedToView = 1
-##		
-	def setupPaddle(self):
-
-		mocap = self.config.mocap
-		
-		# Performs several functions
-		# Creates either a fake paddle, a visual paddle, or a vis/phy/mocap paddle
-		
-		# FOr debugging. Creates a fake paddle in teh center of the room
-		if( self.config.expCfg['experiment']['useFakePaddle'] ):
-				
-				# Put a fake stationary paddle in the room
-				paddleSize = [.15, 1.5]
-				self.room.paddle = visEnv.visObj(self.room,'cylinder_Z',paddleSize)
-				self.room.paddle.enablePhysNode()
-				self.room.paddle.visNode.setPosition([0,1.6,-1])
-				#self.room.paddle.visNode.setAxisAngle(1,0,0,90)
-				self.room.paddle.visNode.color([0,1,0])
-				self.room.paddle.applyVisToPhys()
-				self.room.paddle.visNode.alpha(.5)
-				
-				print 'Placed fake paddle'
-				return
-		
-		paddleRigid  = mocap.get_rigidTracker('paddle')
-		
-		# If there is a visObj paddle and a paddle rigid, link em up!
-		if any("paddle" in idx for idx in self.room.visObjNames_idx): 
-			
-			if(paddleRigid ):
-				paddle = self.room.paddle
-				# Link the visObj to the rigid 
-				paddle.setMocapRigidBody(self.config.mocap,'paddle')
-				paddle.toggleUpdateWithRigid()
-				paddle.visNode.alpha(0.4)
-				paddle.enablePhysNode()
-				paddle.toggleUpdatePhysWithVis()
-				#paddle.setPosition([0,1.5,0])
-				#paddle.visNode.setEuler(0,180,0)
-				vizact.onupdate(10,paddle.visNode.setEuler,[90,0,0],viz.ABS_LOCAL)
-		
-		
-		#			if(paddleRigid ):
-#				paddle = self.room.paddle
-#				# Link the visObj to the rigid 
-#				paddle.setMocapRigidBody(self.config.mocap,'paddle')
-#				paddle.toggleUpdateWithRigid()
-#				paddle.visNode.alpha(0)
-#				paddle.enablePhysNode()
-#				paddle.toggleUpdatePhysWithVis()
-#				paddle.setPosition([0,1.5,0])
-#				
-#						# Try to add the squash model
-#				pObj = viz.addChild('squash.osgb')
-#				
-#				pObj.setEuler(0,0,180)
-#				pObj.setParent(self.room.paddle.visNode)
-#				pObj.setScale([.9,.9,.9])
-#				pObj.setPosition(0,0.5,0,viz.ABS_PARENT)
-		
-		
-		#paddle.obj.visible(viz.ON)					
-		#visEnv.drawMarkerSpheres(self.room,self.config.mocap)
-
-	def labelDisplays():
-		
-		winList = viz.getWindowList()
-		hmdWin = winList[0]
-		expWin = winList[1]
-
-		text1 = viz.addText('HMD',viz.SCREEN)
-		text1.renderOnlyToWindows([hmdWin])
-		text1.alignment(viz.ALIGN_RIGHT_BOTTOM)
-		text1.setPosition([0.8,0.9,0])
-
-		text2 = viz.addText('EXP',viz.SCREEN)
-		text2.renderOnlyToWindows([viz.VizWindow(1)])
-		text2.setPosition([0.8,0.9,0])
-		
+#	def placeTarget(self):
+#		target = vizshape.addCylinder(0.2,0.5,axis=3,color=viz.GREEN)
+#		target = 
+#		pass
 	
 ############################################################################################################
 ############################################################################################################
 
 class eventFlag(viz.EventClass):
+	'''
+	Create an event flag object
+	This var is set to an int on every frame
+	The int saves a record of what was happening on that frame
+	It can be configured to signify the start of a trial, the bounce of a ball, or whatever
+	'''
 	
 	def __init__(self):
 		
@@ -1095,6 +1373,8 @@ class eventFlag(viz.EventClass):
 		# 5 ball has hit back wall
 		# 6 trial end
 		# 7 block end
+		# 8 ball invisible
+		# 9 ball visible
 		
 		viz.EventClass.__init__(self)
 		
@@ -1138,7 +1418,7 @@ class eventFlag(viz.EventClass):
 			
 		
 class block():
-	def __init__(self,config=None,blockNum=1):
+	def __init__(self,config = None, blockNum = 1, room = None):
 			
 		# Each block will have a block.trialTypeList
 		# This list is a list of strings of each trial type
@@ -1146,23 +1426,24 @@ class block():
 		# Currently, these trial types are automatically randomized
 		# e.g. 't1,t2,t2,t2,t1'
 		
+		self.room = room
 		self.blockName = config.expCfg['experiment']['blockList'][blockNum]
 
 	#    Kinds of trial in this block
 		
-		# trialTypeList enumerates the types of trials
-		self.trialTypesInBlock = config.expCfg['blocks'][self.blockName]['trialTypesString'].split(',')
-		# The number of each type of trial
-		self.numOfEachTrialType_type = map(int,config.expCfg['blocks'][self.blockName]['trialTypeCountString'].split(','));
-		
 		# THe type of each trial
 		# _tr indicates that the list is as long as the number of trials
 		self.trialTypeList_tr = []
+		self.trialTypesInBlock = []
+		self.numOfEachTrialType_type = []
 		
-		for typeIdx in range(len(self.trialTypesInBlock)):
-			for count in range(self.numOfEachTrialType_type[typeIdx]):
-				self.trialTypeList_tr.append(self.trialTypesInBlock[typeIdx])
-		
+		# Note that this list may contain empty entires.  This is checked inside the for loop
+		for typeIdx, trialType in enumerate(config.expCfg['blocks'][self.blockName]['trialTypesString'].split(',')):
+			if trialType: # Will return false if trialType is an empty string
+				self.numOfEachTrialType_type.append( int(config.expCfg['blocks'][self.blockName]['trialTypeCountString'].split(',')[typeIdx] ))
+				self.trialTypesInBlock.extend( config.expCfg['blocks'][self.blockName]['trialTypesString'].split(',')[typeIdx] )
+				self.trialTypeList_tr.extend( [trialType] * self.numOfEachTrialType_type[typeIdx] )
+			
 		# Randomize trial order
 		from random import shuffle
 		shuffle(self.trialTypeList_tr)
@@ -1175,7 +1456,7 @@ class block():
 		for trialNumber in range(self.numTrials):
 			
 			## Get trial info
-			trialObj = trial(config,self.trialTypeList_tr[trialNumber])
+			trialObj = trial(config,self.trialTypeList_tr[trialNumber], self.room)
 				
 			##Add the body to the list
 			self.trials_tr.append(trialObj)
@@ -1184,27 +1465,31 @@ class block():
 			#nextBall = viz.cycle(balls); 
 		
 class trial(viz.EventClass):
-	def __init__(self,config=None,trialType='t1'):
+	def __init__(self,config=None,trialType='t1', room = None):
 		
 		#viz.EventClass.__init__(self)
 		
 		self.trialType = trialType
 
+		self.room = room
 		## State flags
 		self.ballInRoom = False; # Is ball in room?
 		self.ballInInitialState = False; # Is ball ready for launch?
 		self.ballLaunched = False; # Has a ball been launched?  Remains true after ball disappears.
 		self.ballHasBouncedOnFloor = False;
 		self.ballHasHitPaddle = False;
+		self.ballHasHitPassingPlane = False
 		
 		## Trial event data
 		self.ballOnPaddlePos_XYZ = []
 		self.ballOnPaddlePosLoc_XYZ = []
+		self.ballOnPassingPlanePosLoc_XYZ = []
 		
+		self.myMarkersList = []
 		## Timer objects
 		self.timeSinceLaunch = [];
 		
-		self.ballObj = -1;
+		self.ballObj = False;
 		
 		### Below this is all the code used to generate ball trajectories
 		self.ballFlightMaxDur = float(config.expCfg['experiment']['ballFlightMaxDur'])
@@ -1224,39 +1509,43 @@ class trial(viz.EventClass):
 		
 		self.gravity_distType = []
 		self.gravity_distParams = []
-		self.gravity = []
+		self.gravity = []	
+
+		ballElasticity_distType = []
+		ballElasticity_distParams = []
+		ballElasticity = []
 		
-		self.passingLoc_distType = []
-		self.passingLoc_distParams = []
-		self.passingLoc = []
+		#====================================================================
+		#====== Launching and Passing Planes sizes are determined here ======
+		#====================================================================
 		
-		self.ballElasticity_distType = []
-		self.ballElasticity_distParams = []
-		self.ballElasticity = []
+		self.passingPlaneSize = map(float, config.expCfg['room']['passingPlaneSize_WHL'])
+		self.launchPlaneSize = map(float, config.expCfg['room']['launchPlaneSize_WH'])
+		self.passingPlanePosition = map(float, config.expCfg['room']['passingPlanePos_XYZ'])
+		self.launchPlanePosition = map(float, config.expCfg['room']['launchPlanePos_XYZ'])
 		
-		self.bounceDist_distType = []
-		self.bounceDist_distParams = []
-		self.bounceDist = []
+		self.distanceInDepth = self.launchPlanePosition[2] - self.passingPlanePosition[2]
+
+		self.xMinimumValue = []
+		self.xMaximumValue = []
+		self.timeToContact = []
+		self.presentationDuration = []
+		self.blankDur = []
+		self.postBlankDuration = []
+		self.beta = []
+		self.theta = []
+		self.initialVelocity_XYZ = []
+	
+		self.preBlankDur = float(config.expCfg['trialTypes'][self.trialType]['preBlankDur'])
+		self.postBlankDur = float(config.expCfg['trialTypes'][self.trialType]['postBlankDur'])
+		self.blankDur = float(config.expCfg['trialTypes']['default']['blankDur'])
 		
-		self.bounceSpeed_distType = []
-		self.bounceSpeed_distParams = []
-		self.bounceSpeed = []
+		self.timeToContact = self.preBlankDur + self.blankDur + self.postBlankDur
 		
-		self.launchHeight_distType = []
-		self.launchHeight_distParams = []
-		self.launchHeight = []
-		
-		self.launchDistance_distType = []
-		self.launchDistance_distParams = []
-		self.launchDistance = []
-		
-		self.approachAngleDegs_distType = []
-		self.approachAngleDegs_distParams = []
-		self.approachAngleDegs = []
-		
-		self.ballBounceLoc_XYZ = [0,0,0]
-		self.initialPos_XYZ = [0,0,0]
+		self.ballInitialPos_XYZ = [0,0,0]
 		self.initialVelocity_XYZ = [0,0,0]
+		self.ballSpeed = 0.0
+		self.ballFinalPos_XYZ = [0,0,0]
 		
 		self.flightDurationError = []
 		
@@ -1278,6 +1567,7 @@ class trial(viz.EventClass):
 				except:
 					print 'Error in main.trial.init.drawNumberFromDist()'
 					print 'Variable name is: ' + varName
+					
 				try:
 					exec( 'self.' + varName + '_distType = distType' )
 					exec( 'self.' + varName + '_distParams = distParams' )
@@ -1285,62 +1575,47 @@ class trial(viz.EventClass):
 					# Draw value from a distribution
 					exec( 'self.' + varName + ' = drawNumberFromDist( distType , distParams);' )
 				except:
-					a=1
+					print 'Error in main.trial.init'
+					print 'Variable name is: ' + varName
 				
-		
-		##########################################################################
-		##########################################################################
-		##  Calculate ball trajectory
-		
-		#######################################
-		## Initial positions
-		
-		import math
-		
-		self.ballBounceLoc_XYZ[0] = math.sin(math.radians(self.approachAngleDegs))*self.bounceDist;
-		self.ballBounceLoc_XYZ[1] = self.ballDiameter/2
-		self.ballBounceLoc_XYZ[2] = math.cos(math.radians(self.approachAngleDegs))*self.bounceDist;
-		
-		self.initialPos_XYZ[0] = math.sin(math.radians(self.approachAngleDegs))*self.launchDistance;
-		self.initialPos_XYZ[1] = self.launchHeight
-		self.initialPos_XYZ[2] = math.cos(math.radians(self.approachAngleDegs))*self.launchDistance;
-		
-		##  Account for room offset
-		
-		#self.initialPos_XYZ[0] = self.initialPos_XYZ[0] + config.expCfg['room']['translateRoom_X']
-		#self.initialPos_XYZ[2] = self.initialPos_XYZ[2] + config.expCfg['room']['translateRoom_Z']
-		
-		#self.ballBounceLoc_XYZ[0] = self.ballBounceLoc_XYZ[0] + config.expCfg['room']['translateRoom_X']
-		#self.ballBounceLoc_XYZ[2] = self.ballBounceLoc_XYZ[2] + config.expCfg['room']['translateRoom_Z']
-		
-		#######################################
-		## Set and record velocities
-		
-		# vel = sqrt( v^2+2ad )
-		# tmp.initBallVelZ = sqrt( pow(tmp.bounceSpeed,2)+ 2*-9.8f*(tmp.initBallZ-tmp.ballBounceZ));
-		
-		self.initialVelocity_XYZ[1] = math.sqrt( (self.bounceSpeed*self.bounceSpeed)+ 
-			2 * -self.gravity * (self.initialPos_XYZ[1]-self.ballBounceLoc_XYZ[1]));
+	
+	
+	def calculatePhysicalParams(self):
 			
-		durationOfPreBounceFlight = (self.bounceSpeed - self.initialVelocity_XYZ[1]) / -self.gravity
+		# X velocity
+		self.lateralDistance = math.fabs(self.ballFinalPos_XYZ[0] - self.ballInitialPos_XYZ[0])
+		self.initialVelocity_XYZ[0] = self.lateralDistance/self.timeToContact
 		
-		self.initialVelocity_XYZ[0] = (self.ballBounceLoc_XYZ[0]-self.initialPos_XYZ[0]) / durationOfPreBounceFlight;
-		self.initialVelocity_XYZ[2] = (self.ballBounceLoc_XYZ[2]-self.initialPos_XYZ[2]) / durationOfPreBounceFlight;
+		# Z velocity
+		self.distanceInDepth = math.fabs(self.ballFinalPos_XYZ[2] - self.ballInitialPos_XYZ[2])
+		self.initialVelocity_XYZ[2] = -self.distanceInDepth/self.timeToContact
+			
+		#self.horizontalVelocity = math.sqrt(np.power(self.initialVelocity_XYZ[0],2) + np.power(self.initialVelocity_XYZ[2],2))
+		#self.ballSpeed = self.gravity * self.timeToContact/(2 * math.fabs(math.sin(self.theta)))
 		
-		# For debugging, compare these values!
-		self.predictedPreBounceFlightDur = durationOfPreBounceFlight
-		self.launchTime = []
+		# Vertical component of velocity
+		self.verticalDistance = self.ballFinalPos_XYZ[1] - self.ballInitialPos_XYZ[1]
+		self.initialVelocity_XYZ[1] = ((-0.5 * -self.gravity * self.timeToContact * self.timeToContact) + self.verticalDistance ) / self.timeToContact
 		
+		self.totalDistance = math.sqrt(np.power(self.lateralDistance, 2) + np.power(self.distanceInDepth, 2) + np.power(self.verticalDistance, 2))
+		self.beta = math.atan((self.distanceInDepth/self.lateralDistance))*(180.0/np.pi)
+		self.theta = (180.0/np.pi)*math.atan((np.power(self.timeToContact,2) * self.gravity)/(2*self.totalDistance))
+		
+		#print 'V_xyz=[',self.initialVelocity_XYZ,'] theta=',self.theta,' beta=', self.beta 
+		#print 'X=', self.lateralDistance, ' R=', self.totalDistance, ' g=', self.gravity, ' Vxz=', self.horizontalVelocity, ' D=', self.distanceInDepth
+
 	def removeBall(self):
 		
+		print 'Removing ball'
+		
 		self.ballObj.remove()
-		self.ballObj = -1
+		self.ballObj = False
 		
 		self.ballInRoom = False
 		self.ballInInitialState = False
 		self.ballLaunched = False
 		
-		#print 'Cleaned up ball'
+		print 'Cleaned up ball'
 
 	def _setValueOrUseDefault(self,config,paramPrefix):
 		
@@ -1361,78 +1636,221 @@ class trial(viz.EventClass):
 	
 		
 		return distType,distParams,value
-			
 
+
+	def placeLaunchPlane(self, planeSize):
+
+		#adds a transparent plane that the ball is being launched from it
+		self.room.launchPlane = vizshape.addPlane(size = planeSize , axis=-vizshape.AXIS_Z, cullFace = False)
+		#shifts the wall to match the edge of the floor
+		self.room.launchPlane.setPosition(self.launchPlanePosition)#[-self.launchPlaneSize[0]/2, 1.5, 24.0]
+		#makes the wall appear white
+		self.room.launchPlane.color(viz.CYAN)
+		self.room.launchPlane.alpha(0.2)
+		#self.room.launchPlane.collideBox()
+		#self.room.launchPlane.disable(viz.DYNAMICS)
+		self.room.launchPlane.visible(False)
+		print 'Launch Plane Created!'
+
+	def placePassingPlane(self, planeSize):
+		
+		#adds a transparent plane that the ball ends up in this plane
+		self.room.passingPlane = visEnv.visObj(self.room,'box',size = self.passingPlaneSize)#[0.02, planeSize[0], planeSize[0]]
+		
+		#self.room.passingPlane.enablePhysNode()
+		#self.room.passingPlane.linkPhysToVis()
+		
+		self.room.passingPlane.node3D.setPosition(self.passingPlanePosition)#[0, 1.5, 1.0]
+		
+		#makes the wall appear white
+		self.room.passingPlane.node3D.color(viz.PURPLE)
+		self.room.passingPlane.node3D.alpha(0.3)
+		self.room.passingPlane.node3D.visible(False)
+		
+		print 'Passing Plane Created!'
+			
 	def placeBall(self,room):
 	
 		
-		#print self.initialPos_XYZ
+		#=========================================================================
+		#================== Changed for New Ball Catching Experiment =============
+		#=========================================================================
 		
-		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.initialPos_XYZ,self.ballColor_RGB)
+		#########################################################
+		################### STARTING POSITION ###################
+		
+		# Put ball in center of launch plane		
+		self.ballInitialPos_XYZ = self.room.launchPlane.getPosition()
+		
+		launchPlane_XYZ = self.room.launchPlane.getPosition()
+		
+		### X VALUE
+		xMinimumValue = launchPlane_XYZ[0]-self.launchPlaneSize[0]/2.0
+		xMaximumValue = launchPlane_XYZ[0]+self.launchPlaneSize[0]/2.0
+		self.ballInitialPos_XYZ[0] = xMinimumValue + np.random.random()*(xMaximumValue-xMinimumValue)
+		
+		### Y VALUE
+		yMinimumValue = launchPlane_XYZ[1]-self.launchPlaneSize[1]/2.0
+		yMaximumValue = launchPlane_XYZ[1]+self.launchPlaneSize[1]/2.0
+		self.ballInitialPos_XYZ[1] = yMinimumValue + np.random.random()*(yMaximumValue-yMinimumValue)
+		
+		# Move ball relative to center of launch plane
+		print 'Initial max/min=[', xMinimumValue, xMaximumValue,']'
+		
+		self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.ballInitialPos_XYZ,self.ballColor_RGB)
+		
+		#########################################################
+		################### FINAL POSITION ###################
 
-		self.ballObj.toggleUpdateWithPhys()
-		self.ballObj.setVelocity([0,0,0])
+		self.ballFinalPos_XYZ = self.room.passingPlane.node3D.getPosition()
+		self.passingPlane_XYZ = self.room.passingPlane.node3D.getPosition()
 		
+		### X VALUE
+		xMinimumValue = self.passingPlane_XYZ[0] - self.passingPlaneSize[0]/2.0
+		xMaximumValue = self.passingPlane_XYZ[0] + self.passingPlaneSize[0]/2.0
+		self.ballFinalPos_XYZ[0] = xMinimumValue + np.random.random()*(xMaximumValue-xMinimumValue)
+				
+		### Y VALUE
+		yMinimumValue = self.passingPlane_XYZ[1] - self.passingPlaneSize[1]/2.0
+		yMaximumValue = self.passingPlane_XYZ[1] + self.passingPlaneSize[1]/2.0
+		self.ballFinalPos_XYZ[1] = yMinimumValue + np.random.random()*(yMaximumValue-yMinimumValue)
 		
-		#print 'BALL ELASTICITY:' + str(self.ballElasticity)
+		#########################################################
+		################### Initial Velocities ##################
+		
+		self.calculatePhysicalParams()
+		print 'PlaceBall ==> Vx=', self.initialVelocity_XYZ[0], ' TTC=', self.timeToContact
+		print 'PD = ', self.presentationDuration, ' BD = ', self.blankDur, ' PBD = ', self.postBlankDuration
+		
+		# Setup physics and collision
+		
+		self.ballObj.enablePhysNode()
+		self.ballObj.linkToPhysNode()
 		self.ballObj.physNode.setBounciness(self.ballElasticity)
-		self.ballObj.physNode.disableMovement() # Makes it stand in place
-
-		# Costly, in terms of computation
-		#self.ballObj.projectShadows(self.ballObj.parentRoom.floor.visNode)
-		
-		# Register it as something that will stick to the paddle
 		self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
+					
+		self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D) # Costly, in terms of computation
+		
+		# Setup state flags 
 		
 		self.ballInRoom = True
 		self.ballInInitialState = True
 		self.ballLaunched = False 
 		self.ballPlacedOnThisFrame = True
-		
+
 	def launchBall(self):
 		
 		if( self.ballObj == False ):
 			print 'No ball present.'
 			return
-		
+
 		self.ballObj.physNode.enableMovement()
 		self.ballObj.setVelocity(self.initialVelocity_XYZ)
-		
+		self.myMarkersList
 		self.ballInRoom = True
 		self.ballInInitialState = False
 		self.ballLaunched = True
 		
 		self.launchTime = viz.getFrameTime()
-	
+			
+
+
 ################################################################################################################   
 ################################################################################################################
 ################################################################################################################
 ##  Here's where the magic happens!
 
-experimentConfiguration = vrlabConfig.VRLabConfig(expConfigFileName)
-
+#experimentConfiguration = vrlabConfig.VRLabConfig(expConfigFileName)
 
 ## vrlabConfig uses config to setup hardware, motion tracking, frustum, eyeTrackingCal.
 ##  This draws upon the system config to setup the hardware / HMD
 
-
 ## The experiment class initialization draws the room, sets up physics, 
 ## and populates itself with a list of blocks.  Each block contains a list of trials
-experimentObject = Experiment(experimentConfiguration)
+
+experimentObject = Experiment(expConfigFileName)
 experimentObject.start()
 
-#pV = experimentObject.room.paddle.visNode
-#eA = vizact.onupdate(8,pV.setEuler,[0,90,0],viz.ABS_LOCAL)
 
-#pObj = experimentObject.room.paddle.obj
-#pObj.setPosition(0,0.54,0,viz.ABS_PARENT)
+#experimentObject.room.lightSource.disable()
+#vizfx.addDirectionalLight(euler=(0,45,0))
 
-#visEnv.drawMarkerSpheres(experimentObject.room,experimentObject.config.mocap)
+####
 
-if( experimentObject.hmdLinkedToView == False ):
-	
-	print 'Head controlled by mouse/keyboard. Initial viewpoint set in vrLabConfig _setupSystem()'
-	
-	viz.MainView.setPosition(-3,2,-3)
-	#viz.MainView.setPosition([experimentObject.room.wallPos_NegX +.1, 2, experimentObject.room.wallPos_NegZ +.1])
-	viz.MainView.lookAt([0,2,-2])
+from gazeTools import gazeSphere
+from gazeTools import gazeVector
+
+eyeTracker = experimentObject.config.eyeTracker
+headTracker = vizconnect.getRawTrackerDict()['head_tracker']
+#headTracker.setPosition(0,1,0)
+
+dispDict = vizconnect.getRawDisplayDict()
+clientWindowID = dispDict['exp_display']
+
+cyclopEyeSphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.GREEN)
+#both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,sphereColor=viz.GREEN)
+cyclopEyeSphere.toggleUpdate()
+
+cyclopEyeNode = vizshape.addSphere(0.015, color = viz.GREEN)
+cyclopEyeNode.setParent(headTracker)
+cyclopEyeNode.alpha(0.01)
+
+calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room) # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
+calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
+
+
+IOD = 0.06
+# create a node3D leftEyeNode
+leftEyeNode = vizshape.addSphere(0.005, color = viz.BLUE)
+#leftEyeNode.visible(viz.OFF)
+leftEyeNode.setParent(headTracker)
+leftEyeNode.setPosition(-IOD/2, 0, 0.0,viz.ABS_PARENT)
+left_sphere = gazeSphere(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],sphereColor=viz.YELLOW)
+leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],gazeVectorColor=viz.YELLOW)
+left_sphere.toggleUpdate()
+leftGazeVector.toggleUpdate()
+left_sphere.node3D.alpha(0.7)
+leftEyeNode.alpha(0.01)
+
+# create a node3D rightEyeNode
+rightEyeNode = vizshape.addSphere(0.005, color = viz.RED)
+#rightEyeNode.visible(viz.OFF)
+rightEyeNode.setParent(headTracker)
+rightEyeNode.setPosition(IOD/2, 0, 0.0,viz.ABS_PARENT)
+right_sphere = gazeSphere(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],sphereColor=viz.ORANGE)
+rightGazeVector = gazeVector(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],gazeVectorColor=viz.ORANGE)
+right_sphere.toggleUpdate()
+rightGazeVector.toggleUpdate()
+right_sphere.node3D.alpha(0.7)
+rightEyeNode.alpha(0.01)
+
+hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
+
+
+oT = vizconnect.getRawTracker('rift_tracker')
+
+#with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
+#	myMatrix = viz.Transform()
+#	myMatrix = viz.Transform()
+#	myMatrix.setEuler(0, 45, 0)
+#	myMatrix.setTrans(0, 1, -.2)
+###headTracker.setMatrix( myMatrix )
+#	viz.MainWindow.setViewOffset( myMatrix )
+
+
+
+
+
+
+##  Heres how to put a ball in head-centered coordinates
+#newBall = vizshape.addSphere(0.25,color = viz.GREEN)
+#newBall.setParent(headTracker)
+#newBall.setPosition(0,0,3,viz.ABS_PARENT)
+#newBall.renderOnlyToWindows([viz.VizWindow(viz.MASTER)])
+
+#newBall.renderOnlyToWindows([clientWindowID])
+#
+#rt = vizconnect.getTracker('rift_tracker')
+#rtLink = rt.getLink()
+#
+#link
