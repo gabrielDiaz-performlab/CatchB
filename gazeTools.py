@@ -137,6 +137,7 @@ class calibrationTools():
 		self.calibrationInProgress = False
 		self.parentNode = parentNode
 		self.renderToWindows = renderToWindows
+		self.calibrationSphere = None
 		self.cyclopEyeSphere = cyclopEyeSphere
 		self.minimumAngle = float(self.config.expCfg['room']['minimumStimuliSize'])
 		self.minimumAngle = (self.minimumAngle * np.pi)/(60*180) # We want the calibration point subtend 15 arcmin to the subject's eye
@@ -153,7 +154,6 @@ class calibrationTools():
 		self.calibrationPositionRange_Y = map(float,self.config.expCfg['room']['calibrationPointsRange_Y'])
 		self.calibrationPositionRange_Z = map(float,self.config.expCfg['room']['calibrationPointsRange_Z'])
 		self.numberOfCalibrationPoints = float(self.config.expCfg['room']['calibrationPointPerPlane'])
-		#self.setSphereRadius(0, 0, 0.02)
 
 	def dotproduct(self, v1, v2):
 	  return sum((a*b) for a, b in zip(v1, v2))

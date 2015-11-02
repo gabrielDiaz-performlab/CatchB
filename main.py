@@ -613,7 +613,7 @@ class Experiment(viz.EventClass):
 		if not os.path.exists(dataOutPutDir):
 			os.makedirs(dataOutPutDir)
 			
-		self.fhandler = logging.FileHandler(filename= dataOutPutDir + 'exp_data-' + dateTimeStr + '.log', mode='w')
+		self.fhandler = logging.FileHandler(filename= dataOutPutDir + 'exp_data-' + dateTimeStr + '.dict', mode='w')
 		formatter = logging.Formatter('%(message)s')
 		self.fhandler.setFormatter(formatter)
 		self.logger.addHandler(self.fhandler)
@@ -721,9 +721,9 @@ class Experiment(viz.EventClass):
 		if key == 'c' and self.config.eyeTracker:
 			
 			self.calibrationDoneSMI = True
-			print 'calibrationDoneSMI ==> ', self.calibrationDoneSMI
 			eyeTracker = experimentObject.config.eyeTracker
 			eyeTracker.calibrate()
+			print 'calibrationDoneSMI ==> ', self.calibrationDoneSMI
 
 		if key == 'q':
 			calibTools.updateCalibrationPoint()
@@ -873,14 +873,23 @@ class Experiment(viz.EventClass):
 		if( self.enableWritingToLog is False or self.inProgress is False):
 			return
 	
-	
+		self.calibrationFrameCounter = self.calibrationFrameCounter + 1
+		if ( calibTools.calibrationInProgress == True and self.calibrationFrameCounter > self.totalCalibrationFrames  ):
+			self.enableWritingToLog = False
+			print 'Calibration Frames Recorded:', self.calibrationFrameCounter 
+			calibTools.calibrationSphere.color(viz.PURPLE)
+			self.calibrationFrameCounter = 0
+			return
 		################################################
 		## Gather misc data 
 		
 		frameNum = viz.getFrameNumber()
 		
 		viewPos_XYZ = viz.MainView.getPosition(viz.MASTER)
-		calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
+		if(calibTools.calibrationSphere):
+			calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
+		else:
+			calibrationPoint_XYZ = [NaN, NaN, NaN]
 		
 		currentSample =  self.config.eyeTracker.getLastSample()
 
@@ -935,7 +944,7 @@ class Experiment(viz.EventClass):
 			rightEyeOnScreen_XY = [currentSample.rightEye.por_x, currentSample.rightEye.por_y]
 			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z]
 			rightGazeInWorldNotNorm_XYZ=[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z] # H or W?
-			rightGazeInWorld_XYZ = [val/max(rightGazeInWorldNotNorm_XYZ) for val in rightGazeInWorldNotNorm_XYZ] # Normalize
+			rightGazeInWorld_XYZ = [val/np.linalg.norm(rightGazeInWorldNotNorm_XYZ) for val in rightGazeInWorldNotNorm_XYZ] # Normalize
 			rightEyeScreenDistance = currentSample.rightEye.eyeScreenDistance
 			rightEyeLensDistance  = currentSample.rightEye.eyeLensDistance
 			rightPupilRadius = currentSample.rightEye.pupilRadius
@@ -944,7 +953,7 @@ class Experiment(viz.EventClass):
 			leftEyeOnScreen_XY = [currentSample.leftEye.por_x, currentSample.leftEye.por_y]
 			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z]
 			leftGazeInWorldNotNorm_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z] # H or W?
-			leftGazeInWorld_XYZ = [val/max(leftGazeInWorldNotNorm_XYZ) for val in leftGazeInWorldNotNorm_XYZ] # Normalize
+			leftGazeInWorld_XYZ = [val/np.linalg.norm(leftGazeInWorldNotNorm_XYZ) for val in leftGazeInWorldNotNorm_XYZ] # Normalize
 			leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
 			leftEyeLensDistance  = currentSample.leftEye.eyeLensDistance
 			leftPupilRadius = currentSample.leftEye.pupilRadius
@@ -1049,7 +1058,6 @@ class Experiment(viz.EventClass):
 			leftEyeOnScreen_XY = leftEyeOnScreen_XY,
 			leftPupilPos_XYZ = leftPupilPos_XYZ,
 
-			
 			)
 		
 		logging.info(dict(dataDict))
@@ -1268,6 +1276,9 @@ class Experiment(viz.EventClass):
 	
 	def endTrial(self):
 		
+		self.enableWritingToLog = False
+		print 'End Trial{', self.enableWritingToLog,'}'
+
 		endOfTrialList = len(self.blocks_bl[self.blockNumber].trials_tr)
 		
 		if( self.trialNumber < endOfTrialList ):
