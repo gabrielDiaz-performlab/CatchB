@@ -886,11 +886,12 @@ class Experiment(viz.EventClass):
 		frameNum = viz.getFrameNumber()
 		
 		viewPos_XYZ = viz.MainView.getPosition(viz.MASTER)
-		if(calibTools.calibrationSphere):
+		
+		if( calibTools.calibrationSphere ):
 			calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
 		else:
-			calibrationPoint_XYZ = [NaN, NaN, NaN]
-		
+			calibrationPoint_XYZ = [NaN,NaN,NaN]
+
 		currentSample =  self.config.eyeTracker.getLastSample()
 
 		################################################
@@ -937,14 +938,11 @@ class Experiment(viz.EventClass):
 			
 			cycEyeOnScreen_XY = [currentSample.por_x, currentSample.por_y]
 			cycEyeInHead_XYZ = [currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z]
-			
-			cycGazeInWorldNotNorm_XYZ= [currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z]
-			cycGazeInWorld_XYZ = [val/np.linalg.norm(cycGazeInWorldNotNorm_XYZ) for val in cycGazeInWorldNotNorm_XYZ]
+			cycEyeBasePoint_XYZ = [currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z]
 			
 			rightEyeOnScreen_XY = [currentSample.rightEye.por_x, currentSample.rightEye.por_y]
 			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z]
-			rightGazeInWorldNotNorm_XYZ=[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z] # H or W?
-			rightGazeInWorld_XYZ = [val/np.linalg.norm(rightGazeInWorldNotNorm_XYZ) for val in rightGazeInWorldNotNorm_XYZ] # Normalize
+			rightEyeBasePoint_XYZ =[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z] # H or W?
 			rightEyeScreenDistance = currentSample.rightEye.eyeScreenDistance
 			rightEyeLensDistance  = currentSample.rightEye.eyeLensDistance
 			rightPupilRadius = currentSample.rightEye.pupilRadius
@@ -952,8 +950,7 @@ class Experiment(viz.EventClass):
 			
 			leftEyeOnScreen_XY = [currentSample.leftEye.por_x, currentSample.leftEye.por_y]
 			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z]
-			leftGazeInWorldNotNorm_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z] # H or W?
-			leftGazeInWorld_XYZ = [val/np.linalg.norm(leftGazeInWorldNotNorm_XYZ) for val in leftGazeInWorldNotNorm_XYZ] # Normalize
+			leftEyeBasePoint_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z] # H or W?
 			leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
 			leftEyeLensDistance  = currentSample.leftEye.eyeLensDistance
 			leftPupilRadius = currentSample.leftEye.pupilRadius
@@ -967,11 +964,11 @@ class Experiment(viz.EventClass):
 		
 			cycEyeOnScreen_XY = [NaN,NaN]
 			cycEyeInHead_XYZ = [NaN,NaN,NaN]
-			cycGazeInWorld_XYZ= [NaN,NaN,NaN]
+			cycEyeBasePoint_XYZ= [NaN,NaN,NaN]
 			
 			rightEyeOnScreen_XY = [NaN,NaN]
 			rightEyeInHead_XYZ = [NaN,NaN,NaN]
-			rightGazeInWorld_XYZ= [NaN,NaN,NaN]
+			rightEyeBasePoint_XYZ = [NaN,NaN,NaN]
 			rightEyeScreenDistance = NaN
 			rightEyeLensDistance = NaN
 			rightPupilRadius = NaN
@@ -979,7 +976,7 @@ class Experiment(viz.EventClass):
 			
 			leftEyeOnScreen_XY = [NaN,NaN]
 			leftEyeInHead_XYZ = [NaN,NaN,NaN]
-			leftGazeInWorld_XYZ= [NaN,NaN,NaN]
+			leftEyeBasePoint_XYZ= [NaN,NaN,NaN]
 			leftEyeScreenDistance = NaN
 			leftEyeLensDistance = NaN
 			leftPupilRadius = NaN
@@ -1008,7 +1005,7 @@ class Experiment(viz.EventClass):
 			calibrationInProgress = calibTools.calibrationInProgress,
 			isCalibrated = self.calibrationDoneSMI,
 			calibrationCounter = calibTools.calibrationCounter,
-			calibrationPosition = [ calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2] ],
+			calibrationPos_XYZ = [ calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2] ],
 			
 			# Paddle
 			paddlePos_XYZ=[paddlePos_XYZ[0],paddlePos_XYZ[1],paddlePos_XYZ[2]],
@@ -1038,13 +1035,13 @@ class Experiment(viz.EventClass):
 			# Cyclopean gaze
 			cycEyeOnScreen_XY=cycEyeOnScreen_XY,
 			cycEyeInHead_XYZ = cycEyeInHead_XYZ,
-			cycGazeInWorld_XYZ = cycGazeInWorld_XYZ,
+			cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
 			
 			# Right gaze
 			rightPupilRadius = rightPupilRadius,
 			rightEyeLensDistance = rightEyeLensDistance,
 			rightEyeScreenDistance = rightEyeScreenDistance,
-			rightGazeInWorld_XYZ = rightGazeInWorld_XYZ,
+			rightEyeBasePoint_XYZ = rightEyeBasePoint_XYZ,
 			rightEyeInHead_XYZ =  rightEyeInHead_XYZ,
 			rightEyeOnScreen_XY = rightEyeOnScreen_XY,
 			rightPupilPos_XYZ = rightPupilPos_XYZ,
@@ -1053,7 +1050,7 @@ class Experiment(viz.EventClass):
 			leftPupilRadius = leftPupilRadius,
 			leftEyeLensDistance = leftEyeLensDistance,
 			leftEyeScreenDistance = leftEyeScreenDistance,
-			leftGazeInWorld_XYZ = leftGazeInWorld_XYZ,
+			leftEyeBasePoint_XYZ = leftEyeBasePoint_XYZ,
 			leftEyeInHead_XYZ =  leftEyeInHead_XYZ,
 			leftEyeOnScreen_XY = leftEyeOnScreen_XY,
 			leftPupilPos_XYZ = leftPupilPos_XYZ,

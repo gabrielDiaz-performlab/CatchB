@@ -141,7 +141,7 @@ class calibrationTools():
 		self.cyclopEyeSphere = cyclopEyeSphere
 		self.minimumAngle = float(self.config.expCfg['room']['minimumStimuliSize'])
 		self.minimumAngle = (self.minimumAngle * np.pi)/(60*180) # We want the calibration point subtend 15 arcmin to the subject's eye
-		
+		self.calibrationSphere = None
 		self.calibrationSphereRadius = 0.02
 		self.localAction = None
 		
