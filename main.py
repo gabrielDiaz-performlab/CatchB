@@ -33,7 +33,7 @@ from gazeTools import calibrationTools
 import logging
 
 #expConfigFileName = 'badmintonTest.cfg'
-expConfigFileName = 'gd_pilot_C.cfg'
+expConfigFileName = 'gd_pilot_B.cfg'
 print '**************** USING' + expConfigFileName + '****************'
 
 ft = .3048
@@ -372,7 +372,7 @@ class Experiment(viz.EventClass):
 		################################################################
 		################################################################
 		## Set states
-		
+
 		self.inCalibrateMode = False
 		self.inHMDGeomCheckMode = False
 		self.setEnabled(False)
@@ -421,10 +421,6 @@ class Experiment(viz.EventClass):
 		
 		self.minLaunchTriggerDuration = self.config.expCfg['experiment']['minLaunchTriggerDuration']
 		
-		
-		if self.config.sysCfg['use_wiimote']:
-			self.registerWiimoteActions()
-		
 		if self.config.sysCfg['use_phasespace']:
 			self.linkObjectsUsingMocap()
 			
@@ -471,12 +467,14 @@ class Experiment(viz.EventClass):
 			if( self.currentTrial.blankDur != 0.0 ):
 				self.currentTrial.ballObj.node3D.visible( False )
 				self.starttimer(self.ballBlankDurTimerID,self.currentTrial.blankDur);
-				self.eventFlag.setStatus(8)
+				#self.eventFlag.setStatus(8)
+				self.eventFlag.setStatus('ballRenderOff')
 				
 		elif( timerID == self.ballBlankDurTimerID ):
 			
 			self.currentTrial.ballObj.node3D.visible( True )
-			self.eventFlag.setStatus(9)
+			#self.eventFlag.setStatus(9)
+			self.eventFlag.setStatus('ballRenderOn')
 			
 	def _checkForCollisions(self):
 		
@@ -507,7 +505,8 @@ class Experiment(viz.EventClass):
 					(physNode1 == theFloor.physNode and physNode2 == theBall.physNode or 
 					physNode1 == theBall.physNode and physNode2 == theFloor.physNode )):
 						
-					self.eventFlag.setStatus(3)
+					#self.eventFlag.setStatus(3)
+					self.eventFlag.setStatus('ballOnFloor')
 					
 					self.currentTrial.ballHasBouncedOnFloor = True 
 					 
@@ -535,7 +534,8 @@ class Experiment(viz.EventClass):
 					(physNode1 == thePaddle.physNode and physNode2 == theBall.physNode or 
 					physNode1 == theBall.physNode and physNode2 == thePaddle.physNode )):
 						
-					self.eventFlag.setStatus(4)
+					#self.eventFlag.setStatus(4)
+					self.eventFlag.setStatus('ballOnPaddle')
 					self.currentTrial.ballHasHitPaddle = True
 					
 					viz.playSound(soundBank.cowbell)
@@ -595,7 +595,8 @@ class Experiment(viz.EventClass):
 				if( physNode1 == theBackWall.physNode and physNode2 == theBall.physNode or 
 					physNode1 == theBall.physNode and physNode2 == theBackWall.physNode):
 					
-					self.eventFlag.setStatus(5)
+					#self.eventFlag.setStatus(5)
+					self.eventFlag.setStatus('ballOnBackWall')
 					#print 'Ball has hit the back wall.'
 					
 					viz.playSound(soundBank.bounce)
@@ -694,7 +695,27 @@ class Experiment(viz.EventClass):
 		displayOffset = 0.15
 		self.myDisplay.setPosition(viz.MainView.getPosition() - [0.0, 0.0, displayOffset])
 		
+
+	def callSMICalibration(self):
+		self.calibrationDoneSMI = True
+		eyeTracker = experimentObject.config.eyeTracker
+		eyeTracker.calibrate()
+		print 'calibrationDoneSMI ==> ', self.calibrationDoneSMI
+
+	def callPerForMCalibration(self):
+		print 'Static Calibration Method is Called'
+		self.totalCalibrationFrames = 100
+		calibTools.staticCalibrationMethod()
+	
+	def updateCalibrationPoint(self):
+		calibTools.updateCalibrationPoint()
 		
+	def recordCalibrationData(self):
+		print 'Data Recording Started for Calibration'
+		calibTools.calibrationSphere.color(viz.YELLOW)
+		self.enableWritingToLog = True
+		self.calibrationFrameCounter = 0
+
 	def onKeyDown(self, key):
 		"""
 		Interactive commands can be given via the keyboard. Some are provided here. You'll likely want to add more.
@@ -719,25 +740,16 @@ class Experiment(viz.EventClass):
 			pass
 
 		if key == 'c' and self.config.eyeTracker:
-			
-			self.calibrationDoneSMI = True
-			eyeTracker = experimentObject.config.eyeTracker
-			eyeTracker.calibrate()
-			print 'calibrationDoneSMI ==> ', self.calibrationDoneSMI
+			self.callSMICalibration()
 
 		if key == 'q':
-			calibTools.updateCalibrationPoint()
+			self.updateCalibrationPoint()
 
 		if key == 'k':
-			print 'Data Recording Started for Calibration'
-			calibTools.calibrationSphere.color(viz.YELLOW)
-			self.enableWritingToLog = True
-			self.calibrationFrameCounter = 0
+			self.recordCalibrationData()
 
 		if key == 'e':
-			print 'Static Calibration Method is Called'
-			self.totalCalibrationFrames = 100
-			calibTools.staticCalibrationMethod()
+			self.callPerForMCalibration()
 
 		if key == 'z':
 			print 'Dynamic Calibration Method is Called'
@@ -832,7 +844,8 @@ class Experiment(viz.EventClass):
 			
 				if( triggerDuration >= self.minLaunchTriggerDuration ):
 					
-					self.eventFlag.setStatus(1)
+					#self.eventFlag.setStatus(1)
+					self.eventFlag.setStatus('trialStart')
 					self.inProgress = True
 					#print 'Ball launched'
 					self.enableWritingToLog = True
@@ -874,12 +887,14 @@ class Experiment(viz.EventClass):
 			return
 	
 		self.calibrationFrameCounter = self.calibrationFrameCounter + 1
+		
 		if ( calibTools.calibrationInProgress == True and self.calibrationFrameCounter > self.totalCalibrationFrames  ):
 			self.enableWritingToLog = False
 			print 'Calibration Frames Recorded:', self.calibrationFrameCounter 
 			calibTools.calibrationSphere.color(viz.PURPLE)
 			self.calibrationFrameCounter = 0
 			return
+			
 		################################################
 		## Gather misc data 
 		
@@ -930,8 +945,6 @@ class Experiment(viz.EventClass):
 			ballPos_XYZ = [NaN,NaN,NaN]
 			ballVel_XYZ = [NaN,NaN,NaN]
 			ballVisible = NaN
-			
-			
 			
 		# GIW Data#
 		if( currentSample ):
@@ -988,11 +1001,15 @@ class Experiment(viz.EventClass):
 			
 			
 		#####
-		
+		if (calibTools.calibrationInProgress == True):
+			tempVar = calibTools.calibrationBlockCounter + calibTools.calibrationCounter
+		else:
+			tempVar = self.trialNumber
 		dataDict = dict( 
 			
 			frameTime = viz.getFrameTime(),
-			trialNumber = self.trialNumber,
+			trialNumber = tempVar,
+			blockNumber = self.blockNumber,
 			eventFlag = self.eventFlag.status,
 			trialType = self.currentTrial.trialType,
 			
@@ -1002,8 +1019,8 @@ class Experiment(viz.EventClass):
 			viewQuat_XYZW = viz.MainView.getQuat(),
 
 			# Calibration
-			calibrationInProgress = calibTools.calibrationInProgress,
-			isCalibrated = self.calibrationDoneSMI,
+			inCalibrationQ = calibTools.calibrationInProgress,
+			isCalibratedSMIQ = self.calibrationDoneSMI,
 			calibrationCounter = calibTools.calibrationCounter,
 			calibrationPos_XYZ = [ calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2] ],
 			
@@ -1015,10 +1032,10 @@ class Experiment(viz.EventClass):
 			# Ball
 			ballPos_XYZ = [ballPos_XYZ [0],ballPos_XYZ[1],ballPos_XYZ [2]],
 			ballVel_XYZ = [ballVel_XYZ[0],ballVel_XYZ[1],ballVel_XYZ[2]],
-			ballVisible = ballVisible,
+			isBallVisibleQ = ballVisible,
 			ballInitialPos_XYZ = [self.currentTrial.ballInitialPos_XYZ[0],self.currentTrial.ballInitialPos_XYZ[1],self.currentTrial.ballInitialPos_XYZ[2]],
 			ballFinalPos_XYZ = [self.currentTrial.ballFinalPos_XYZ[0],self.currentTrial.ballFinalPos_XYZ[1],self.currentTrial.ballFinalPos_XYZ[2]],
-			ballInitialVelocity_XYZ = [self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2]],
+			ballInitialVel_XYZ = [self.currentTrial.initialVelocity_XYZ[0],self.currentTrial.initialVelocity_XYZ[1],self.currentTrial.initialVelocity_XYZ[2]],
 			ballTTC = self.currentTrial.timeToContact,
 			#ballLaunch_AE = [self.currentTrial.beta,self.currentTrial.theta],
 			
@@ -1090,7 +1107,13 @@ class Experiment(viz.EventClass):
 		
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_B,self.launchKeyDown) 
 		vizact.onsensorup(self.config.wiimote,wii.BUTTON_B,self.launchKeyUp) 
-		vizact.onsensordown(self.config.wiimote,wii.BUTTON_DOWN,self.config.eyeTracker.calibrate)
+		vizact.onsensordown(self.config.wiimote,wii.BUTTON_DOWN,self.callSMICalibration)
+		vizact.onsensordown(self.config.wiimote,wii.BUTTON_A,self.callPerForMCalibration)
+		vizact.onsensordown(self.config.wiimote,wii.BUTTON_1,self.updateCalibrationPoint)
+		vizact.onsensordown(self.config.wiimote,wii.BUTTON_2,self.recordCalibrationData)
+
+		
+
 		
 		if( self.config.use_phasespace == True ):
 			
@@ -1113,9 +1136,9 @@ class Experiment(viz.EventClass):
 				#oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], 0], target=viz.LINK_ORI_OP, priority=-20)
 				#oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], -rt_YPR[2]], target=viz.LINK_ORI_OP, priority=-20)
 				
-				
-			vizact.onsensorup(self.config.wiimote,wii.BUTTON_1,vizconnect.getTracker('rift_tracker').resetHeading)
-			vizact.onsensordown(self.config.wiimote,wii.BUTTON_UP,resetHelmetOrientation)
+			# HACKED by KAMRAN	
+			vizact.onsensorup(self.config.wiimote,wii.BUTTON_UP,vizconnect.getTracker('rift_tracker').resetHeading)
+			#vizact.onsensordown(self.config.wiimote,wii.BUTTON_UP,resetHelmetOrientation)
 			
 			
 	
@@ -1284,6 +1307,10 @@ class Experiment(viz.EventClass):
 			
 			if( recalAfterTrial_idx.count(self.trialNumber ) > 0):
 				vizact.ontimer2(0,0,experimentObject.config.eyeTracker.calibrate)
+				print 'Static Calibration Method is Called after %d trials' %(recalAfterTrial_idx.count(self.trialNumber ))
+				self.totalCalibrationFrames = 100
+				calibTools.staticCalibrationMethod()
+
 
 			# Increment trial 
 			self.trialNumber += 1
@@ -1291,14 +1318,16 @@ class Experiment(viz.EventClass):
 			self.killtimer(self.ballPresDurTimerID)
 			self.killtimer(self.ballBlankDurTimerID)
 			
-			self.eventFlag.setStatus(6)
+			#self.eventFlag.setStatus(6)
+			self.eventFlag.setStatus('trialEnd')
 			
 		if( self.trialNumber == endOfTrialList ):
 			
 			# Increment block
 			
 			# arg2 of 1 allows for overwriting eventFlag 6 (new trial)
-			self.eventFlag.setStatus(7,True) 
+			#self.eventFlag.setStatus(7,True) 
+			self.eventFlag.setStatus('blockEnd')
 			
 			self.blockNumber += 1
 			self.trialNumber = 0
@@ -1341,6 +1370,14 @@ class Experiment(viz.EventClass):
 
 		
 		theRoom.hangar = model
+
+	def updateTextObject(self, textObject):
+		currentSample = self.config.eyeTracker.getLastSample()
+		if (currentSample):
+			textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = %2.2f'%(self.trialNumber, self.blockNumber, viz.getFrameTime(), currentSample.timestamp))
+		else:
+			textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = Nan'%(self.trialNumber, self.blockNumber, viz.getFrameTime()))
+		return
 			
 #	def placeTarget(self):
 #		target = vizshape.addCylinder(0.2,0.5,axis=3,color=viz.GREEN)
@@ -1375,9 +1412,9 @@ class eventFlag(viz.EventClass):
 		
 		viz.EventClass.__init__(self)
 		
-		self.status = 0
+		self.status = False
 		self.lastFrameUpdated = viz.getFrameNumber()
-		self.currentValue = 0
+		self.currentValue = False
 		
 		# On every frame, self.eventFlag should be set to 0
 		# This should happen first, before any timer object has the chance to overwrite it!
@@ -1411,7 +1448,7 @@ class eventFlag(viz.EventClass):
 		if( self.lastFrameUpdated == viz.getFrameNumber() ):
 			print 'Did not reset! Status already set to ' + str(self.status)
 		else:
-			self.status = 0; # 0 Means nothing is happening
+			self.status = False; # 0 Means nothing is happening
 			
 		
 class block():
@@ -1750,8 +1787,6 @@ class trial(viz.EventClass):
 		
 		self.launchTime = viz.getFrameTime()
 			
-
-
 ################################################################################################################   
 ################################################################################################################
 ################################################################################################################
@@ -1794,6 +1829,8 @@ cyclopEyeNode.alpha(0.01)
 
 calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room) # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
 calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
+if experimentObject.config.sysCfg['use_wiimote']:
+	experimentObject.registerWiimoteActions()
 
 
 IOD = 0.06
@@ -1820,6 +1857,14 @@ right_sphere.toggleUpdate()
 rightGazeVector.toggleUpdate()
 right_sphere.node3D.alpha(0.7)
 rightEyeNode.alpha(0.01)
+
+experimentTextObject = viz.addText('')
+experimentTextObject.setParent(headTracker)
+experimentTextObject.setPosition([1.3,1,2])
+experimentTextObject.setScale([0.1,0.1,0.1])
+experimentTextObject.renderOnlyToWindows([clientWindowID])
+textUpdateAction = vizact.onupdate(viz.PRIORITY_INPUT+1,experimentObject.updateTextObject, experimentTextObject)#self.currentTrial.ballObj.node3D
+
 
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 

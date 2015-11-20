@@ -141,10 +141,11 @@ class calibrationTools():
 		self.cyclopEyeSphere = cyclopEyeSphere
 		self.minimumAngle = float(self.config.expCfg['room']['minimumStimuliSize'])
 		self.minimumAngle = (self.minimumAngle * np.pi)/(60*180) # We want the calibration point subtend 15 arcmin to the subject's eye
-		self.calibrationSphere = None
-		self.calibrationSphereRadius = 0.02
+
 		self.localAction = None
-		
+		self.initialValue = 0.02
+		self.calibrationSphereRadius = self.initialValue
+		self.calibrationBlockCounter = 900
 		self.calibrationCounter = 0
 		
 		self.maximumAngularError = float(self.config.expCfg['room']['maximumAngularError'])
@@ -193,9 +194,9 @@ class calibrationTools():
 
 		points = np.empty(shape = (1,3), dtype = float)
 		#points.resize(1,3)
-		for i in x:
+		for k in z:
 			for j in y:
-				for k in z:
+				for i in x:
 					points = np.vstack((points, [i,j,k]))
 
 		points = np.delete(points, 0, 0) # TODO: The first element is initialized by a random value!!? Why? Should be fixed later (KAMRAN)
@@ -234,12 +235,12 @@ class calibrationTools():
 			self.calibrationInProgress = True
 			self.toggleRoomWallsVisibility()
 			self.calibrationCounter = 27
-			self.calibrationSphereRadius = 0.02
+			self.calibrationSphereRadius = self.initialValue
 			self.calibrationSphere = vizshape.addSphere(self.calibrationSphereRadius, color = viz.PURPLE)
 			self.calibrationSphere.emissive(viz.PURPLE)
 			self.calibrationSphere.setParent(self.parentNode)
 			newPos = [-3,-.5,12]
-			#self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), newPos, 0)
+			self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), newPos, 0)
 			self.calibrationSphere.setPosition(newPos[0], newPos[1], newPos[2],viz.ABS_PARENT)
 			self.targetMovingAction = vizact.onupdate(viz.PRIORITY_INPUT+1, self.checkActionDone)
 
@@ -280,16 +281,18 @@ class calibrationTools():
 			self.calibrationInProgress = False
 			self.calibrationCounter = 0
 			self.calibrationSphere.remove()
+			self.toggleRoomWallsVisibility()
 			print 'Quit Dynamic Calibration!!'
 
 
 	def staticCalibrationMethod(self):
 		
 		if ( self.calibrationInProgress == False ):
+			self.calibrationBlockCounter += 100
 			self.toggleRoomWallsVisibility()
 			self.calibrationInProgress = True
 			self.calibrationCounter = 0
-			
+			self.calibrationSphereRadius = self.initialValue
 			self.calibrationSphere = vizshape.addSphere(self.calibrationSphereRadius, color = viz.PURPLE)
 			self.calibrationSphere.emissive(viz.PURPLE)
 			self.calibrationSphere.setParent(self.parentNode)
@@ -323,6 +326,7 @@ class calibrationTools():
 				self.calibrationSphere.setPosition(newPos[0], newPos[1], newPos[2],viz.ABS_PARENT)
 				self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], 0)
 				print 'Calibratring for Point[%d]' %(self.calibrationCounter), 'at [%f %f %f]' % (newPos[0], newPos[1], newPos[2])
+				print 'Counter', self.calibrationBlockCounter + self.calibrationCounter
 			else:
 				self.calibrationInProgress = False
 				self.calibrationCounter = 0
@@ -341,5 +345,6 @@ class calibrationTools():
 		else:
 			self.calibrationSphereRadius = radius
 			#print '==>Radius Changed to ', self.calibrationSphereRadius
-		ratio = self.calibrationSphereRadius/0.02
+		ratio = self.calibrationSphereRadius/self.initialValue
 		self.calibrationSphere.setScale([ratio, ratio, ratio], viz.ABS_PARENT)
+		print 'SetSphere to :',self.calibrationSphereRadius

@@ -186,7 +186,7 @@ class RigidTracker(PointTracker):
         A list of tuples
         '''
         
-        logging.info('Getting local marker positions %s', self.marker_ids)
+        #logging.info('Getting local marker positions %s', self.marker_ids)
         
         globalPositions = []
         localPositions = []
@@ -200,7 +200,7 @@ class RigidTracker(PointTracker):
                 marker = self._raw_markers[mIdx]
 
                 if marker is None or not 0 < marker.cond : #or not 0 < marker.cond < 100:
-                    logging.error('missing marker %d for reset', mIdx)
+                    #logging.error('missing marker %d for reset', mIdx)
                     print 'missing marker %d for reset'  %mIdx
                     return -1
                     
@@ -217,7 +217,7 @@ class RigidTracker(PointTracker):
         # Shift body center according to offsets
         # Note that offsets are supplied in vizard coordinates
         
-        logging.info('body center: (%s, %s, %s)', cx, cy, cz)
+        #logging.info('body center: (%s, %s, %s)', cx, cy, cz)
 
         # Construct marker_map, a dictionary of pos tuples
         # using marker ID's as keys
