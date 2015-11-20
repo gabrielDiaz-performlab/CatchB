@@ -1257,7 +1257,7 @@ class Experiment(viz.EventClass):
 					
 				#vizact.ontimer2(0.25,viz.FOREVER,printPaddlePos)
 		
-	def labelDisplays():
+	def labelDisplays(self):
 		
 		winList = viz.getWindowList()
 		hmdWin = winList[0]
@@ -1858,18 +1858,43 @@ rightGazeVector.toggleUpdate()
 right_sphere.node3D.alpha(0.7)
 rightEyeNode.alpha(0.01)
 
-experimentTextObject = viz.addText('')
-experimentTextObject.setParent(headTracker)
-experimentTextObject.setPosition([1.3,1,2])
-experimentTextObject.setScale([0.1,0.1,0.1])
-experimentTextObject.renderOnlyToWindows([clientWindowID])
-textUpdateAction = vizact.onupdate(viz.PRIORITY_INPUT+1,experimentObject.updateTextObject, experimentTextObject)#self.currentTrial.ballObj.node3D
 
+###
+def labelDisplay():
+	winList = viz.getWindowList()
+	hmdWin = winList[0]
+	expWin = winList[1]
+
+	text1 = viz.addText('HMD',viz.SCREEN)
+	text1.renderOnlyToWindows([hmdWin])
+	text1.alignment(viz.ALIGN_RIGHT_BOTTOM)
+	text1.setPosition([0.8,0.9,0])
+
+	text2 = viz.addText('EXP',viz.SCREEN)
+	text2.renderOnlyToWindows([viz.VizWindow(1)])
+	text2.setPosition([0.8,0.9,0])
+
+def timeStampOnScreen():
+
+	experimentTextObject = viz.addText('',viz.SCREEN)
+	experimentTextObject.setBackdrop(1)
+	experimentTextObject.color(viz.RED)
+	experimentTextObject.setPosition([0.01,.99,0])
+	experimentTextObject.alignment(viz.ALIGN_LEFT_TOP)
+	textScale = 0.3
+	experimentTextObject.setScale([textScale]*3)
+	experimentTextObject.renderOnlyToWindows([clientWindowID])
+	textUpdateAction = vizact.onupdate(viz.PRIORITY_INPUT+1,experimentObject.updateTextObject, experimentTextObject)#self.currentTrial.ballObj.node3D
+	return experimentTextObject
+
+textObj = timeStampOnScreen()
+###
 
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 
 
 oT = vizconnect.getRawTracker('rift_tracker')
+
 
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
 #	myMatrix = viz.Transform()
