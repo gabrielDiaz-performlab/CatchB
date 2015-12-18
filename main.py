@@ -936,7 +936,7 @@ class Experiment(viz.EventClass):
 		#if(theBall is not -1):
 		if(theBall):
 			
-			ballPos_XYZ = theBall.node3D.getPosition()
+			ballPos_XYZ = theBall.node3D.getPosition(viz.ABS_GLOBAL)
 			ballVel_XYZ = theBall.getVelocity()
 			ballVisible = self.currentTrial.ballObj.node3D.getVisible()
 			
