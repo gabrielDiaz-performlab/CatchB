@@ -33,7 +33,7 @@ from gazeTools import calibrationTools
 import logging
 
 #expConfigFileName = 'badmintonTest.cfg'
-expConfigFileName = 'gd_pilot_B.cfg'
+expConfigFileName = 'gd_pilot.cfg'
 print '**************** USING' + expConfigFileName + '****************'
 
 ft = .3048
@@ -924,7 +924,8 @@ class Experiment(viz.EventClass):
 			paddleQuat_XYZW = self.room.paddle.node3D.getMatrix().getQuat()
 			
 		else:
-			paddlePos_XYZ = [NaN,NaN,NaN]
+			paddlePos
+			_XYZ = [NaN,NaN,NaN]
 			paddleQuat_XYZW = [NaN,NaN,NaN,NaN]
 			
 		###############################################
@@ -936,7 +937,8 @@ class Experiment(viz.EventClass):
 		#if(theBall is not -1):
 		if(theBall):
 			
-			ballPos_XYZ = theBall.node3D.getPosition()
+			ballPos_XYZ = theBall.node3D.getPosition(viz.ABS_GLOBAL)
+			
 			ballVel_XYZ = theBall.getVelocity()
 			ballVisible = self.currentTrial.ballObj.node3D.getVisible()
 			
@@ -946,7 +948,7 @@ class Experiment(viz.EventClass):
 			ballVel_XYZ = [NaN,NaN,NaN]
 			ballVisible = NaN
 			
-		# GIW Data#
+		# SMI Data
 		if( currentSample ):
 			
 			cycEyeOnScreen_XY = [currentSample.por_x, currentSample.por_y]
@@ -999,8 +1001,59 @@ class Experiment(viz.EventClass):
 			IOD = NaN
 			IPD = NaN
 			
+		##### Eye nodes
+		
+		if( currentSample ):
 			
-		#####
+			cycEyeNodeInWorld_XYZ = viz.MainView.getPosition()
+			rightEyeNodeInWorld_XYZ = rightEyeNode.getPosition(viz.ABS_GLOBAL)
+			leftEyeNodeInWorld_XYZ = leftEyeNode.getPosition(viz.ABS_GLOBAL)
+			
+			rightEyeNodeInHead_XYZ = rightEyeNode.getPosition(viz.ABS_PARENT)
+			leftEyeNodeInHead_XYZ = leftEyeNode.getPosition(viz.ABS_PARENT)
+			
+			cycMat_4x4 = viz.MainView.getMatrix(viz.ABS_GLOBAL).data
+			rightEyeMat_4x4 = rightEyeNode.getMatrix(viz.ABS_GLOBAL).data
+			leftEyeMat_4x4 = leftEyeNode.getMatrix(viz.ABS_GLOBAL).data
+			
+			cycInverseMat_4x4 = viz.MainView.getMatrix(viz.ABS_GLOBAL).inverse().data
+			rightEyeInverseMat_4x4 = rightEyeNode.getMatrix(viz.ABS_GLOBAL).inverse().data
+			leftEyeInverseMat_4x4 = leftEyeNode.getMatrix(viz.ABS_GLOBAL).inverse().data
+			
+			cycGazeNodeInWorld_XYZ = viz.MainView.getPosition(viz.ABS_GLOBAL)
+			rightGazeNodeInWorld_XYZ = right_sphere.node3D.getPosition(viz.ABS_GLOBAL)
+			leftGazeNodeInWorld_XYZ = left_sphere.node3D.getPosition(viz.ABS_GLOBAL)
+			
+			cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
+			rightGazeNodeInHead_XYZ = right_sphere.node3D.getPosition(viz.ABS_PARENT)
+			leftGazeNodeInHead_XYZ = left_sphere.node3D.getPosition(viz.ABS_PARENT)
+
+		else:
+						
+			cycEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			rightEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			leftEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			
+			rightEyeNodeInHead_XYZ = [NaN,NaN,NaN]
+			leftEyeNodeInHead_XYZ = [NaN,NaN,NaN]
+			
+			cycMat_4x4 = [NaN] * 16
+			rightEyeMat_4x4 = [NaN] * 16
+			leftEyeMat_4x4 = [NaN] * 16
+			
+			cycInverseMat_4x4 = [NaN] * 16
+			rightEyeInverseMat_4x4 = [NaN] * 16
+			leftEyeInverseMat_4x4 = [NaN] * 16
+			
+			cycGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			rightGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			leftGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			
+			cycGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			rightGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			leftGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			
+		
 		if (calibTools.calibrationInProgress == True):
 			tempVar = calibTools.calibrationBlockCounter + calibTools.calibrationCounter
 		else:
@@ -1054,6 +1107,12 @@ class Experiment(viz.EventClass):
 			cycEyeInHead_XYZ = cycEyeInHead_XYZ,
 			cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
 			
+			cycNodeInWorld_XYZ = cycNodeInWorld_XYZ,
+			cycMat_4x4 = cycMat_4x4,
+			cycInverseMat_4x4 = cycInverseMat_4x4,
+			cycGazeNodeInWorld_XYZ = cycGazeNodeInWorld_XYZ,
+			cycGazeNodeInHead_XYZ = cycGazeNodeInHead_XYZ,
+			
 			# Right gaze
 			rightPupilRadius = rightPupilRadius,
 			rightEyeLensDistance = rightEyeLensDistance,
@@ -1063,6 +1122,13 @@ class Experiment(viz.EventClass):
 			rightEyeOnScreen_XY = rightEyeOnScreen_XY,
 			rightPupilPos_XYZ = rightPupilPos_XYZ,
 			
+			rightEyeNodeInWorld_XYZ = rightEyeNodeInWorld_XYZ,
+			rightEyeNodeInHead_XYZ = rightEyeNodeInHead_XYZ,
+			rightEyeMat_4x4 = rightEyeMat_4x4,
+			rightEyeInverseMat_4x4 = rightEyeInverseMat_4x4,
+			rightGazeNodeInWorld_XYZ = rightGazeNodeInWorld_XYZ,
+			rightGazeNodeInHead_XYZ = rightGazeNodeInHead_XYZ,
+			
 			# Left gaze
 			leftPupilRadius = leftPupilRadius,
 			leftEyeLensDistance = leftEyeLensDistance,
@@ -1071,36 +1137,19 @@ class Experiment(viz.EventClass):
 			leftEyeInHead_XYZ =  leftEyeInHead_XYZ,
 			leftEyeOnScreen_XY = leftEyeOnScreen_XY,
 			leftPupilPos_XYZ = leftPupilPos_XYZ,
-
+			
+			leftEyeNodeInWorld_XYZ = leftEyeNodeInWorld_XYZ,
+			leftEyeNodeInHead_XYZ = leftEyeNodeInHead_XYZ,
+			leftEyeMat_4x4 = leftEyeMat_4x4,
+			leftEyeInverseMat_4x4 = leftEyeInverseMat_4x4,
+			leftGazeNodeInWorld_XYZ = leftGazeNodeInWorld_XYZ,
+			leftGazeNodeInHead_XYZ = leftGazeNodeInHead_XYZ,
+					
 			)
 		
 		logging.info(dict(dataDict))
 		return
 		
-
-
-#	def writeDataToText(self):
-#		
-#		#return # Hacked for my test
-#		# Only write data is the experiment is ongoing
-#		if( (self.enableWritingToLog is False) ): # (self.inProgress is False) or 
-#			return
-#			
-#		if(calibTools.calibrationCounter > 50):
-#			print 'Finished Writing Data for Dynamic Calibration'
-#			self.enableWritingToLog = False
-#			return
-#		self.calibrationFrameCounter = self.calibrationFrameCounter + 1
-#		if ( calibTools.calibrationInProgress == True and self.calibrationFrameCounter > self.totalCalibrationFrames  ):
-#			self.enableWritingToLog = False
-#			print 'Calibration Frames Recorded:', self.calibrationFrameCounter 
-#			calibTools.calibrationSphere.color(viz.PURPLE)
-#			self.calibrationFrameCounter = 0
-#			return
-#			
-#		expDataString = self.getOutput()
-#		self.expDataFile.write(expDataString + '\n')
-
 	def registerWiimoteActions(self):
 				
 		wii = viz.add('wiimote.dle')#Add wiimote extension
@@ -1378,7 +1427,8 @@ class Experiment(viz.EventClass):
 		else:
 			textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = Nan'%(self.trialNumber, self.blockNumber, viz.getFrameTime()))
 		return
-			
+				
+		
 #	def placeTarget(self):
 #		target = vizshape.addCylinder(0.2,0.5,axis=3,color=viz.GREEN)
 #		target = 
@@ -1894,6 +1944,8 @@ hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 
 
 oT = vizconnect.getRawTracker('rift_tracker')
+
+
 
 
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
