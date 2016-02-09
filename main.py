@@ -1020,7 +1020,7 @@ class Experiment(viz.EventClass):
 			rightEyeInverseMat_4x4 = rightEyeNode.getMatrix(viz.ABS_GLOBAL).inverse().data
 			leftEyeInverseMat_4x4 = leftEyeNode.getMatrix(viz.ABS_GLOBAL).inverse().data
 			
-			cycGazeNodeInWorld_XYZ = viz.MainView.getPosition(viz.ABS_GLOBAL)
+			cycGazeNodeInWorld_XYZ = cyclopEyeSphere.node3D.getPosition(viz.ABS_GLOBAL)
 			rightGazeNodeInWorld_XYZ = right_sphere.node3D.getPosition(viz.ABS_GLOBAL)
 			leftGazeNodeInWorld_XYZ = left_sphere.node3D.getPosition(viz.ABS_GLOBAL)
 			
@@ -1107,7 +1107,7 @@ class Experiment(viz.EventClass):
 			cycEyeInHead_XYZ = cycEyeInHead_XYZ,
 			cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
 			
-			cycNodeInWorld_XYZ = cycNodeInWorld_XYZ,
+			cycEyeNodeInWorld_XYZ = cycEyeNodeInWorld_XYZ,
 			cycMat_4x4 = cycMat_4x4,
 			cycInverseMat_4x4 = cycInverseMat_4x4,
 			cycGazeNodeInWorld_XYZ = cycGazeNodeInWorld_XYZ,
@@ -1948,6 +1948,7 @@ oT = vizconnect.getRawTracker('rift_tracker')
 
 
 
+
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
 #	myMatrix = viz.Transform()
 #	myMatrix = viz.Transform()
@@ -1973,3 +1974,10 @@ oT = vizconnect.getRawTracker('rift_tracker')
 #rtLink = rt.getLink()
 #
 #link
+
+rd = vizconnect.getDisplay('rift_display')
+
+vp = rd.getViewpoint()
+
+#rdb = vizconnect.getDisplayBase('rift_display')
+
