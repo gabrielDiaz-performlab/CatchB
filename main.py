@@ -16,8 +16,7 @@ from ctypes import * # eyetrackka
 import vizconnect
 import random
 import math
-#from smi_beta import *
-import smi_beta
+import smi
 import numpy as np
 import pandas as pd
 #For hardware configuration
@@ -335,9 +334,9 @@ class Configuration():
 	def __connectSMIDK2(self):
 		
 		if self.sysCfg['sim_trackerData']:
-			self.eyeTracker = smi_beta.iViewHMD(simulate=True)
+			self.eyeTracker = smi.iViewHMD(simulate=True)
 		else:
-			self.eyeTracker = smi_beta.iViewHMD()
+			self.eyeTracker = smi.iViewHMD()
 	
 	def __record_data__(self, e):
 		
@@ -951,25 +950,27 @@ class Experiment(viz.EventClass):
 		# SMI Data
 		if( currentSample ):
 			
-			cycEyeOnScreen_XY = [currentSample.por_x, currentSample.por_y]
-			cycEyeInHead_XYZ = [currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z]
-			cycEyeBasePoint_XYZ = [currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z]
+			smiServerTime = self.config.eyeTracker.getServerTime()
 			
-			rightEyeOnScreen_XY = [currentSample.rightEye.por_x, currentSample.rightEye.por_y]
-			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z]
-			rightEyeBasePoint_XYZ =[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z] # H or W?
+			cycEyeOnScreen_XY = [currentSample.por.x, currentSample.por.y]
+			cycEyeInHead_XYZ = [currentSample.gazeDirection.x, currentSample.gazeDirection.y, currentSample.gazeDirection.z]
+			cycEyeBasePoint_XYZ = [currentSample.gazeBasePoint.x, currentSample.gazeBasePoint.y, currentSample.gazeBasePoint.z]
+			
+			rightEyeOnScreen_XY = [currentSample.rightEye.por.x, currentSample.rightEye.por.y]
+			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDirection.x, currentSample.rightEye.gazeDirection.y, currentSample.rightEye.gazeDirection.z]
+			rightEyeBasePoint_XYZ =[currentSample.rightEye.gazeBasePoint.x, currentSample.rightEye.gazeBasePoint.y, currentSample.rightEye.gazeBasePoint.z] # H or W?
 			rightEyeScreenDistance = currentSample.rightEye.eyeScreenDistance
 			rightEyeLensDistance  = currentSample.rightEye.eyeLensDistance
 			rightPupilRadius = currentSample.rightEye.pupilRadius
-			rightPupilPos_XYZ = [currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z] # Pixel values
+			rightPupilPos_XYZ = [currentSample.rightEye.pupilPosition.x, currentSample.rightEye.pupilPosition.y, currentSample.rightEye.pupilPosition.z] # Pixel values
 			
 			leftEyeOnScreen_XY = [currentSample.leftEye.por_x, currentSample.leftEye.por_y]
-			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z]
-			leftEyeBasePoint_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z] # H or W?
+			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDirection.x, currentSample.leftEye.gazeDirection.y, currentSample.leftEye.gazeDirection.z]
+			leftEyeBasePoint_XYZ=[currentSample.leftEye.gazeBasePoint.x, currentSample.leftEye.gazeBasePoint.y, currentSample.leftEye.gazeBasePoint.z] # H or W?
 			leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
 			leftEyeLensDistance  = currentSample.leftEye.eyeLensDistance
 			leftPupilRadius = currentSample.leftEye.pupilRadius
-			leftPupilPos_XYZ = [currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z] # Pixel values
+			leftPupilPos_XYZ = [currentSample.leftEye.pupilPosition.x, currentSample.leftEye.pupilPosition.y, currentSample.leftEye.pupilPosition.z] # Pixel values
 			
 			eyeTimeStamp = currentSample.timestamp
 			IOD = currentSample.iod
@@ -977,6 +978,8 @@ class Experiment(viz.EventClass):
 			
 		else:
 		
+			smiServerTime = [NaN]
+			
 			cycEyeOnScreen_XY = [NaN,NaN]
 			cycEyeInHead_XYZ = [NaN,NaN,NaN]
 			cycEyeBasePoint_XYZ= [NaN,NaN,NaN]
@@ -1029,7 +1032,7 @@ class Experiment(viz.EventClass):
 			leftGazeNodeInHead_XYZ = left_sphere.node3D.getPosition(viz.ABS_PARENT)
 
 		else:
-						
+							
 			cycEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
 			rightEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
 			leftEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
@@ -1061,6 +1064,7 @@ class Experiment(viz.EventClass):
 		dataDict = dict( 
 			
 			frameTime = viz.getFrameTime(),
+			smiNsSinceStart = smiServerTime,
 			trialNumber = tempVar,
 			blockNumber = self.blockNumber,
 			eventFlag = self.eventFlag.status,
@@ -1155,12 +1159,12 @@ class Experiment(viz.EventClass):
 		wii = viz.add('wiimote.dle')#Add wiimote extension
 		
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_B,self.launchKeyDown) 
-		vizact.onsensorup(self.config.wiimote,wii.BUTTON_B,self.launchKeyUp) 
+		vizact.onsensorup(self.config.wiimote,wii.BUTTON_B,self.launchKeyUp)
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_DOWN,self.callSMICalibration)
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_A,self.callPerForMCalibration)
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_1,self.updateCalibrationPoint)
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_2,self.recordCalibrationData)
-
+		vizact.onsensordown(self.config.wiimote,wii.BUTTON_PLUS,self.config.eyeTracker.acceptCalibrationPoint)
 		
 
 		
@@ -1354,8 +1358,9 @@ class Experiment(viz.EventClass):
 			
 			recalAfterTrial_idx = self.blocks_bl[self.blockNumber].recalAfterTrial_idx
 			
+			eyeTracker = experimentObject.config.eyeTracker
 			if( recalAfterTrial_idx.count(self.trialNumber ) > 0):
-				vizact.ontimer2(0,0,experimentObject.config.eyeTracker.calibrate)
+				vizact.ontimer2(0,0,eyeTracker.calibrate(type = smi.CALIBRATION_9_POINT ))
 				print 'Static Calibration Method is Called after %d trials' %(recalAfterTrial_idx.count(self.trialNumber ))
 				self.totalCalibrationFrames = 100
 				calibTools.staticCalibrationMethod()
@@ -1938,6 +1943,7 @@ def timeStampOnScreen():
 	return experimentTextObject
 
 textObj = timeStampOnScreen()
+
 ###
 
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')

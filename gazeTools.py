@@ -1,7 +1,7 @@
 ﻿import viz
 import vizact
 import vizshape
-import smi_beta
+import smi
 import vizconnect
 import numpy as np
 import math
@@ -49,8 +49,8 @@ class gazeVector():
 			#Gaze base point is given in mm with respect to the origin of the eyetracker coordinate system.
 			# Note: you must flip X
 			viewPos_XYZ = np.array(viz.MainView.getPosition(), dtype = float)
-			gazeDir_XYZ = np.array([ -gazeSamp.gazeDir_x, gazeSamp.gazeDir_y, gazeSamp.gazeDir_z], dtype = float)
-			pupilPos_XYZ = [-gazeSamp.pupilPos_x, gazeSamp.pupilPos_y, gazeSamp.pupilPos_z]
+			gazeDir_XYZ = np.array([ -gazeSamp.gazeDirection.x, gazeSamp.gazeDirection.y, gazeSamp.gazeDirection.z], dtype = float)
+			pupilPos_XYZ = [-gazeSamp.pupilPosition.x, gazeSamp.pupilPosition.y, gazeSamp.pupilPosition.z]
 			pupilPos_XYZ = np.divide(pupilPos_XYZ, 1000)
 
 			# Create a node3D
@@ -116,7 +116,7 @@ class gazeSphere():
 			#3D gaze is provided as a normalized gaze direction vector (gazeDirection) and a gaze base point (gazeBasePoint).
 			#Gaze base point is given in mm with respect to the origin of the eyetracker coordinate system.
 			# Note: you must flip X
-			gazeDirXYZ = [ -gazeSamp.gazeDir_x, gazeSamp.gazeDir_y, gazeSamp.gazeDir_z]
+			gazeDirXYZ = [ -gazeSamp.gazeDirection.x, gazeSamp.gazeDirection.y, gazeSamp.gazeDirection.z]
 			gazePointXYZ = self.sphereDistance * gazeDirXYZ
 			
 			#with viz.cluster.MaskedContext(viz.CLIENT1):# show
