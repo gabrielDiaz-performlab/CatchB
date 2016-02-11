@@ -553,17 +553,24 @@ class phasespaceInterface(viz.EventClass):
 
     def update_thread(self):
         while self._running:
+            
             self.update()
-            try:
-                elapsed = viz.tick() - self._updated
-            except:
-                tick = viz.tick()
-                upd = self._updated
-                
-            wait = 1. / self.owlParamFrequ - elapsed
-            while wait < 0:
-                wait += 1. / self.owlParamFrequ
+            time.sleep(1./1000)
+            
+#            try:
+#                elapsed = viz.tick() - self._updated
+#            except:
+#                tick = viz.tick()
+#                upd = self._updated
+#                
+#            wait = 1. / 120 - elapsed
+#            
+#            while wait < 0:
+#                wait += 1. / 120
+
             #time.sleep(wait)
+            
+            
 
     def start_timer(self):
         self.callback(viz.TIMER_EVENT, self.update_timer)
