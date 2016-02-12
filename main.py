@@ -874,6 +874,7 @@ class Experiment(viz.EventClass):
 		# 5 ball has hit back wall
 		# 6 ball has timed out
 		
+		
 		NaN = float('NaN')
 
 		# Only write data is the experiment is ongoing
@@ -945,7 +946,7 @@ class Experiment(viz.EventClass):
 		# SMI Data
 		if( currentSample ):
 			
-			smiServerTime = self.config.eyeTracker.getServerTime()
+			#smiServerTime = self.config.eyeTracker.getServerTime()
 			
 			cycEyeOnScreen_XY = [currentSample.por.x, currentSample.por.y]
 			cycEyeInHead_XYZ = [currentSample.gazeDirection.x, currentSample.gazeDirection.y, currentSample.gazeDirection.z]
@@ -959,7 +960,7 @@ class Experiment(viz.EventClass):
 			rightPupilRadius = currentSample.rightEye.pupilRadius
 			rightPupilPos_XYZ = [currentSample.rightEye.pupilPosition.x, currentSample.rightEye.pupilPosition.y, currentSample.rightEye.pupilPosition.z] # Pixel values
 			
-			leftEyeOnScreen_XY = [currentSample.leftEye.por_x, currentSample.leftEye.por_y]
+			leftEyeOnScreen_XY = [currentSample.leftEye.por.x, currentSample.leftEye.por.y]
 			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDirection.x, currentSample.leftEye.gazeDirection.y, currentSample.leftEye.gazeDirection.z]
 			leftEyeBasePoint_XYZ=[currentSample.leftEye.gazeBasePoint.x, currentSample.leftEye.gazeBasePoint.y, currentSample.leftEye.gazeBasePoint.z] # H or W?
 			leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
@@ -973,7 +974,7 @@ class Experiment(viz.EventClass):
 			
 		else:
 		
-			smiServerTime = [NaN]
+			#smiServerTime = [NaN]
 			
 			cycEyeOnScreen_XY = [NaN,NaN]
 			cycEyeInHead_XYZ = [NaN,NaN,NaN]
@@ -1056,10 +1057,11 @@ class Experiment(viz.EventClass):
 			tempVar = calibTools.calibrationBlockCounter + calibTools.calibrationCounter
 		else:
 			tempVar = self.trialNumber
+			
 		dataDict = dict( 
 			
 			frameTime = viz.getFrameTime(),
-			smiNsSinceStart = smiServerTime,
+			#smiNsSinceStart = smiServerTime,
 			trialNumber = tempVar,
 			blockNumber = self.blockNumber,
 			eventFlag = self.eventFlag.status,
@@ -1904,128 +1906,128 @@ experimentObject.start()
 #experimentObject.room.lightSource.disable()
 #vizfx.addDirectionalLight(euler=(0,45,0))
 
-#####
-#
-#from gazeTools import gazeSphere
-#from gazeTools import gazeVector
-#
-#eyeTracker = experimentObject.config.eyeTracker
-#headTracker = vizconnect.getRawTrackerDict()['head_tracker']
-##headTracker.setPosition(0,1,0)
-#
-#dispDict = vizconnect.getRawDisplayDict()
-#clientWindowID = dispDict['exp_display']
-#
-#cyclopEyeSphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.GREEN)
-##both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,sphereColor=viz.GREEN)
-#cyclopEyeSphere.toggleUpdate()
-#cyclopEyeNode = vizshape.addSphere(0.015, color = viz.GREEN)
-#cyclopEyeNode.setParent(headTracker)
-#cyclopEyeNode.visible(viz.OFF)
-#cyclopEyeNode.alpha(0.00)
-#
-#calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room) # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
-#calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
-#if experimentObject.config.sysCfg['use_wiimote']:
-#	experimentObject.registerWiimoteActions()
-#
-#
-#IOD = 0.06
-## create a node3D leftEyeNode
-#leftEyeNode = vizshape.addSphere(0.005, color = viz.BLUE)
-#leftEyeNode.visible(viz.OFF)
-#leftEyeNode.setParent(headTracker)
-#leftEyeNode.setPosition(-IOD/2, 0, 0.0,viz.ABS_PARENT)
-#left_sphere = gazeSphere(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],sphereColor=viz.YELLOW)
-#leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],gazeVectorColor=viz.YELLOW)
-#left_sphere.toggleUpdate()
-#leftGazeVector.toggleUpdate()
-#left_sphere.node3D.alpha(0.7)
-#leftEyeNode.alpha(0.01)
-#
-## create a node3D rightEyeNode
-#rightEyeNode = vizshape.addSphere(0.005, color = viz.RED)
-#rightEyeNode.visible(viz.OFF)
-#rightEyeNode.setParent(headTracker)
-#rightEyeNode.setPosition(IOD/2, 0, 0.0,viz.ABS_PARENT)
-#right_sphere = gazeSphere(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],sphereColor=viz.ORANGE)
-#rightGazeVector = gazeVector(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],gazeVectorColor=viz.ORANGE)
-#right_sphere.toggleUpdate()
-#rightGazeVector.toggleUpdate()
-#right_sphere.node3D.alpha(0.7)
-#rightEyeNode.alpha(0.01)
-#
-#
 ####
-#def labelDisplay():
-#	winList = viz.getWindowList()
-#	hmdWin = winList[0]
-#	expWin = winList[1]
+
+from gazeTools import gazeSphere
+from gazeTools import gazeVector
+
+eyeTracker = experimentObject.config.eyeTracker
+headTracker = vizconnect.getRawTrackerDict()['head_tracker']
+#headTracker.setPosition(0,1,0)
+
+dispDict = vizconnect.getRawDisplayDict()
+clientWindowID = dispDict['exp_display']
+
+cyclopEyeSphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.GREEN)
+#both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,sphereColor=viz.GREEN)
+cyclopEyeSphere.toggleUpdate()
+cyclopEyeNode = vizshape.addSphere(0.015, color = viz.GREEN)
+cyclopEyeNode.setParent(headTracker)
+cyclopEyeNode.visible(viz.OFF)
+cyclopEyeNode.alpha(0.00)
+
+calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room) # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
+calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
+if experimentObject.config.sysCfg['use_wiimote']:
+	experimentObject.registerWiimoteActions()
+
+
+IOD = 0.06
+# create a node3D leftEyeNode
+leftEyeNode = vizshape.addSphere(0.005, color = viz.BLUE)
+leftEyeNode.visible(viz.OFF)
+leftEyeNode.setParent(headTracker)
+leftEyeNode.setPosition(-IOD/2, 0, 0.0,viz.ABS_PARENT)
+left_sphere = gazeSphere(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],sphereColor=viz.YELLOW)
+leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],gazeVectorColor=viz.YELLOW)
+left_sphere.toggleUpdate()
+leftGazeVector.toggleUpdate()
+left_sphere.node3D.alpha(0.7)
+leftEyeNode.alpha(0.01)
+
+# create a node3D rightEyeNode
+rightEyeNode = vizshape.addSphere(0.005, color = viz.RED)
+rightEyeNode.visible(viz.OFF)
+rightEyeNode.setParent(headTracker)
+rightEyeNode.setPosition(IOD/2, 0, 0.0,viz.ABS_PARENT)
+right_sphere = gazeSphere(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],sphereColor=viz.ORANGE)
+rightGazeVector = gazeVector(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],gazeVectorColor=viz.ORANGE)
+right_sphere.toggleUpdate()
+rightGazeVector.toggleUpdate()
+right_sphere.node3D.alpha(0.7)
+rightEyeNode.alpha(0.01)
+
+
+###
+def labelDisplay():
+	winList = viz.getWindowList()
+	hmdWin = winList[0]
+	expWin = winList[1]
+
+	text1 = viz.addText('HMD',viz.SCREEN)
+	text1.renderOnlyToWindows([hmdWin])
+	text1.alignment(viz.ALIGN_RIGHT_BOTTOM)
+	text1.setPosition([0.8,0.9,0])
+
+	text2 = viz.addText('EXP',viz.SCREEN)
+	text2.renderOnlyToWindows([viz.VizWindow(1)])
+	text2.setPosition([0.8,0.9,0])
+
+def timeStampOnScreen():
+
+	experimentTextObject = viz.addText('',viz.SCREEN)
+	experimentTextObject.setBackdrop(1)
+	experimentTextObject.color(viz.RED)
+	experimentTextObject.setPosition([0.01,.99,0])
+	experimentTextObject.alignment(viz.ALIGN_LEFT_TOP)
+	textScale = 0.3
+	experimentTextObject.setScale([textScale]*3)
+	experimentTextObject.renderOnlyToWindows([clientWindowID])
+	textUpdateAction = vizact.onupdate(viz.PRIORITY_INPUT+1,experimentObject.updateTextObject, experimentTextObject)#self.currentTrial.ballObj.node3D
+	return experimentTextObject
+
+textObj = timeStampOnScreen()
+
+###
+
+hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
+
+
+oT = vizconnect.getRawTracker('rift_tracker')
+
+
+
+
+
+#with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
+#	myMatrix = viz.Transform()
+#	myMatrix = viz.Transform()
+#	myMatrix.setEuler(0, 45, 0)
+#	myMatrix.setTrans(0, 1, -.2)
+###headTracker.setMatrix( myMatrix )
+#	viz.MainWindow.setViewOffset( myMatrix )
+
+
+
+
+
+
+##  Heres how to put a ball in head-centered coordinates
+#newBall = vizshape.addSphere(0.25,color = viz.GREEN)
+#newBall.setParent(headTracker)
+#newBall.setPosition(0,0,3,viz.ABS_PARENT)
+#newBall.renderOnlyToWindows([viz.VizWindow(viz.MASTER)])
+
+#newBall.renderOnlyToWindows([clientWindowID])
 #
-#	text1 = viz.addText('HMD',viz.SCREEN)
-#	text1.renderOnlyToWindows([hmdWin])
-#	text1.alignment(viz.ALIGN_RIGHT_BOTTOM)
-#	text1.setPosition([0.8,0.9,0])
+#rt = vizconnect.getTracker('rift_tracker')
+#rtLink = rt.getLink()
 #
-#	text2 = viz.addText('EXP',viz.SCREEN)
-#	text2.renderOnlyToWindows([viz.VizWindow(1)])
-#	text2.setPosition([0.8,0.9,0])
-#
-#def timeStampOnScreen():
-#
-#	experimentTextObject = viz.addText('',viz.SCREEN)
-#	experimentTextObject.setBackdrop(1)
-#	experimentTextObject.color(viz.RED)
-#	experimentTextObject.setPosition([0.01,.99,0])
-#	experimentTextObject.alignment(viz.ALIGN_LEFT_TOP)
-#	textScale = 0.3
-#	experimentTextObject.setScale([textScale]*3)
-#	experimentTextObject.renderOnlyToWindows([clientWindowID])
-#	textUpdateAction = vizact.onupdate(viz.PRIORITY_INPUT+1,experimentObject.updateTextObject, experimentTextObject)#self.currentTrial.ballObj.node3D
-#	return experimentTextObject
-#
-#textObj = timeStampOnScreen()
-#
-####
-#
-#hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
-#
-#
-#oT = vizconnect.getRawTracker('rift_tracker')
-#
-#
-#
-#
-#
-##with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
-##	myMatrix = viz.Transform()
-##	myMatrix = viz.Transform()
-##	myMatrix.setEuler(0, 45, 0)
-##	myMatrix.setTrans(0, 1, -.2)
-####headTracker.setMatrix( myMatrix )
-##	viz.MainWindow.setViewOffset( myMatrix )
-#
-#
-#
-#
-#
-#
-###  Heres how to put a ball in head-centered coordinates
-##newBall = vizshape.addSphere(0.25,color = viz.GREEN)
-##newBall.setParent(headTracker)
-##newBall.setPosition(0,0,3,viz.ABS_PARENT)
-##newBall.renderOnlyToWindows([viz.VizWindow(viz.MASTER)])
-#
-##newBall.renderOnlyToWindows([clientWindowID])
-##
-##rt = vizconnect.getTracker('rift_tracker')
-##rtLink = rt.getLink()
-##
-##link
-#
-#rd = vizconnect.getDisplay('rift_display')
-#
-#vp = rd.getViewpoint()
-#
-##rdb = vizconnect.getDisplayBase('rift_display')
-#
+#link
+
+rd = vizconnect.getDisplay('rift_display')
+
+vp = rd.getViewpoint()
+
+#rdb = vizconnect.getDisplayBase('rift_display')
+

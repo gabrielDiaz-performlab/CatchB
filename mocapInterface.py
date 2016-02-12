@@ -555,20 +555,24 @@ class phasespaceInterface(viz.EventClass):
         while self._running:
             
             self.update()
-            time.sleep(1./1000)
             
-#            try:
-#                elapsed = viz.tick() - self._updated
-#            except:
-#                tick = viz.tick()
-#                upd = self._updated
-#                
-#            wait = 1. / 120 - elapsed
-#            
-#            while wait < 0:
-#                wait += 1. / 120
+            #time.sleep(1./1000)
+            
+            try:
+                elapsed = viz.tick() - self._updated
+            except:
+                tick = viz.tick()
+                upd = self._updated
+                
+            wait = 1. / 1000 - elapsed
+            
+            if( wait > 0 ):
+                time.sleep(wait)
+                
+            #while wait < 0:
+                #wait += 1. / 1000
 
-            #time.sleep(wait)
+            
             
             
 
