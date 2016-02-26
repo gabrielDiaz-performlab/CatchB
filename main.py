@@ -1935,7 +1935,7 @@ if experimentObject.config.sysCfg['use_wiimote']:
 IOD = 0.06
 # create a node3D leftEyeNode
 leftEyeNode = vizshape.addSphere(0.005, color = viz.BLUE)
-leftEyeNode.visible(viz.OFF)
+#leftEyeNode.visible(viz.OFF)
 leftEyeNode.setParent(headTracker)
 leftEyeNode.setPosition(-IOD/2, 0, 0.0,viz.ABS_PARENT)
 left_sphere = gazeSphere(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],sphereColor=viz.YELLOW)
@@ -1947,7 +1947,7 @@ leftEyeNode.alpha(0.01)
 
 # create a node3D rightEyeNode
 rightEyeNode = vizshape.addSphere(0.005, color = viz.RED)
-rightEyeNode.visible(viz.OFF)
+#rightEyeNode.visible(viz.OFF)
 rightEyeNode.setParent(headTracker)
 rightEyeNode.setPosition(IOD/2, 0, 0.0,viz.ABS_PARENT)
 right_sphere = gazeSphere(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],sphereColor=viz.ORANGE)
