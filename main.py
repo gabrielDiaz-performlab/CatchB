@@ -1023,9 +1023,9 @@ class Experiment(viz.EventClass):
 			rightGazeNodeInWorld_XYZ = right_sphere.node3D.getPosition(viz.ABS_GLOBAL)
 			leftGazeNodeInWorld_XYZ = left_sphere.node3D.getPosition(viz.ABS_GLOBAL)
 			
-			cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
-			rightGazeNodeInHead_XYZ = right_sphere.node3D.getPosition(viz.ABS_PARENT)
-			leftGazeNodeInHead_XYZ = left_sphere.node3D.getPosition(viz.ABS_PARENT)
+			#cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
+			#rightGazeNodeInHead_XYZ = right_sphere.node3D.getPosition(viz.ABS_PARENT)
+			#leftGazeNodeInHead_XYZ = left_sphere.node3D.getPosition(viz.ABS_PARENT)
 
 		else:
 							
@@ -1048,9 +1048,9 @@ class Experiment(viz.EventClass):
 			rightGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
 			leftGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
 			
-			cycGazeNodeInHead_XYZ = [NaN,NaN,NaN]
-			rightGazeNodeInHead_XYZ = [NaN,NaN,NaN]
-			leftGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			#cycGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			#rightGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			#leftGazeNodeInHead_XYZ = [NaN,NaN,NaN]
 			
 		
 		if (calibTools.calibrationInProgress == True):
@@ -1112,7 +1112,7 @@ class Experiment(viz.EventClass):
 			cycMat_4x4 = cycMat_4x4,
 			cycInverseMat_4x4 = cycInverseMat_4x4,
 			cycGazeNodeInWorld_XYZ = cycGazeNodeInWorld_XYZ,
-			cycGazeNodeInHead_XYZ = cycGazeNodeInHead_XYZ,
+			#cycGazeNodeInHead_XYZ = cycGazeNodeInHead_XYZ,
 			
 			# Right gaze
 			rightPupilRadius = rightPupilRadius,
@@ -1128,7 +1128,7 @@ class Experiment(viz.EventClass):
 			rightEyeMat_4x4 = rightEyeMat_4x4,
 			rightEyeInverseMat_4x4 = rightEyeInverseMat_4x4,
 			rightGazeNodeInWorld_XYZ = rightGazeNodeInWorld_XYZ,
-			rightGazeNodeInHead_XYZ = rightGazeNodeInHead_XYZ,
+			#rightGazeNodeInHead_XYZ = rightGazeNodeInHead_XYZ,
 			
 			# Left gaze
 			leftPupilRadius = leftPupilRadius,
@@ -1923,7 +1923,7 @@ cyclopEyeSphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID
 cyclopEyeSphere.toggleUpdate()
 cyclopEyeNode = vizshape.addSphere(0.015, color = viz.GREEN)
 cyclopEyeNode.setParent(headTracker)
-cyclopEyeNode.visible(viz.OFF)
+#cyclopEyeNode.visible(viz.OFF)
 cyclopEyeNode.alpha(0.00)
 
 calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room) # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
