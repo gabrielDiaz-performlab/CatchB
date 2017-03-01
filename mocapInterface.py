@@ -552,12 +552,16 @@ class phasespaceInterface(viz.EventClass):
             self._thread = None
 
     def update_thread(self):
+
         while self._running:
             
             self.update()
             
+<<<<<<< HEAD
             #time.sleep(1./1000)
             
+=======
+>>>>>>> origin/master
             try:
                 elapsed = viz.tick() - self._updated
             except:
@@ -568,6 +572,7 @@ class phasespaceInterface(viz.EventClass):
             
             if( wait > 0 ):
                 time.sleep(wait)
+<<<<<<< HEAD
                 
             #while wait < 0:
                 #wait += 1. / 1000
@@ -575,6 +580,13 @@ class phasespaceInterface(viz.EventClass):
             
             
             
+=======
+            
+            #while wait < 0:
+                #wait += 1. / 1000
+
+
+>>>>>>> origin/master
 
     def start_timer(self):
         self.callback(viz.TIMER_EVENT, self.update_timer)
