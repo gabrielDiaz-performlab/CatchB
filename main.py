@@ -16,8 +16,7 @@ from ctypes import * # eyetrackka
 import vizconnect
 import random
 import math
-#from smi_beta import *
-import smi_beta
+import smi
 import numpy as np
 import pandas as pd
 #For hardware configuration
@@ -31,9 +30,9 @@ import os.path
 import vizconnect
 from gazeTools import calibrationTools
 import logging
-
+import oculus
 #expConfigFileName = 'badmintonTest.cfg'
-expConfigFileName = 'gd_pilot_B.cfg'
+expConfigFileName = 'gd_pilot.cfg'
 print '**************** USING' + expConfigFileName + '****************'
 
 ft = .3048
@@ -111,8 +110,6 @@ class Configuration():
 		self.clientWindow = dispDict['exp_display']
 		self.riftWindow = dispDict['rift_display']
 		
-	
-
 		if( self.sysCfg['use_wiimote']):
 			# Create wiimote holder
 			self.wiimote = 0
@@ -130,10 +127,7 @@ class Configuration():
 			
 		self.writer = None #Will get initialized later when the system starts
 		self.writables = list()
-		
-		#viz.callback(viz.EXIT_EVENT, self.stopDVR)
-#		vizact.ontimer2(5,1,self.stopDVR)
-		
+				
 		if self.sysCfg['use_phasespace']:
 			
 			from mocapInterface import phasespaceInterface			
@@ -335,9 +329,9 @@ class Configuration():
 	def __connectSMIDK2(self):
 		
 		if self.sysCfg['sim_trackerData']:
-			self.eyeTracker = smi_beta.iViewHMD(simulate=True)
+			self.eyeTracker = smi.iViewHMD(simulate=True)
 		else:
-			self.eyeTracker = smi_beta.iViewHMD()
+			self.eyeTracker = smi.iViewHMD()
 	
 	def __record_data__(self, e):
 		
@@ -368,7 +362,7 @@ class Experiment(viz.EventClass):
 		##  This draws upon the system config to setup the hardware / HMD
 		
 		self.config = Configuration(expConfigFileName)
-
+		
 		################################################################
 		################################################################
 		## Set states
@@ -820,7 +814,9 @@ class Experiment(viz.EventClass):
 			self.currentTrial.placeBall(self.room)
 	
 	def launchKeyUp(self):			
-			
+		global calibTools
+		if (calibTools.calibrationInProgress == True):
+			return
 		if( self.launchKeyIsCurrentlyDown == True ):
 			
 			self.launchKeyIsCurrentlyDown = False
@@ -840,8 +836,8 @@ class Experiment(viz.EventClass):
 					viz.playSound(soundBank.cowbell)
 					self.room.standingBox.visible( viz.TOGGLE )
 					self.currentTrial.removeBall()
-					#print 'Launch aborted'
-			
+					print 'Launch aborted Because of Timing'
+
 				if( triggerDuration >= self.minLaunchTriggerDuration ):
 					
 					#self.eventFlag.setStatus(1)
@@ -879,6 +875,7 @@ class Experiment(viz.EventClass):
 		# 4 ball has hit paddle
 		# 5 ball has hit back wall
 		# 6 ball has timed out
+		
 		
 		NaN = float('NaN')
 
@@ -924,7 +921,8 @@ class Experiment(viz.EventClass):
 			paddleQuat_XYZW = self.room.paddle.node3D.getMatrix().getQuat()
 			
 		else:
-			paddlePos_XYZ = [NaN,NaN,NaN]
+			paddlePos
+			_XYZ = [NaN,NaN,NaN]
 			paddleQuat_XYZW = [NaN,NaN,NaN,NaN]
 			
 		###############################################
@@ -937,6 +935,7 @@ class Experiment(viz.EventClass):
 		if(theBall):
 			
 			ballPos_XYZ = theBall.node3D.getPosition(viz.ABS_GLOBAL)
+			
 			ballVel_XYZ = theBall.getVelocity()
 			ballVisible = self.currentTrial.ballObj.node3D.getVisible()
 			
@@ -946,28 +945,30 @@ class Experiment(viz.EventClass):
 			ballVel_XYZ = [NaN,NaN,NaN]
 			ballVisible = NaN
 			
-		# GIW Data#
+		# SMI Data
 		if( currentSample ):
 			
-			cycEyeOnScreen_XY = [currentSample.por_x, currentSample.por_y]
-			cycEyeInHead_XYZ = [currentSample.gazeDir_x, currentSample.gazeDir_y, currentSample.gazeDir_z]
-			cycEyeBasePoint_XYZ = [currentSample.gazePoint_x, currentSample.gazePoint_y, currentSample.gazePoint_z]
+			#smiServerTime = self.config.eyeTracker.getServerTime()
 			
-			rightEyeOnScreen_XY = [currentSample.rightEye.por_x, currentSample.rightEye.por_y]
-			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDir_x, currentSample.rightEye.gazeDir_y, currentSample.rightEye.gazeDir_z]
-			rightEyeBasePoint_XYZ =[currentSample.rightEye.gazePoint_x, currentSample.rightEye.gazePoint_y, currentSample.rightEye.gazePoint_z] # H or W?
+			cycEyeOnScreen_XY = [currentSample.por.x, currentSample.por.y]
+			cycEyeInHead_XYZ = [currentSample.gazeDirection.x, currentSample.gazeDirection.y, currentSample.gazeDirection.z]
+			cycEyeBasePoint_XYZ = [currentSample.gazeBasePoint.x, currentSample.gazeBasePoint.y, currentSample.gazeBasePoint.z]
+			
+			rightEyeOnScreen_XY = [currentSample.rightEye.por.x, currentSample.rightEye.por.y]
+			rightEyeInHead_XYZ = [currentSample.rightEye.gazeDirection.x, currentSample.rightEye.gazeDirection.y, currentSample.rightEye.gazeDirection.z]
+			rightEyeBasePoint_XYZ =[currentSample.rightEye.gazeBasePoint.x, currentSample.rightEye.gazeBasePoint.y, currentSample.rightEye.gazeBasePoint.z] # H or W?
 			rightEyeScreenDistance = currentSample.rightEye.eyeScreenDistance
 			rightEyeLensDistance  = currentSample.rightEye.eyeLensDistance
 			rightPupilRadius = currentSample.rightEye.pupilRadius
-			rightPupilPos_XYZ = [currentSample.rightEye.pupilPos_x, currentSample.rightEye.pupilPos_y, currentSample.rightEye.pupilPos_z] # Pixel values
+			rightPupilPos_XYZ = [currentSample.rightEye.pupilPosition.x, currentSample.rightEye.pupilPosition.y, currentSample.rightEye.pupilPosition.z] # Pixel values
 			
-			leftEyeOnScreen_XY = [currentSample.leftEye.por_x, currentSample.leftEye.por_y]
-			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDir_x, currentSample.leftEye.gazeDir_y, currentSample.leftEye.gazeDir_z]
-			leftEyeBasePoint_XYZ=[currentSample.leftEye.gazePoint_x, currentSample.leftEye.gazePoint_y, currentSample.leftEye.gazePoint_z] # H or W?
+			leftEyeOnScreen_XY = [currentSample.leftEye.por.x, currentSample.leftEye.por.y]
+			leftEyeInHead_XYZ = [currentSample.leftEye.gazeDirection.x, currentSample.leftEye.gazeDirection.y, currentSample.leftEye.gazeDirection.z]
+			leftEyeBasePoint_XYZ=[currentSample.leftEye.gazeBasePoint.x, currentSample.leftEye.gazeBasePoint.y, currentSample.leftEye.gazeBasePoint.z] # H or W?
 			leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
 			leftEyeLensDistance  = currentSample.leftEye.eyeLensDistance
 			leftPupilRadius = currentSample.leftEye.pupilRadius
-			leftPupilPos_XYZ = [currentSample.leftEye.pupilPos_x, currentSample.leftEye.pupilPos_y, currentSample.leftEye.pupilPos_z] # Pixel values
+			leftPupilPos_XYZ = [currentSample.leftEye.pupilPosition.x, currentSample.leftEye.pupilPosition.y, currentSample.leftEye.pupilPosition.z] # Pixel values
 			
 			eyeTimeStamp = currentSample.timestamp
 			IOD = currentSample.iod
@@ -975,6 +976,8 @@ class Experiment(viz.EventClass):
 			
 		else:
 		
+			#smiServerTime = [NaN]
+			
 			cycEyeOnScreen_XY = [NaN,NaN]
 			cycEyeInHead_XYZ = [NaN,NaN,NaN]
 			cycEyeBasePoint_XYZ= [NaN,NaN,NaN]
@@ -999,15 +1002,68 @@ class Experiment(viz.EventClass):
 			IOD = NaN
 			IPD = NaN
 			
+		##### Eye nodes
+		
+		if( currentSample ):
 			
-		#####
+			cycEyeNodeInWorld_XYZ = viz.MainView.getPosition()
+			rightEyeNodeInWorld_XYZ = rightEyeNode.getPosition(viz.ABS_GLOBAL)
+			leftEyeNodeInWorld_XYZ = leftEyeNode.getPosition(viz.ABS_GLOBAL)
+			
+			rightEyeNodeInHead_XYZ = rightEyeNode.getPosition(viz.ABS_PARENT)
+			leftEyeNodeInHead_XYZ = leftEyeNode.getPosition(viz.ABS_PARENT)
+			
+			cycMat_4x4 = viz.MainView.getMatrix(viz.ABS_GLOBAL).data
+			rightEyeMat_4x4 = rightEyeNode.getMatrix(viz.ABS_GLOBAL).data
+			leftEyeMat_4x4 = leftEyeNode.getMatrix(viz.ABS_GLOBAL).data
+			
+			cycInverseMat_4x4 = viz.MainView.getMatrix(viz.ABS_GLOBAL).inverse().data
+			rightEyeInverseMat_4x4 = rightEyeNode.getMatrix(viz.ABS_GLOBAL).inverse().data
+			leftEyeInverseMat_4x4 = leftEyeNode.getMatrix(viz.ABS_GLOBAL).inverse().data
+			
+			cycGazeNodeInWorld_XYZ = cyclopEyeSphere.node3D.getPosition(viz.ABS_GLOBAL)
+			rightGazeNodeInWorld_XYZ = right_sphere.node3D.getPosition(viz.ABS_GLOBAL)
+			leftGazeNodeInWorld_XYZ = left_sphere.node3D.getPosition(viz.ABS_GLOBAL)
+			
+			#cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
+			#rightGazeNodeInHead_XYZ = right_sphere.node3D.getPosition(viz.ABS_PARENT)
+			#leftGazeNodeInHead_XYZ = left_sphere.node3D.getPosition(viz.ABS_PARENT)
+
+		else:
+							
+			cycEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			rightEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			leftEyeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			
+			rightEyeNodeInHead_XYZ = [NaN,NaN,NaN]
+			leftEyeNodeInHead_XYZ = [NaN,NaN,NaN]
+			
+			cycMat_4x4 = [NaN] * 16
+			rightEyeMat_4x4 = [NaN] * 16
+			leftEyeMat_4x4 = [NaN] * 16
+			
+			cycInverseMat_4x4 = [NaN] * 16
+			rightEyeInverseMat_4x4 = [NaN] * 16
+			leftEyeInverseMat_4x4 = [NaN] * 16
+			
+			cycGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			rightGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			leftGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
+			
+			#cycGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			#rightGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			#leftGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+			
+		
 		if (calibTools.calibrationInProgress == True):
 			tempVar = calibTools.calibrationBlockCounter + calibTools.calibrationCounter
 		else:
 			tempVar = self.trialNumber
+			
 		dataDict = dict( 
 			
 			frameTime = viz.getFrameTime(),
+			#smiNsSinceStart = smiServerTime,
 			trialNumber = tempVar,
 			blockNumber = self.blockNumber,
 			eventFlag = self.eventFlag.status,
@@ -1054,6 +1110,12 @@ class Experiment(viz.EventClass):
 			cycEyeInHead_XYZ = cycEyeInHead_XYZ,
 			cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
 			
+			cycEyeNodeInWorld_XYZ = cycEyeNodeInWorld_XYZ,
+			cycMat_4x4 = cycMat_4x4,
+			cycInverseMat_4x4 = cycInverseMat_4x4,
+			cycGazeNodeInWorld_XYZ = cycGazeNodeInWorld_XYZ,
+			#cycGazeNodeInHead_XYZ = cycGazeNodeInHead_XYZ,
+			
 			# Right gaze
 			rightPupilRadius = rightPupilRadius,
 			rightEyeLensDistance = rightEyeLensDistance,
@@ -1063,6 +1125,13 @@ class Experiment(viz.EventClass):
 			rightEyeOnScreen_XY = rightEyeOnScreen_XY,
 			rightPupilPos_XYZ = rightPupilPos_XYZ,
 			
+			rightEyeNodeInWorld_XYZ = rightEyeNodeInWorld_XYZ,
+			rightEyeNodeInHead_XYZ = rightEyeNodeInHead_XYZ,
+			rightEyeMat_4x4 = rightEyeMat_4x4,
+			rightEyeInverseMat_4x4 = rightEyeInverseMat_4x4,
+			rightGazeNodeInWorld_XYZ = rightGazeNodeInWorld_XYZ,
+			#rightGazeNodeInHead_XYZ = rightGazeNodeInHead_XYZ,
+			
 			# Left gaze
 			leftPupilRadius = leftPupilRadius,
 			leftEyeLensDistance = leftEyeLensDistance,
@@ -1071,47 +1140,30 @@ class Experiment(viz.EventClass):
 			leftEyeInHead_XYZ =  leftEyeInHead_XYZ,
 			leftEyeOnScreen_XY = leftEyeOnScreen_XY,
 			leftPupilPos_XYZ = leftPupilPos_XYZ,
-
+			
+			leftEyeNodeInWorld_XYZ = leftEyeNodeInWorld_XYZ,
+			leftEyeNodeInHead_XYZ = leftEyeNodeInHead_XYZ,
+			leftEyeMat_4x4 = leftEyeMat_4x4,
+			leftEyeInverseMat_4x4 = leftEyeInverseMat_4x4,
+			leftGazeNodeInWorld_XYZ = leftGazeNodeInWorld_XYZ,
+			#leftGazeNodeInHead_XYZ = leftGazeNodeInHead_XYZ,
+					
 			)
 		
 		logging.info(dict(dataDict))
 		return
 		
-
-
-#	def writeDataToText(self):
-#		
-#		#return # Hacked for my test
-#		# Only write data is the experiment is ongoing
-#		if( (self.enableWritingToLog is False) ): # (self.inProgress is False) or 
-#			return
-#			
-#		if(calibTools.calibrationCounter > 50):
-#			print 'Finished Writing Data for Dynamic Calibration'
-#			self.enableWritingToLog = False
-#			return
-#		self.calibrationFrameCounter = self.calibrationFrameCounter + 1
-#		if ( calibTools.calibrationInProgress == True and self.calibrationFrameCounter > self.totalCalibrationFrames  ):
-#			self.enableWritingToLog = False
-#			print 'Calibration Frames Recorded:', self.calibrationFrameCounter 
-#			calibTools.calibrationSphere.color(viz.PURPLE)
-#			self.calibrationFrameCounter = 0
-#			return
-#			
-#		expDataString = self.getOutput()
-#		self.expDataFile.write(expDataString + '\n')
-
 	def registerWiimoteActions(self):
 				
 		wii = viz.add('wiimote.dle')#Add wiimote extension
 		
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_B,self.launchKeyDown) 
-		vizact.onsensorup(self.config.wiimote,wii.BUTTON_B,self.launchKeyUp) 
+		vizact.onsensorup(self.config.wiimote,wii.BUTTON_B,self.launchKeyUp)
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_DOWN,self.callSMICalibration)
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_A,self.callPerForMCalibration)
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_1,self.updateCalibrationPoint)
 		vizact.onsensordown(self.config.wiimote,wii.BUTTON_2,self.recordCalibrationData)
-
+		vizact.onsensordown(self.config.wiimote,wii.BUTTON_PLUS,self.config.eyeTracker.acceptCalibrationPoint)
 		
 
 		
@@ -1168,8 +1220,7 @@ class Experiment(viz.EventClass):
 		
 		if( dvrWriter.isPaused == 1 ):
 			print '************************************ DVR IS PAUSED ************************************'
-
-	
+			
 	def linkObjectsUsingMocap(self):
 		
 		mocap = self.config.mocap
@@ -1205,7 +1256,55 @@ class Experiment(viz.EventClass):
 		headRigidTracker = self.config.mocap.get_rigidTracker('hmd')	
 		self.headTracker.setPosition( headRigidTracker.get_position() )	
 	
-		
+#	def linkObjectsUsingMocap(self):
+#		
+#		mocap = self.config.mocap
+#		mocap.start_thread()
+#		
+#		self.setupPaddle()
+#		
+#		trackerDict = vizconnect.getTrackerDict()
+#		self.headTracker = vizconnect.getRawTracker('head_tracker')
+#		
+#		if( 'rift_tracker' in trackerDict.keys() ):
+#			
+#			mocap = self.config.mocap
+#			hmd = oculus.Rift()
+#			
+#			self.orientationNode = viz.addGroup()
+#			self.viewLink = viz.link(self.orientationNode, self.headTracker)
+#			self.viewLink.preMultLinkable(hmd.getSensor(),mask=viz.LINK_ORI)
+#			 
+#			self.orientationNode.setPosition([0,2,0])
+#			
+#			#self.viewAct = vizact.onupdate(viz.PRIORITY_LINKS, self.updateHeadTracker)
+#			
+#			# Setup navigation node and link to main view
+#			#viewLink = viz.link(navigationNode, viz.MainView)
+#			#viewLink.preMultLinkable(hmd.getSensor())
+#			
+#		else:
+#			print '*** Experiment:linkObjectsUsingMocap: Rift not enabled as a tracker'
+#			return
+##		
+#	def updateHeadTracker(self):
+#		"""
+#		A specailized per-frame function
+#		That updates an empty viznode with:
+#		- position info from mocap
+#		- orientation from rift
+#		
+#		"""
+#
+#		riftOriTracker = vizconnect.getTracker('rift_tracker').getNode3d()	
+#		
+#		#ori_xyz = riftOriTracker.getEuler()
+#		#self.headTracker.setEuler( ori_xyz  )
+#		
+#		headRigidTracker = self.config.mocap.get_rigidTracker('hmd')	
+#		self.headTracker.setPosition( headRigidTracker.get_position() )	
+#	
+#		
 	def setupPaddle(self):
 
 		mocap = self.config.mocap
@@ -1295,7 +1394,8 @@ class Experiment(viz.EventClass):
 		theRoom.hangar = model
 	
 	def endTrial(self):
-		
+		global calibTools
+
 		self.enableWritingToLog = False
 		print 'End Trial{', self.enableWritingToLog,'}'
 
@@ -1305,8 +1405,11 @@ class Experiment(viz.EventClass):
 			
 			recalAfterTrial_idx = self.blocks_bl[self.blockNumber].recalAfterTrial_idx
 			
+			eyeTracker = experimentObject.config.eyeTracker
 			if( recalAfterTrial_idx.count(self.trialNumber ) > 0):
-				vizact.ontimer2(0,0,experimentObject.config.eyeTracker.calibrate)
+				calibTools.calibrationInProgress = True
+				vizact.ontimer2(0,0,eyeTracker.calibrate(type = smi.CALIBRATION_9_POINT ))
+				calibTools.calibrationInProgress = False
 				print 'Static Calibration Method is Called after %d trials' %(recalAfterTrial_idx.count(self.trialNumber ))
 				self.totalCalibrationFrames = 100
 				calibTools.staticCalibrationMethod()
@@ -1378,7 +1481,8 @@ class Experiment(viz.EventClass):
 		else:
 			textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = Nan'%(self.trialNumber, self.blockNumber, viz.getFrameTime()))
 		return
-			
+				
+		
 #	def placeTarget(self):
 #		target = vizshape.addCylinder(0.2,0.5,axis=3,color=viz.GREEN)
 #		target = 
@@ -1799,6 +1903,7 @@ class trial(viz.EventClass):
 
 ## The experiment class initialization draws the room, sets up physics, 
 ## and populates itself with a list of blocks.  Each block contains a list of trials
+global calibTools
 
 experimentObject = Experiment(expConfigFileName)
 experimentObject.start()
@@ -1822,10 +1927,10 @@ clientWindowID = dispDict['exp_display']
 cyclopEyeSphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.GREEN)
 #both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,sphereColor=viz.GREEN)
 cyclopEyeSphere.toggleUpdate()
-
 cyclopEyeNode = vizshape.addSphere(0.015, color = viz.GREEN)
 cyclopEyeNode.setParent(headTracker)
-cyclopEyeNode.alpha(0.01)
+#cyclopEyeNode.visible(viz.OFF)
+cyclopEyeNode.alpha(0.00)
 
 calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room) # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
 calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
@@ -1888,12 +1993,16 @@ def timeStampOnScreen():
 	return experimentTextObject
 
 textObj = timeStampOnScreen()
+
 ###
 
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 
 
 oT = vizconnect.getRawTracker('rift_tracker')
+
+
+
 
 
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
@@ -1921,3 +2030,23 @@ oT = vizconnect.getRawTracker('rift_tracker')
 #rtLink = rt.getLink()
 #
 #link
+
+rd = vizconnect.getDisplay('rift_display')
+
+vp = rd.getViewpoint()
+
+def myDemoFunction():
+	global female, male, piazza
+	piazza = viz.addChild('piazza.osgb')
+	piazza.setPosition([0,0.05,0])
+	male = viz.addAvatar('vcc_male.cfg')
+	male.setPosition([1.5, 0, 1])
+	male.setEuler([0,0,0])
+
+	female = viz.addAvatar('vcc_female.cfg')
+	female.setPosition([1.5,0,2])
+	female.setEuler([180,0,0])
+	
+global female, male, piazza
+#rdb = vizconnect.getDisplayBase('rift_display')
+

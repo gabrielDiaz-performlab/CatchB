@@ -117,8 +117,7 @@ def initDisplays(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 			#VC: create the raw object
 			import oculus
 			try:
-				display = oculus.Rift(window=_window, autoDetectMonitor=autoDetectMonitor,renderMode=oculus.RENDER_CLIENT)
-				display.setTimeWarp(timeWarpEnabled)
+				display = oculus.Rift(window=_window, autoDetectMonitor=autoDetectMonitor)
 				_window.displayNode = display
 				viz.window.setFullscreen(True)
 			except AttributeError:
