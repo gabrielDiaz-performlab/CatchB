@@ -841,7 +841,7 @@ class Experiment(viz.EventClass):
             6 ball has timed out
         """
 
-        NaN = float('NaN') # Why?
+        NaN = float('NaN') # Why? - is this for Pandas?
 
         # Only write data is the experiment is ongoing
         if self.enableWritingToLog is False or self.inProgress is False:
@@ -1126,7 +1126,8 @@ class Experiment(viz.EventClass):
 
             def resetHelmetOrientation():
 
-                mocapSys = self.config.mocap;mocapSys.resetRigid('hmd')
+                mocapSys = self.config.mocap
+                mocapSys.resetRigid('hmd')
 
                 # Get diff between current heading and world X
                 rt_YPR = vizconnect.getTracker('rift_tracker').getLink().getEuler()
@@ -1163,7 +1164,7 @@ class Experiment(viz.EventClass):
 
     def checkDVRStatus(self):
 
-        dvrWriter = self.config.writer;
+        dvrWriter = self.config.writer
 
         if( dvrWriter.isPaused == 1 ):
             print('************************************ DVR IS PAUSED ************************************')
@@ -1192,7 +1193,6 @@ class Experiment(viz.EventClass):
         That updates an empty viznode with:
         - position info from mocap
         - orientation from rift
-
         """
 
         riftOriTracker = vizconnect.getTracker('rift_tracker').getNode3d()
@@ -1499,7 +1499,7 @@ class eventFlag(viz.EventClass):
         if( self.lastFrameUpdated == viz.getFrameNumber() ):
             print('Did not reset! Status already set to ' + str(self.status))
         else:
-            self.status = False; # 0 Means nothing is happening
+            self.status = False # 0 Means nothing is happening
 
 
 class block():
@@ -1547,7 +1547,7 @@ class block():
             self.trials_tr.append(trialObj)
 
             ## Create a generator this will loop through the balls
-            #nextBall = viz.cycle(balls);
+            #nextBall = viz.cycle(balls)
 
 class trial(viz.EventClass):
     def __init__(self,config=None,trialType='t1', room = None):
@@ -1558,11 +1558,11 @@ class trial(viz.EventClass):
 
         self.room = room
         ## State flags
-        self.ballInRoom = False; # Is ball in room?
-        self.ballInInitialState = False; # Is ball ready for launch?
-        self.ballLaunched = False; # Has a ball been launched?  Remains true after ball disappears.
-        self.ballHasBouncedOnFloor = False;
-        self.ballHasHitPaddle = False;
+        self.ballInRoom = False # Is ball in room?
+        self.ballInInitialState = False # Is ball ready for launch?
+        self.ballLaunched = False # Has a ball been launched?  Remains true after ball disappears.
+        self.ballHasBouncedOnFloor = False
+        self.ballHasHitPaddle = False
         self.ballHasHitPassingPlane = False
 
         ## Trial event data
@@ -1572,9 +1572,9 @@ class trial(viz.EventClass):
 
         self.myMarkersList = []
         ## Timer objects
-        self.timeSinceLaunch = [];
+        self.timeSinceLaunch = []
 
-        self.ballObj = False;
+        self.ballObj = False
 
         ### Below this is all the code used to generate ball trajectories
         self.ballFlightMaxDur = float(config.expCfg['experiment']['ballFlightMaxDur'])
@@ -1713,8 +1713,8 @@ class trial(viz.EventClass):
         except:
             # print 'Using default: **' + paramPrefix + '**'
             # Try to values from the subsection [['default']]
-            distType = config.expCfg['trialTypes']['default'][paramPrefix + '_distType'];
-            distParams = config.expCfg['trialTypes']['default'][paramPrefix + '_distParams'];
+            distType = config.expCfg['trialTypes']['default'][paramPrefix + '_distType']
+            distParams = config.expCfg['trialTypes']['default'][paramPrefix + '_distParams']
 
 
         value = drawNumberFromDist(distType,distParams)
