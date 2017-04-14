@@ -1,6 +1,8 @@
 ﻿from __future__ import print_function
+
 """
 Runs an experiment.
+(This is woefully under-descriptive.)
 """
 
 import datetime
@@ -40,7 +42,7 @@ ft = .3048
 inch = 0.0254
 m = 1
 eps = .01
-nan = float('NaN') # Why?
+nan = float('NaN') # Pandas?
 
 class soundBank():
     """
@@ -118,7 +120,7 @@ class Configuration():
             self.use_eyeTracking = False
 
 
-        self.writer = None #Will get initialized later when the system starts
+        self.writer = None # Will get initialized later when the system starts
         self.writables = list()
 
         if self.sysCfg['use_phasespace']:
@@ -134,12 +136,9 @@ class Configuration():
         viz.setOption("viz.dwm_composition", 0)
 
     def __createExpCfg(self, expCfgName):
-
         """
-
         Parses and validates a config obj
         Variables read in are stored in configObj
-
         """
 
         print("Loading experiment config file: " + expCfgName)
@@ -230,7 +229,7 @@ class Configuration():
         validator = Validator()
         sysCfgOK = sysCfg.validate(validator)
 
-        if sysCfgOK == True:
+        if sysCfgOK:
             print("System config file parsed correctly")
         else:
             print('System config file validation failed!')
@@ -332,14 +331,12 @@ class Experiment(viz.EventClass):
 
     def __init__(self, expConfigFileName):
         """
-        Event classes can register their own callback functions.
-        This makes it possible to register callback functions
-        (e.g. activated by a timer event) within the class (that
-        accept the implied self argument) eg self.callbackFunction(arg1)
-        would receive args (self,arg1) If this were not an eventclass,
-        the self arg would not be passed = badness.
+        Event classes can register their own callback functions. This makes it possible to register
+        callback functions (e.g. activated by a timer event) within the class (that accept the
+        implied self argument) eg self.callbackFunction(arg1) would receive args (self, arg1) If
+        this were not an eventclass, the self arg would not be passed = badness.
         """
-        viz.EventClass.__init__(self)
+        viz.EventClass.__init__(self) # isn't this called already when Experiment is instantiated?
 
         ##############################################################
         ##############################################################
@@ -452,7 +449,6 @@ class Experiment(viz.EventClass):
             #self.eventFlag.setStatus(9)
             self.eventFlag.setStatus('ballRenderOn')
 
-    # TODO: Delete this function if it serves no purpose
     def _checkForCollisions(self):
         """
         What's the purpose of this function?
@@ -577,6 +573,7 @@ class Experiment(viz.EventClass):
 
                     viz.playSound(soundBank.bounce)
 
+    # TODO: Move this to logging/recording module
     def setupFileIO(self):
         """
         set up a logger and add handlers
@@ -601,10 +598,11 @@ class Experiment(viz.EventClass):
 
         # Copy config files
         copyfile('.\\' + expConfigFileName, dataOutPutDir+expConfigFileName) # exp config
-        copyfile('.\\expCfgSpec.ini', dataOutPutDir + 'expCfgSpec.ini')# exp config spec1
+        copyfile('.\\expCfgSpec.ini', dataOutPutDir + 'expCfgSpec.ini') # exp config spec1
 
-        copyfile('.\\'+os.environ['COMPUTERNAME'] + '.cfg', dataOutPutDir+os.environ['COMPUTERNAME'] + '.cfg')# system config
-        copyfile('.\\sysCfgSpec.ini', dataOutPutDir+ 'sysCfgSpec.ini') # system config spec
+        copyfile('.\\' + os.environ['COMPUTERNAME'] + '.cfg', dataOutPutDir + os.environ['COMPUTERNAME'] + '.cfg') # system config
+        copyfile('.\\sysCfgSpec.ini', dataOutPutDir + 'sysCfgSpec.ini') # system config spec
+
 
     def start(self):
 
@@ -612,7 +610,6 @@ class Experiment(viz.EventClass):
         self.setEnabled(True)
 
     def toggleEyeCalib(self):
-
         """
         Toggles the calibration for eye tracking.
         Note, that for this to work, toggling
@@ -661,6 +658,7 @@ class Experiment(viz.EventClass):
 
     def createCamera(self):
         """
+        Currently, this function does nothing.
         Head camera is generally initialized as part of the system calls. Additional changes should be added here.
         """
         pass
@@ -692,10 +690,9 @@ class Experiment(viz.EventClass):
 
     def onKeyDown(self, key):
         """
-        Interactive commands can be given via the keyboard. Some are provided here. You'll likely want to add more.
+        Interactive commands can be given via the keyboard.
+        Some are provided here. You'll likely want to add more.
         """
-
-
         if self.config.use_phasespace:
             mocapSys = self.config.mocap
             hmdRigid = mocapSys.returnPointerToRigid('hmd')
@@ -821,10 +818,15 @@ class Experiment(viz.EventClass):
             else: # Why?
                 return
 
-    # TODO: Major alterations to this file. Not sure why it is written as it is
+    # TODO: Make this functionality a separate module
     def addDataToLog(self):
         """
-        Writes a string describing current state of experiment to text file.
+        Writes a string (really a dictionary literal) describing current state of experiment to
+        text file.
+
+        Note: many variables defined in this function include in the variable name an underscore.
+        The post-underscore suffix is currently used to break up the values of such variables, if
+        they are not scalar quantities.
 
         Legend:
             ** for 1 var
@@ -842,15 +844,19 @@ class Experiment(viz.EventClass):
         """
 
         NaN = float('NaN') # Why? - is this for Pandas?
+        # floating point NAN defined here this way due to use of Pandas later columns must contain
+        # values of same type - most recorded data in here is floating point, thus, empty cells
+        # must also have some representative value that is also a float.
+        # (Why not 0.0? - probably cases where attribute is 0.0, not empty)
 
         # Only write data is the experiment is ongoing
         if self.enableWritingToLog is False or self.inProgress is False:
             return
 
-        self.calibrationFrameCounter = self.calibrationFrameCounter + 1
-
-        if (calibTools.calibrationInProgress == True and
-                self.calibrationFrameCounter > self.totalCalibrationFrames):
+        # during calibration only 100 frame durations are recorded for each fixation.
+        # TODO: the conditional governing whether to record should be outside the actual function
+        self.calibrationFrameCounter += 1
+        if calibTools.calibrationInProgress and self.calibrationFrameCounter > self.totalCalibrationFrames:
             self.enableWritingToLog = False
             print('Calibration Frames Recorded:', self.calibrationFrameCounter)
             calibTools.calibrationSphere.color(viz.PURPLE)
@@ -866,33 +872,32 @@ class Experiment(viz.EventClass):
         else:
             calibrationPoint_XYZ = [NaN, NaN, NaN]
 
+        # current state of experiment
         currentSample = self.config.eyeTracker.getLastSample()
 
         # Gather racquet data
-        paddlePos_XYZ = []
-        paddleQuat_XYZW = []
-        #paddleAngVel_XYZ = []
-
         if self.room.paddle:
             paddlePos_XYZ = self.room.paddle.node3D.getPosition()
-            paddleMat = self.room.paddle.node3D.getMatrix().data
             paddleQuat_XYZW = self.room.paddle.node3D.getMatrix().getQuat()
+            paddleMat_4x4 = self.room.paddle.node3D.getMatrix().data
         else:
-            paddlePos
-            _XYZ = [NaN, NaN, NaN]
+            paddlePos_XYZ = [NaN, NaN, NaN]
             paddleQuat_XYZW = [NaN, NaN, NaN, NaN]
+            paddleMat_4x4 = [NAN] * 16
+
 
         # Gather ball data
         theBall = self.currentTrial.ballObj
-
         if theBall:
             ballPos_XYZ = theBall.node3D.getPosition(viz.ABS_GLOBAL)
             ballVel_XYZ = theBall.getVelocity()
             ballVisible = self.currentTrial.ballObj.node3D.getVisible()
+            ballMat_4x4 = theBall.theBall.node3D.getMatrix().data
         else:
             ballPos_XYZ = [NaN, NaN, NaN]
             ballVel_XYZ = [NaN, NaN, NaN]
-            ballVisible = NaN
+            ballVisible = NAN
+            ballMat_4x4 = [NAN] * 16
 
         # SMI Data
         if currentSample:
@@ -926,7 +931,7 @@ class Experiment(viz.EventClass):
             #smiServerTime = [NaN]
             cycEyeOnScreen_XY = [NaN, NaN]
             cycEyeInHead_XYZ = [NaN, NaN, NaN]
-            cycEyeBasePoint_XYZ= [NaN, NaN, NaN]
+            cycEyeBasePoint_XYZ = [NaN, NaN, NaN]
 
             rightEyeOnScreen_XY = [NaN, NaN]
             rightEyeInHead_XYZ = [NaN, NaN, NaN]
@@ -938,7 +943,7 @@ class Experiment(viz.EventClass):
 
             leftEyeOnScreen_XY = [NaN, NaN]
             leftEyeInHead_XYZ = [NaN, NaN, NaN]
-            leftEyeBasePoint_XYZ= [NaN, NaN, NaN]
+            leftEyeBasePoint_XYZ = [NaN, NaN, NaN]
             leftEyeScreenDistance = NaN
             leftEyeLensDistance = NaN
             leftPupilRadius = NaN
@@ -988,23 +993,20 @@ class Experiment(viz.EventClass):
             rightEyeInverseMat_4x4 = [NaN] * 16
             leftEyeInverseMat_4x4 = [NaN] * 16
 
-            cycGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
-            rightGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
-            leftGazeNodeInWorld_XYZ = [NaN,NaN,NaN]
+            cycGazeNodeInWorld_XYZ = [NaN, NaN, NaN]
+            rightGazeNodeInWorld_XYZ = [NaN, NaN, NaN]
+            leftGazeNodeInWorld_XYZ = [NaN, NaN, NaN]
 
-            #cycGazeNodeInHead_XYZ = [NaN,NaN,NaN]
-            #rightGazeNodeInHead_XYZ = [NaN,NaN,NaN]
-            #leftGazeNodeInHead_XYZ = [NaN,NaN,NaN]
+            #cycGazeNodeInHead_XYZ = [NaN, NaN, NaN]
+            #rightGazeNodeInHead_XYZ = [NaN, NaN, NaN]
+            #leftGazeNodeInHead_XYZ = [NaN, NaN, NaN]
 
         if calibTools.calibrationInProgress:
             tempVar = calibTools.calibrationBlockCounter + calibTools.calibrationCounter
         else:
             tempVar = self.trialNumber
 
-        # TODO: Evaluate if anything between here and beginning of the function
-        #  is actually important. (Seriously can't tell why it is helpful to
-        # have so many conditionals, which only serve to fill variables with
-        # nan floats -- is that better somehow than having empty variables?)
+        # TODO: Evaluate if anything between here and beginning of function is actually important.
         dataDict = dict(
             frameTime = viz.getFrameTime(),
             #smiNsSinceStart = smiServerTime,
@@ -1025,17 +1027,18 @@ class Experiment(viz.EventClass):
             calibrationPos_XYZ = [calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2]],
 
             # Paddle
-            paddlePos_XYZ=[paddlePos_XYZ[0], paddlePos_XYZ[1], paddlePos_XYZ[2]],
-            paddleQuat_XYZW =[paddleQuat_XYZW[0], paddleQuat_XYZW[1], paddleQuat_XYZW[2], paddleQuat_XYZW[3]],
-            paddleMat_4x4 = paddleMat,
+            paddlePos_XYZ = [paddlePos_XYZ[0], paddlePos_XYZ[1], paddlePos_XYZ[2]],
+            paddleQuat_XYZW = [paddleQuat_XYZW[0], paddleQuat_XYZW[1], paddleQuat_XYZW[2], paddleQuat_XYZW[3]],
+            paddleMat_4x4 = paddleMat_4x4,
 
             # Ball
             ballPos_XYZ = [ballPos_XYZ[0], ballPos_XYZ[1], ballPos_XYZ[2]],
             ballVel_XYZ = [ballVel_XYZ[0], ballVel_XYZ[1], ballVel_XYZ[2]],
+            ballMat_4x4 = ballMat_4x4,
             isBallVisibleQ = ballVisible,
             ballInitialPos_XYZ = [self.currentTrial.ballInitialPos_XYZ[0], self.currentTrial.ballInitialPos_XYZ[1], self.currentTrial.ballInitialPos_XYZ[2]],
             ballFinalPos_XYZ = [self.currentTrial.ballFinalPos_XYZ[0], self.currentTrial.ballFinalPos_XYZ[1], self.currentTrial.ballFinalPos_XYZ[2]],
-            ballInitialVel_XYZ = [self.currentTrial.initialVelocity_XYZ[0], self.currentTrial.initialVelocity_XYZ[1], self.currentTrial.initialVelocity_XYZ[2]],
+            ballInitialVel_XYZ = [self.currentTrial.initialVelocity_XYZ[0], self.fcurrentTrial.initialVelocity_XYZ[1], self.currentTrial.initialVelocity_XYZ[2]],
             ballTTC = self.currentTrial.timeToContact,
             #ballLaunch_AE = [self.currentTrial.beta,self.currentTrial.theta],
 
@@ -1050,10 +1053,9 @@ class Experiment(viz.EventClass):
             IPD = IPD,
 
             # Cyclopean gaze
-            cycEyeOnScreen_XY=cycEyeOnScreen_XY,
+            cycEyeOnScreen_XY = cycEyeOnScreen_XY,
             cycEyeInHead_XYZ = cycEyeInHead_XYZ,
             cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
-
             cycEyeNodeInWorld_XYZ = cycEyeNodeInWorld_XYZ,
             cycMat_4x4 = cycMat_4x4,
             cycInverseMat_4x4 = cycInverseMat_4x4,
@@ -1105,13 +1107,13 @@ class Experiment(viz.EventClass):
 
         wii = viz.add('wiimote.dle')#Add wiimote extension
 
-        vizact.onsensordown(self.config.wiimote,wii.BUTTON_B,self.launchKeyDown)
-        vizact.onsensorup(self.config.wiimote,wii.BUTTON_B,self.launchKeyUp)
-        vizact.onsensordown(self.config.wiimote,wii.BUTTON_DOWN,self.callSMICalibration)
-        vizact.onsensordown(self.config.wiimote,wii.BUTTON_A,self.callPerForMCalibration)
-        vizact.onsensordown(self.config.wiimote,wii.BUTTON_1,self.updateCalibrationPoint)
-        vizact.onsensordown(self.config.wiimote,wii.BUTTON_2,self.recordCalibrationData)
-        vizact.onsensordown(self.config.wiimote,wii.BUTTON_PLUS,self.config.eyeTracker.acceptCalibrationPoint)
+        vizact.onsensordown(self.config.wiimote, wii.BUTTON_B, self.launchKeyDown)
+        vizact.onsensorup(self.config.wiimote, wii.BUTTON_B, self.launchKeyUp)
+        vizact.onsensordown(self.config.wiimote, wii.BUTTON_DOWN, self.callSMICalibration)
+        vizact.onsensordown(self.config.wiimote, wii.BUTTON_A, self.callPerForMCalibration)
+        vizact.onsensordown(self.config.wiimote, wii.BUTTON_1, self.updateCalibrationPoint)
+        vizact.onsensordown(self.config.wiimote, wii.BUTTON_2, self.recordCalibrationData)
+        vizact.onsensordown(self.config.wiimote, wii.BUTTON_PLUS, self.config.eyeTracker.acceptCalibrationPoint)
 
 
 
@@ -1831,6 +1833,7 @@ class trial(viz.EventClass):
 
         self.ballObj.physNode.enableMovement()
         self.ballObj.setVelocity(self.initialVelocity_XYZ)
+        self.ballObj.node3D.setAngularVelocity([0.25, 0.25, 0.25])
         self.myMarkersList
         self.ballInRoom = True
         self.ballInInitialState = False
