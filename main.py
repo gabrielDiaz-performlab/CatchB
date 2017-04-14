@@ -22,6 +22,11 @@ import physEnv
 import smi
 import visEnv
 import viz
+
+# relative path imports
+viz.res.addPath('resources')
+sys.path.append('utils')
+
 import vizact
 import vizconnect
 import vizshape
@@ -31,9 +36,7 @@ from drawNumberFromDist import *
 from gazeTools import calibrationTools, gazeSphere, gazeVector
 from validate import Validator
 
-# For hardware configuration
-viz.res.addPath('resources')
-sys.path.append('utils')
+
 expConfigFileName = 'gd_pilot.cfg'
 print('**************** USING' + expConfigFileName + '****************')
 
@@ -892,7 +895,7 @@ class Experiment(viz.EventClass):
             ballPos_XYZ = theBall.node3D.getPosition(viz.ABS_GLOBAL)
             ballVel_XYZ = theBall.getVelocity()
             ballVisible = self.currentTrial.ballObj.node3D.getVisible()
-            ballMat_4x4 = theBall.theBall.node3D.getMatrix().data
+            ballMat_4x4 = theBall.node3D.getMatrix().data
         else:
             ballPos_XYZ = [NaN, NaN, NaN]
             ballVel_XYZ = [NaN, NaN, NaN]
@@ -1097,7 +1100,7 @@ class Experiment(viz.EventClass):
 
         # TODO: Determine is there is actually any benefit to be gained by
         # using this logging method over Python's core io tools for working
-        # with streams¶.
+        # with streams.
 
         # seems redundant to cast as dict again
         logging.info(dict(dataDict))
