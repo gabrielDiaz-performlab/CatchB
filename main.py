@@ -1041,7 +1041,7 @@ class Experiment(viz.EventClass):
             isBallVisibleQ = ballVisible,
             ballInitialPos_XYZ = [self.currentTrial.ballInitialPos_XYZ[0], self.currentTrial.ballInitialPos_XYZ[1], self.currentTrial.ballInitialPos_XYZ[2]],
             ballFinalPos_XYZ = [self.currentTrial.ballFinalPos_XYZ[0], self.currentTrial.ballFinalPos_XYZ[1], self.currentTrial.ballFinalPos_XYZ[2]],
-            ballInitialVel_XYZ = [self.currentTrial.initialVelocity_XYZ[0], self.fcurrentTrial.initialVelocity_XYZ[1], self.currentTrial.initialVelocity_XYZ[2]],
+            ballInitialVel_XYZ = [self.currentTrial.initialVelocity_XYZ[0], self.currentTrial.initialVelocity_XYZ[1], self.currentTrial.initialVelocity_XYZ[2]],
             ballTTC = self.currentTrial.timeToContact,
             #ballLaunch_AE = [self.currentTrial.beta,self.currentTrial.theta],
 
