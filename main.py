@@ -887,7 +887,7 @@ class Experiment(viz.EventClass):
         else:
             paddlePos_XYZ = [NaN, NaN, NaN]
             paddleQuat_XYZW = [NaN, NaN, NaN, NaN]
-            paddleMat_4x4 = [NAN] * 16
+            paddleMat_4x4 = [NaN] * 16
 
         # Gather ball data
         theBall = self.currentTrial.ballObj
@@ -899,8 +899,8 @@ class Experiment(viz.EventClass):
         else:
             ballPos_XYZ = [NaN, NaN, NaN]
             ballVel_XYZ = [NaN, NaN, NaN]
-            ballVisible = NAN
-            ballMat_4x4 = [NAN] * 16
+            ballVisible = NaN
+            ballMat_4x4 = [NaN] * 16
 
         # SMI Data
         if currentSample:
