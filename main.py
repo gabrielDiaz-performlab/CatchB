@@ -2,7 +2,7 @@
 
 """
 Runs an experiment.
-(This is woefully under-descriptive.)
+(Please add a better module docstring.)
 """
 
 import datetime
@@ -11,7 +11,7 @@ import math
 import os.path
 import platform
 import random
-from ctypes import * # eyetrackka (What??)
+from ctypes import *  # eyetrackka
 
 import numpy as np
 import pandas as pd
@@ -40,12 +40,12 @@ from validate import Validator
 expConfigFileName = 'gd_pilot.cfg'
 print('**************** USING' + expConfigFileName + '****************')
 
-# What are these?
+# Room coordinates?
 ft = .3048
 inch = 0.0254
 m = 1
 eps = .01
-nan = float('NaN') # Pandas?
+nan = float('NaN')  # Pandas?
 
 class soundBank():
     """
@@ -72,7 +72,7 @@ soundBank = soundBank()
 
 class Configuration():
     """
-    What is this class for?
+    Add docstring
     """
 
     def __init__(self, expCfgName=""):
@@ -123,7 +123,7 @@ class Configuration():
             self.use_eyeTracking = False
 
 
-        self.writer = None # Will get initialized later when the system starts
+        self.writer = None  # Will get initialized later when the system starts
         self.writables = list()
 
         if self.sysCfg['use_phasespace']:
@@ -159,7 +159,7 @@ class Configuration():
             for entry in flatten_errors(expCfg, res):
             # each entry is a tuple
                 section_list, key, error = entry
-                if key is not None:
+                if key:
                     section_list.append(key)
                 else:
                     section_list.append('[missing section]')
@@ -168,6 +168,7 @@ class Configuration():
                     error = 'Missing value or section.'
                 print(section_string, ' = ', error)
             sys.exit(1)
+
         if expCfg.has_key('_LOAD_'):
             for ld in expCfg['_LOAD_']['loadList']:
                 print('Loading: ' + ld + ' as ' + expCfg['_LOAD_'][ld]['cfgFile'])
@@ -327,7 +328,6 @@ class Configuration():
 
 
 class Experiment(viz.EventClass):
-
     """
     Experiment manages the basic operation of the experiment.
     """
@@ -432,6 +432,9 @@ class Experiment(viz.EventClass):
 
 
     def _timerCallback(self, timerID):
+        """
+        Add Docstring.
+        """
 
         if timerID == self.maxFlightDurTimerID:
             print('Removing ball!')
@@ -454,10 +457,7 @@ class Experiment(viz.EventClass):
 
     def _checkForCollisions(self):
         """
-        What's the purpose of this function?
-        - It does returns nothing
-        - It affects nothing regardless of how the conditional
-        thePhysEnv.collisionDetected is evaluated
+        Add Docstring.
         """
         thePhysEnv = self.room.physEnv
         if thePhysEnv.collisionDetected == False:
@@ -608,8 +608,9 @@ class Experiment(viz.EventClass):
 
 
     def start(self):
-
-        ##This is called when the experiment should begin.
+        """
+        This is called when the experiment should begin.
+        """
         self.setEnabled(True)
 
     def toggleEyeCalib(self):
@@ -821,7 +822,7 @@ class Experiment(viz.EventClass):
             else: # Why?
                 return
 
-    # TODO: Make this functionality a separate module
+    # TODO: Move this to logging/recording module
     def addDataToLog(self):
         """
         Writes a string (really a dictionary literal) describing current state of experiment to
@@ -888,7 +889,6 @@ class Experiment(viz.EventClass):
             paddleQuat_XYZW = [NaN, NaN, NaN, NaN]
             paddleMat_4x4 = [NAN] * 16
 
-
         # Gather ball data
         theBall = self.currentTrial.ballObj
         if theBall:
@@ -926,7 +926,10 @@ class Experiment(viz.EventClass):
             leftPupilRadius = currentSample.leftEye.pupilRadius
             leftPupilPos_XYZ = [currentSample.leftEye.pupilPosition.x, currentSample.leftEye.pupilPosition.y, currentSample.leftEye.pupilPosition.z] # Pixel values
 
-            eyeTimeStamp = currentSample.timestamp
+            # TODO: Check SMI documentation to make sure forcing timestamp to int (instead of long)
+            #  wont cause issues.
+            # cast to int to avoid "L" suffix in dict literal str (Python 3 has no Long type)
+            eyeTimeStamp = int(currentSample.timestamp)
             IOD = currentSample.iod
             IPD = currentSample.ipd
 
@@ -977,9 +980,9 @@ class Experiment(viz.EventClass):
             rightGazeNodeInWorld_XYZ = right_sphere.node3D.getPosition(viz.ABS_GLOBAL)
             leftGazeNodeInWorld_XYZ = left_sphere.node3D.getPosition(viz.ABS_GLOBAL)
 
-            #cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
-            #rightGazeNodeInHead_XYZ = right_sphere.node3D.getPosition(viz.ABS_PARENT)
-            #leftGazeNodeInHead_XYZ = left_sphere.node3D.getPosition(viz.ABS_PARENT)
+            # cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
+            # rightGazeNodeInHead_XYZ = right_sphere.node3D.getPosition(viz.ABS_PARENT)
+            # leftGazeNodeInHead_XYZ = left_sphere.node3D.getPosition(viz.ABS_PARENT)
         else:
             cycEyeNodeInWorld_XYZ = [NaN, NaN, NaN]
             rightEyeNodeInWorld_XYZ = [NaN, NaN, NaN]
@@ -1009,7 +1012,7 @@ class Experiment(viz.EventClass):
         else:
             tempVar = self.trialNumber
 
-        # TODO: Evaluate if anything between here and beginning of function is actually important.
+        # Actual data structuring happens here
         dataDict = dict(
             frameTime = viz.getFrameTime(),
             #smiNsSinceStart = smiServerTime,
@@ -1098,10 +1101,6 @@ class Experiment(viz.EventClass):
             #leftGazeNodeInHead_XYZ = leftGazeNodeInHead_XYZ,
             )
 
-        # TODO: Determine is there is actually any benefit to be gained by
-        # using this logging method over Python's core io tools for working
-        # with streams.
-
         # seems redundant to cast as dict again
         logging.info(dict(dataDict))
         return
@@ -1118,10 +1117,7 @@ class Experiment(viz.EventClass):
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_2, self.recordCalibrationData)
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_PLUS, self.config.eyeTracker.acceptCalibrationPoint)
 
-
-
         if self.config.use_phasespace:
-
             mocapSys = self.config.mocap
 
             #vizact.onsensorup(self.config.wiimote,wii.BUTTON_DOWN,mocapSyc.resetRigid,'hmd')
@@ -1144,7 +1140,6 @@ class Experiment(viz.EventClass):
             # HACKED by KAMRAN
             vizact.onsensorup(self.config.wiimote,wii.BUTTON_UP,vizconnect.getTracker('rift_tracker').resetHeading)
             #vizact.onsensordown(self.config.wiimote,wii.BUTTON_UP,resetHelmetOrientation)
-
 
 
     def endExperiment(self):
@@ -1171,7 +1166,7 @@ class Experiment(viz.EventClass):
 
         dvrWriter = self.config.writer
 
-        if( dvrWriter.isPaused == 1 ):
+        if dvrWriter.isPaused == 1:
             print('************************************ DVR IS PAUSED ************************************')
 
     def linkObjectsUsingMocap(self):
@@ -1183,11 +1178,9 @@ class Experiment(viz.EventClass):
 
         trackerDict = vizconnect.getTrackerDict()
 
-        if( 'rift_tracker' in trackerDict.keys() ):
-
+        if 'rift_tracker' in trackerDict.keys():
             mocap = self.config.mocap
             self.viewAct = vizact.onupdate(viz.PRIORITY_LINKS, self.updateHeadTracker)
-
         else:
             print('*** Experiment:linkObjectsUsingMocap: Rift not enabled as a tracker')
             return
@@ -1265,7 +1258,7 @@ class Experiment(viz.EventClass):
         # Creates either a fake paddle, a visual paddle, or a vis/phy/mocap paddle
 
         # FOr debugging. Creates a fake paddle in teh center of the room
-        if( self.config.expCfg['experiment']['useFakePaddle'] ):
+        if self.config.expCfg['experiment']['useFakePaddle']:
 
 #				if(any("paddle" in idx for idx in self.room.visObjNames_idx)):
 #					print 'removed paddle'
@@ -1546,7 +1539,7 @@ class block():
         for trialNumber in range(self.numTrials):
 
             ## Get trial info
-            trialObj = trial(config,self.trialTypeList_tr[trialNumber], self.room)
+            trialObj = trial(config, self.trialTypeList_tr[trialNumber], self.room)
 
             ##Add the body to the list
             self.trials_tr.append(trialObj)
@@ -1555,7 +1548,7 @@ class block():
             #nextBall = viz.cycle(balls)
 
 class trial(viz.EventClass):
-    def __init__(self,config=None,trialType='t1', room = None):
+    def __init__(self,config=None, trialType='t1', room = None):
 
         #viz.EventClass.__init__(self)
 
@@ -1742,6 +1735,7 @@ class trial(viz.EventClass):
         self.room.launchPlane.visible(False)
         print('Launch Plane Created!')
 
+
     def placePassingPlane(self, planeSize):
 
         #adds a transparent plane that the ball ends up in this plane
@@ -1759,9 +1753,8 @@ class trial(viz.EventClass):
 
         print('Passing Plane Created!')
 
-    def placeBall(self,room):
 
-
+    def placeBall(self, room):
         #=========================================================================
         #================== Changed for New Ball Catching Experiment =============
         #=========================================================================
@@ -1827,6 +1820,7 @@ class trial(viz.EventClass):
         self.ballInInitialState = True
         self.ballLaunched = False
         self.ballPlacedOnThisFrame = True
+
 
     def launchBall(self):
 
@@ -1946,16 +1940,12 @@ def timeStampOnScreen():
 
 textObj = timeStampOnScreen()
 
-###
+
+# Shouldn't some of this be self-test code?
 
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 
-
 oT = vizconnect.getRawTracker('rift_tracker')
-
-
-
-
 
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
 #	myMatrix = viz.Transform()
@@ -1964,11 +1954,6 @@ oT = vizconnect.getRawTracker('rift_tracker')
 #	myMatrix.setTrans(0, 1, -.2)
 ###headTracker.setMatrix( myMatrix )
 #	viz.MainWindow.setViewOffset( myMatrix )
-
-
-
-
-
 
 ##  Heres how to put a ball in head-centered coordinates
 #newBall = vizshape.addSphere(0.25,color = viz.GREEN)

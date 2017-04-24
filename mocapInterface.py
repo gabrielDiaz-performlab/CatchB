@@ -1,3 +1,4 @@
+from __future__ import print_function
 '''Classes for fetching and handling data from phasespace.'''
 
 import collections
@@ -177,9 +178,9 @@ class RigidTracker(PointTracker):
 
         openfile.close()
 
-        print 'Mocap: Read ' + str(count) + ' lines from the rigid body file.'
+        print('Mocap: Read ' + str(count) + ' lines from the rigid body file.')
         if count == 0:
-            print 'This is likely to cause OWL.init() to fail'
+            print('This is likely to cause OWL.init() to fail')
 
     def _getLocalPositions(self):
         ''' Returns markerPositions within a local frame of reference
@@ -203,7 +204,7 @@ class RigidTracker(PointTracker):
 
                 if marker is None or not 0 < marker.cond:  # or not 0 < marker.cond < 100:
                     #logging.error('missing marker %d for reset', mIdx)
-                    print 'missing marker %d for reset' % mIdx
+                    print('missing marker %d for reset' % mIdx)
                     return -1
 
                 globalPositions.append(marker.pos)
@@ -377,7 +378,7 @@ class RigidTracker(PointTracker):
         remove(self.filepath + self.filename)
         move(self.filepath + 'temp.rb', self.filepath + self.filename)
 
-        print "Rigid body definition written to file"
+        print("Rigid body definition written to file")
         # reset phasespace marker positions
 
     def reset(self):
@@ -396,7 +397,7 @@ class RigidTracker(PointTracker):
         OWL.owlTracker(self._index, OWL.OWL_DISABLE)
 
         for i, (x, y, z) in enumerate(localPositions):
-            print 'Resetting marker: ' + str(i)
+            print('Resetting marker: ' + str(i))
             OWL.owlMarkerfv(OWL.MARKER(self._index, i),
                             OWL.OWL_SET_POSITION,
                             [x, y, z])
@@ -457,7 +458,7 @@ class phasespaceInterface(viz.EventClass):
             self.owlParamPostProcess = 0
 
             self.owlParamModeNum = 1
-            print '**** Using default MODE #' + str(self.owlParamModeNum) + ' ****'
+            print('**** Using default MODE #' + str(self.owlParamModeNum) + ' ****')
 
         else:
 
@@ -495,10 +496,10 @@ class phasespaceInterface(viz.EventClass):
 
         if (initCode < 0):
             raise OwlError('phasespace')
-            print "Mocap: Could not connect to OWL Server"
+            print("Mocap: Could not connect to OWL Server")
             exit()
         else:
-            print '**** OWL Initialized with flags: ' + flags + ' ****'
+            print('**** OWL Initialized with flags: ' + flags + ' ****')
 
         OWL.owlSetFloat(OWL.OWL_FREQUENCY, self.owlParamFrequ)
         OWL.owlSetInteger(OWL.OWL_STREAMING, OWL.OWL_ENABLE)
@@ -519,12 +520,12 @@ class phasespaceInterface(viz.EventClass):
             rigidAvgMarkerList_mIdx = [0]
 
             if(len(self.rigidOffset_ridx_XYZ) < rigidIdx):
-                print 'Rigid offset not set! Using offset of [0,0,0]'
+                print('Rigid offset not set! Using offset of [0,0,0]')
             else:
                 rigidOffsetMM_WorldXYZ = self.rigidOffset_ridx_XYZ[rigidIdx]
 
             if(len(self.rigidAvgMarkerList_rIdx_mId) < rigidIdx):
-                print 'Average markers not provided! Using default (marker 0)'
+                print('Average markers not provided! Using default (marker 0)')
             else:
                 rigidAvgMarkerList_mIdx = self.rigidAvgMarkerList_rIdx_mId[rigidIdx]
 
@@ -730,7 +731,7 @@ class phasespaceInterface(viz.EventClass):
         if isinstance(markers_orFilename, str):
 
             fileLocation = self.phaseSpaceFilePath + markers_orFilename
-            print "Initializing rigid body: " + fileLocation
+            print("Initializing rigid body: " + fileLocation)
 
             # load rigid body configuration from a file.
             with open(fileLocation) as handle:
@@ -774,7 +775,7 @@ class phasespaceInterface(viz.EventClass):
                 # if( self.rigidFileNames_ridx[rigidIdx] == fileName):
                 return self.rbTrackers_rbIdx[rigidIdx]
 
-        print 'returnPointerToRigid: Could not find ' + fileName
+        print('returnPointerToRigid: Could not find ' + fileName)
         return 0
 
     def returnPointerToRigid(self, fileName):
@@ -840,4 +841,4 @@ class phasespaceInterface(viz.EventClass):
         if(rigidBody):
             rigidBody.save()
         else:
-            print 'Error: Rigid body not initialized'
+            print('Error: Rigid body not initialized')
