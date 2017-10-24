@@ -32,15 +32,12 @@ class gazeVector():
 		
 		def moveGazeVector():
 			
-			gazeSamp = False
+			gazeSamp = []
 			
 			gazeSamp = self.eyeTracker.getLastSample()
 			
-			if(not gazeSamp):
+			if( gazeSamp is None ):
 				return
-				
-			self.sphereDistance = gazeSamp.gazePosition.z/30.0
-			
 				
 			if( self.eye == viz.LEFT_EYE):
 				gazeSamp = gazeSamp.leftEye;
@@ -52,9 +49,8 @@ class gazeVector():
 			#Gaze base point is given in mm with respect to the origin of the eyetracker coordinate system.
 			# Note: you must flip X
 			viewPos_XYZ = np.array(viz.MainView.getPosition(), dtype = float)
-			gazeDir_XYZ = np.array([ self.sphereDistance*gazeSamp.gazeDirection.x, -self.sphereDistance*gazeSamp.gazeDirection.y, self.sphereDistance*gazeSamp.gazeDirection.z], dtype = float)
+			gazeDir_XYZ = np.array([ -gazeSamp.gazeDirection.x, gazeSamp.gazeDirection.y, gazeSamp.gazeDirection.z], dtype = float)
 			pupilPos_XYZ = [-gazeSamp.pupilPosition.x, gazeSamp.pupilPosition.y, gazeSamp.pupilPosition.z]
-			#TODO: test if I need this
 			pupilPos_XYZ = np.divide(pupilPos_XYZ, 1000)
 
 			# Create a node3D
@@ -109,9 +105,6 @@ class gazeSphere():
 			if( gazeSamp is None ):
 				return
 				
-			#TODO: this might be in cm, its based of Unity calibration!
-			self.sphereDistance = gazeSamp.gazePosition.z/30.0
-				
 			#timestamp = gazeSamp.timestamp
 			
 			if( self.eye == viz.LEFT_EYE):
@@ -120,12 +113,11 @@ class gazeSphere():
 				gazeSamp = gazeSamp.rightEye;
 			
 			
-			
 			#3D gaze is provided as a normalized gaze direction vector (gazeDirection) and a gaze base point (gazeBasePoint).
 			#Gaze base point is given in mm with respect to the origin of the eyetracker coordinate system.
 			# Note: you must flip X
-			gazeDirXYZ = [ self.sphereDistance*gazeSamp.gazeDirection.x, -self.sphereDistance*gazeSamp.gazeDirection.y, self.sphereDistance*gazeSamp.gazeDirection.z]
-			gazePointXYZ =  gazeDirXYZ
+			gazeDirXYZ = [ -gazeSamp.gazeDirection.x, gazeSamp.gazeDirection.y, gazeSamp.gazeDirection.z]
+			gazePointXYZ = self.sphereDistance * gazeDirXYZ
 			
 			#with viz.cluster.MaskedContext(viz.CLIENT1):# show
 			self.node3D.setPosition( gazePointXYZ,viz.ABS_PARENT)
@@ -184,7 +176,6 @@ class calibrationTools():
 				V2 = self.calibrationSphere.getPosition()
 		else:
 			V2 = [b - a for a, b in zip(node1.getPosition(viz.ABS_GLOBAL), node2.getPosition(viz.ABS_GLOBAL))]
-		
 		self.errorAngle = np.multiply(self.angle(V1,V2), 180/np.pi)
 		#print 'Angular Error = %.2f %c'%(errorAngle, u"\u00b0")
 		#print 'Angular Error = %.2f %c'%(self.errorAngle, u"\u00b0")
@@ -197,9 +188,9 @@ class calibrationTools():
 
 
 	def create3DCalibrationPositions(self, xRange, yRange, zRange, numberOfGridPoints):
-		x = np.linspace(xRange[0], xRange[1], int(numberOfGridPoints))
-		y = np.linspace(yRange[0], yRange[1], int(numberOfGridPoints))
-		z = np.linspace(zRange[0], zRange[1], int(numberOfGridPoints))
+		x = np.linspace(xRange[0], xRange[1], numberOfGridPoints)
+		y = np.linspace(yRange[0], yRange[1], numberOfGridPoints)
+		z = np.linspace(zRange[0], zRange[1], numberOfGridPoints)
 
 		points = np.empty(shape = (1,3), dtype = float)
 		#points.resize(1,3)
@@ -215,14 +206,13 @@ class calibrationTools():
 		#print 'calibration points:\n', points
 
 	def toggleRoomWallsVisibility(self):
-		viz.clearcolor(0.5,0.5,0.5)
+
 		self.room.ceiling.node3D.visible(viz.TOGGLE)
 		self.room.floor.node3D.visible(viz.TOGGLE)
 		self.room.wall_PosZ.node3D.visible(viz.TOGGLE)
 		self.room.wall_NegZ.node3D.visible(viz.TOGGLE)
 		self.room.wall_PosX.node3D.visible(viz.TOGGLE)
 		self.room.wall_NegX.node3D.visible(viz.TOGGLE)
-		self.room.scoreObj.visible(viz.TOGGLE)
 		
 	def checkActionDone(self):
 		distance = np.array(self.calibrationSphere.getPosition()) - np.array([-3.0,0.0,6.0])
@@ -314,7 +304,6 @@ class calibrationTools():
 			self.text_object = viz.addText('')
 			self.text_object.setParent(self.calibrationSphere)
 			self.text_object.renderOnlyToWindows([self.renderToWindows])
-			
 			self.localAction = vizact.onupdate(viz.PRIORITY_INPUT+1,self.calculateAngularError, self.cyclopEyeSphere.node3D, 0.0, self.text_object)#self.currentTrial.ballObj.node3D
 
 			print 'Static Calibration Started'

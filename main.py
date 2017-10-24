@@ -16,10 +16,8 @@ from ctypes import *  # eyetrackka
 import numpy as np
 import pandas as pd
 
-import oculus
 import ode
 import physEnv
-import smi
 import visEnv
 import viz
 
@@ -33,7 +31,10 @@ import vizshape
 import viztask
 from configobj import ConfigObj, flatten_errors
 from drawNumberFromDist import *
-from gazeTools import calibrationTools, gazeSphere, gazeVector
+
+#from gazeTools import calibrationTools, gazeSphere, gazeVector
+from gazetools import calibrationTools, gazeSphere, gazeVector
+
 from validate import Validator
 
 
@@ -115,10 +116,72 @@ class Configuration():
 
         if self.sysCfg['use_hmd'] and self.sysCfg['hmd']['type'] == 'DK2':
             self.__setupOculusMon()
+        
+        if self.sysCfg['use_hmd'] and self.sysCfg['hmd']['type'] == 'VIVE':
+            import steamvr
+            self.__setupViveMon()
 
-        if self.sysCfg['use_eyetracking']:
+###  This is one way to implement controller support for the vive
+#            def ControllerTask(controller):
+#                
+#                while True:
+#
+#                    # Wait for trigger to press
+#                    yield viztask.waitSensorDown(controller, steamvr.BUTTON_TRIGGER)
+#
+#                    #get an end point
+#                    line = controller.model.getLineForward(viz.ABS_GLOBAL, length=300.0)
+#                    
+#                    intersection_info = viz.intersect(line.begin, line.end)
+#                    
+#                    #if intersection_info.valid:
+#                    #    controller.line.setVertex(1,intersection_info.intersectPoint)
+#                    
+#                    # Start highlighting task
+#                    #highlightTask = viztask.schedule(showPointer(controller))
+#                    controller.line.visible(True)
+#                    
+#                    #hmm, couldset line end vertexhere, but might not work as anticipated
+#
+#                    # Wait for trigger to release
+#                    yield viztask.waitSensorUp(controller, steamvr.BUTTON_TRIGGER)
+#
+#                    # Stop highlighting task
+#                    controller.line.visible(False)
+#            
+#            # Add controllers
+#            #controller_tracker = vizconnect.getTracker('r_hand_tracker')
+#            controllerList = steamvr.getControllerList()
+#            if len(controllerList) > 0:
+#                controller = steamvr.getControllerList()[0]
+#                
+#                # Create model for controller
+#                controller.model = controller.addModel()
+#                controller.model.disable(viz.INTERSECTION)
+#                #controller.visible(viz.ON)
+#                viz.link(controller, controller.model)
+#
+#                # Create pointer line for controller
+#                viz.startLayer(viz.LINES)
+#                viz.vertexColor(viz.WHITE)
+#                viz.vertex([0,0,0])
+#                viz.vertex([0,0,300])
+#                controller.line = viz.endLayer(parent=controller.model)
+#                controller.line.dynamic()
+#                controller.line.disable([viz.INTERSECTION, viz.SHADOW_CASTING])
+#                controller.line.visible(False)
+#
+#                self.controller = controller
+#
+#            # Setup task for drawing line
+#            viztask.schedule(ControllerTask(self.controller))
+
+        if self.sysCfg['use_eyetracking'] and self.sysCfg['eyetracker']['type'] == 'SMI':
             self.use_eyeTracking = True
             self.__connectSMIDK2()
+        elif self.sysCfg['use_eyetracking'] and self.sysCfg['eyetracker']['type'] == 'PUPIL':
+            self.use_eyeTracking = True
+            self.__connectPUPILVR()
         else:
             self.use_eyeTracking = False
 
@@ -252,8 +315,51 @@ class Configuration():
             sys.exit(1)
         self.sysCfg = sysCfg
 
+    def __setupViveMon(self):
+        """
+        Setup for the htc vive
+        Relies upon a cluster enabling a single client on the local machine
+        THe client enables a mirrored desktop view of what's displays inside the vive
+        Note that this does some juggling of monitor numbers for you.
+        """
 
+        displayList = self.sysCfg['displays']
+
+        if len(displayList) < 2:
+            print('Display list is <1.  Need two displays.')
+        else:
+            print('Using display number ' + str(displayList[0]) + ' for vive display.')
+            print('Using display number ' + str(displayList[1]) + ' for mirrored display.')
+
+        ### Set the vive and exp displays
+
+        viveMon = []
+        expMon = displayList[1]
+
+        with viz.cluster.MaskedContext(viz.MASTER):
+
+            # Set monitor to the vive
+            monList = viz.window.getMonitorList()
+
+            for mon in monList:
+                #TODO: test if this works with Vive
+                if mon.name == 'HTC Vive':
+                    viveMon = mon.id
+
+            viz.window.setFullscreenMonitor(viveMon)
+            viz.window.setFullscreen(1)
+
+        with viz.cluster.MaskedContext(viz.CLIENT1):
+
+            count = 1
+            while viveMon == expMon:
+                expMon = count
+
+            viz.window.setFullscreenMonitor(expMon)
+            viz.window.setFullscreen(1)
+            
     def __setupOculusMon(self):
+        
         """
         Setup for the oculus rift dk2
         Relies upon a cluster enabling a single client on the local machine
@@ -314,18 +420,23 @@ class Configuration():
         self.wiimote.led = wii.LED_1 | wii.LED_4 #Turn on leds to show connection
 
     def __connectSMIDK2(self):
-
+        
+        import oculus 
+        import smi 
+            
         if self.sysCfg['sim_trackerData']:
             self.eyeTracker = smi.iViewHMD(simulate=True)
         else:
             self.eyeTracker = smi.iViewHMD()
 
-    def __record_data__(self, e):
+    def __connectPUPILVR(self):
 
-        if self.use_DVR and self.writer != None:
-            #print "Writing..."
-            self.writer.write(self.writables)
-
+        import pupil
+        
+        if self.sysCfg['sim_trackerData']:
+            self.eyeTracker = pupil.HMD(simulate=True)
+        else:
+            self.eyeTracker = pupil.HMD()
 
 class Experiment(viz.EventClass):
     """
@@ -699,7 +810,7 @@ class Experiment(viz.EventClass):
         """
         if self.config.use_phasespace:
             mocapSys = self.config.mocap
-            hmdRigid = mocapSys.returnPointerToRigid('hmd')
+            #hmdRigid = mocapSys.returnPointerToRigid('hmd')
             paddleRigid = mocapSys.returnPointerToRigid('paddle')
         else:
             mocapSys = []
@@ -1178,28 +1289,28 @@ class Experiment(viz.EventClass):
 
         trackerDict = vizconnect.getTrackerDict()
 
-        if 'rift_tracker' in trackerDict.keys():
-            mocap = self.config.mocap
-            self.viewAct = vizact.onupdate(viz.PRIORITY_LINKS, self.updateHeadTracker)
-        else:
-            print('*** Experiment:linkObjectsUsingMocap: Rift not enabled as a tracker')
-            return
-
-    def updateHeadTracker(self):
-        """
-        A specailized per-frame function
-        That updates an empty viznode with:
-        - position info from mocap
-        - orientation from rift
-        """
-
-        riftOriTracker = vizconnect.getTracker('rift_tracker').getNode3d()
-        self.headTracker = vizconnect.getRawTracker('head_tracker')
-        ori_xyz = riftOriTracker.getEuler()
-        self.headTracker.setEuler( ori_xyz  )
-
-        headRigidTracker = self.config.mocap.get_rigidTracker('hmd')
-        self.headTracker.setPosition( headRigidTracker.get_position() )
+#        if 'rift_tracker' in trackerDict.keys():
+#            mocap = self.config.mocap
+#            self.viewAct = vizact.onupdate(viz.PRIORITY_LINKS, self.updateHeadTracker)
+#        else:
+#            print('*** Experiment:linkObjectsUsingMocap: Rift not enabled as a tracker')
+#            return
+#
+#    def updateHeadTracker(self):
+#        """
+#        A specailized per-frame function
+#        That updates an empty viznode with:
+#        - position info from mocap
+#        - orientation from rift
+#        """
+#
+#        riftOriTracker = vizconnect.getTracker('rift_tracker').getNode3d()
+#        self.headTracker = vizconnect.getRawTracker('head_tracker')
+#        ori_xyz = riftOriTracker.getEuler()
+#        self.headTracker.setEuler( ori_xyz  )
+#
+#        headRigidTracker = self.config.mocap.get_rigidTracker('hmd')
+#        self.headTracker.setPosition( headRigidTracker.get_position() )
 
 #	def linkObjectsUsingMocap(self):
 #
@@ -1292,7 +1403,7 @@ class Experiment(viz.EventClass):
                 paddle.physNode.isLinked = 1
 
                 paddleToPhysLink = viz.link( paddle.node3D, paddle.physNode.node3D)
-
+                self.paddleToPhysLink = paddleToPhysLink
                 def printPaddlePos():
                     #print 'VIS ' + str(paddle.node3D.getPosition())
                     print('node ' + str(paddle.physNode.node3D.getPosition()))
@@ -1945,7 +2056,7 @@ textObj = timeStampOnScreen()
 
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 
-oT = vizconnect.getRawTracker('rift_tracker')
+#oT = vizconnect.getRawTracker('rift_tracker')
 
 #with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
 #	myMatrix = viz.Transform()
@@ -1968,10 +2079,6 @@ oT = vizconnect.getRawTracker('rift_tracker')
 #
 #link
 
-rd = vizconnect.getDisplay('rift_display')
-
-vp = rd.getViewpoint()
-
 def myDemoFunction():
     global female, male, piazza
     piazza = viz.addChild('piazza.osgb')
@@ -1986,3 +2093,22 @@ def myDemoFunction():
 
 global female, male, piazza
 #rdb = vizconnect.getDisplayBase('rift_display')
+
+
+headTracker = vizconnect.getTrackerDict()['head_tracker'].getNode3d()
+
+#Big head ache here. If you use RawTrackerDict above then the values
+#weren't updating
+viewLink = viz.link(headTracker,viz.MainView)
+
+pLink = experimentObject.paddleToPhysLink
+
+p = experimentObject.config.mocap.get_rigidTracker('paddle')
+# p._localOffset = [0,0,0]
+
+ppos = p.get_position()
+hpos = list(headTracker.getPosition())
+
+#p._localOffset = [-.748, 0.016, 3.356]
+#[ppos[0]-hpos[0],ppos[1]-hpos[1],ppos[2]-hpos[2]]
+# [ppos[0]-hpos[0],ppos[1]-hpos[1],ppos[2]-hpos[2]]
