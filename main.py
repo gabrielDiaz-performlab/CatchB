@@ -16,7 +16,7 @@ from ctypes import *  # eyetrackka
 import numpy as np
 import pandas as pd
 
-import oculus
+import oculus_08 as oculus
 import ode
 import physEnv
 import smi

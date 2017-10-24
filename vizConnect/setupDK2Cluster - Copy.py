@@ -117,8 +117,7 @@ def initDisplays(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 			#VC: create the raw object
 			import oculus
 			try:
-				display = oculus.Rift(window=_window, autoDetectMonitor=autoDetectMonitor,renderMode=oculus.RENDER_CLIENT)
-				display.setTimeWarp(timeWarpEnabled)
+				display = oculus.Rift(window=_window, autoDetectMonitor=autoDetectMonitor)
 				_window.displayNode = display
 				viz.window.setFullscreen(True)
 			except AttributeError:
@@ -185,14 +184,14 @@ def initTrackers(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 		if initFlag&vizconnect.INIT_WRAPPERS:
 			vizconnect.addTracker(rawTracker[_name], _name, make='Oculus VR', model='DK2')
 	
-#		#VC: init the offsets
-#		if initFlag&vizconnect.INIT_OFFSETS:
-#			_link = vizconnect.getTracker(_name).getLink()
-#			#VC: clear link offsets
-#			_link+
-#			
-#			#VC: reset orientation
-#			_link.preEuler([10, 20, 30], target=viz.LINK_ORI_OP, priority=-20)
+		#VC: init the offsets
+		if initFlag&vizconnect.INIT_OFFSETS:
+			_link = vizconnect.getTracker(_name).getLink()
+			#VC: clear link offsets
+			_link.reset(viz.RESET_OPERATORS)
+			
+			#VC: reset orientation
+			_link.preEuler([0, 0, 0], target=viz.LINK_ORI_OP, priority=-20)
 
 	#VC: return values can be modified here
 	return None
