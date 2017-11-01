@@ -417,8 +417,10 @@ class Experiment(viz.EventClass):
 
         # maxFlightDurTimerID times out balls a fixed dur after launch
         self.maxFlightDurTimerID = viz.getEventID('maxFlightDurTimerID')
-        self.ballPresDurTimerID = viz.getEventID('ballPresDurTimerID')
-        self.ballBlankDurTimerID = viz.getEventID('ballBlankDurTimerID')
+        
+        if( self.currentTrial.useBlankDur ):
+            self.ballPreBlankDurTimerID = viz.getEventID('ballPreBlankDurTimerID') # On until
+            self.ballBlankDurTimerID = viz.getEventID('ballBlankDurTimerID')
 
         ############################################################
         #############################################################
@@ -442,17 +444,16 @@ class Experiment(viz.EventClass):
             self.room.standingBox.visible(viz.TOGGLE)
             self.endTrial()
 
-        elif timerID == self.ballPresDurTimerID:
-            # make ball invisible (Why another if in an elif?)
+        elif self.currentTrial.useBlankDur and timerID == self.ballPreBlankDurTimerID:
+            
             if self.currentTrial.blankDur != 0.0:
                 self.currentTrial.ballObj.node3D.visible(False)
                 self.starttimer(self.ballBlankDurTimerID, self.currentTrial.blankDur)
-                #self.eventFlag.setStatus(8)
                 self.eventFlag.setStatus('ballRenderOff')
 
-        elif timerID == self.ballBlankDurTimerID:
+        elif self.currentTrial.useBlankDur and timerID == self.ballBlankDurTimerID:
+            
             self.currentTrial.ballObj.node3D.visible(True)
-            #self.eventFlag.setStatus(9)
             self.eventFlag.setStatus('ballRenderOn')
 
     def _checkForCollisions(self):
@@ -809,7 +810,8 @@ class Experiment(viz.EventClass):
                     print('Launch aborted Because of Timing')
 
                 if triggerDuration >= self.minLaunchTriggerDuration:
-                    #self.eventFlag.setStatus(1)
+                    # Launch the ball
+                    
                     self.eventFlag.setStatus('trialStart')
                     self.inProgress = True
                     self.enableWritingToLog = True
@@ -818,7 +820,10 @@ class Experiment(viz.EventClass):
                     self.currentTrial.launchBall()
 
                     self.starttimer(self.maxFlightDurTimerID, self.currentTrial.ballFlightMaxDur)
-                    self.starttimer(self.ballPresDurTimerID, self.currentTrial.preBlankDur)
+                    
+                    if self.currentTrial.useBlankDur:
+                        self.starttimer(self.ballPreBlankDurTimerID, self.currentTrial.preBlankDur)
+                    
             else: # Why?
                 return
 
@@ -1011,7 +1016,16 @@ class Experiment(viz.EventClass):
             tempVar = calibTools.calibrationBlockCounter + calibTools.calibrationCounter
         else:
             tempVar = self.trialNumber
-
+            
+        if self.currentTrial.useBlankDur:
+            preBlankDur = self.currentTrial.preBlankDur
+            blankDur = self.currentTrial.blankDur
+            postBlankDur = self.currentTrial.postBlankDur
+        else:
+            preBlankDur = NaN
+            blankDur  = NaN
+            postBlankDur  = NaN
+                
         # Actual data structuring happens here
         dataDict = dict(
             frameTime = viz.getFrameTime(),
@@ -1049,9 +1063,10 @@ class Experiment(viz.EventClass):
             #ballLaunch_AE = [self.currentTrial.beta,self.currentTrial.theta],
 
             # Trajectory
-            preBlankDur = self.currentTrial.preBlankDur,
-            blankDur = self.currentTrial.blankDur,
-            postBlankDur = self.currentTrial.postBlankDur,
+            
+            preBlankDur = preBlankDur,
+            blankDur = blankDur,
+            postBlankDur = postBlankDur,
 
             # Eye geometry
             eyeTimeStamp = eyeTimeStamp,
@@ -1363,8 +1378,10 @@ class Experiment(viz.EventClass):
             # Increment trial
             self.trialNumber += 1
             self.killtimer(self.maxFlightDurTimerID)
-            self.killtimer(self.ballPresDurTimerID)
-            self.killtimer(self.ballBlankDurTimerID)
+            
+            if self.currentTrial.useBlankDur:
+                self.killtimer(self.ballPreBlankDurTimerID)
+                self.killtimer(self.ballBlankDurTimerID)
 
             #self.eventFlag.setStatus(6)
             self.eventFlag.setStatus('trialEnd')
@@ -1584,12 +1601,10 @@ class trial(viz.EventClass):
             print('Using def color')
             self.ballColor_RGB = map(float,config.expCfg['trialTypes']['default']['ballColor_RGB'])
 
-        # The rest of variables are set below, by drawing values from distributions
-#
-        self.ballDiameter_distType = []
-        self.ballDiameter_distParams = []
-        self.ballDiameter = []
-
+        self.initialBallDiameterM = float(config.expCfg['trialTypes'][self.trialType]['initialBallDiameterM'])
+        
+        self.passingLocNormX = float(config.expCfg['trialTypes'][self.trialType]['passingLocNormX'])
+        
         self.gravity_distType = []
         self.gravity_distParams = []
         self.gravity = []
@@ -1607,10 +1622,8 @@ class trial(viz.EventClass):
         self.passingPlanePosition = map(float, config.expCfg['room']['passingPlanePos_XYZ'])
         self.launchPlanePosition = map(float, config.expCfg['room']['launchPlanePos_XYZ'])
 
-        self.distanceInDepth = self.launchPlanePosition[2] - self.passingPlanePosition[2]
+        self.distanceAlongZ = self.launchPlanePosition[2] - self.passingPlanePosition[2]
 
-        self.xMinimumValue = []
-        self.xMaximumValue = []
         self.timeToContact = []
         self.presentationDuration = []
         self.blankDur = []
@@ -1618,18 +1631,26 @@ class trial(viz.EventClass):
         self.beta = []
         self.theta = []
         self.initialVelocity_XYZ = []
+        self.passingLocY = []
+        
+        self.useBlankDur = float(config.expCfg['trialTypes'][self.trialType]['useBlankDur'])
+                    
+        self.timeToContact  = []
+        
+        if self.useBlankDur :
+            self.blankDur = float(config.expCfg['trialTypes']['default']['blankDur'])
+            self.preBlankDur = float(config.expCfg['trialTypes'][self.trialType]['preBlankDur'])
+            self.postBlankDur = float(config.expCfg['trialTypes'][self.trialType]['postBlankDur'])
+            self.timeToContact = self.preBlankDur + self.blankDur + self.postBlankDur
 
-        self.preBlankDur = float(config.expCfg['trialTypes'][self.trialType]['preBlankDur'])
-        self.postBlankDur = float(config.expCfg['trialTypes'][self.trialType]['postBlankDur'])
-        self.blankDur = float(config.expCfg['trialTypes']['default']['blankDur'])
-
-        self.timeToContact = self.preBlankDur + self.blankDur + self.postBlankDur
-
+        ## Initial position
+        
+        
         self.ballInitialPos_XYZ = [0,0,0]
         self.initialVelocity_XYZ = [0,0,0]
         self.ballSpeed = 0.0
         self.ballFinalPos_XYZ = [0,0,0]
-
+        
         self.flightDurationError = []
 
         ##########################################################################
@@ -1670,8 +1691,8 @@ class trial(viz.EventClass):
         self.initialVelocity_XYZ[0] = self.lateralDistance/self.timeToContact
 
         # Z velocity
-        self.distanceInDepth = math.fabs(self.ballFinalPos_XYZ[2] - self.ballInitialPos_XYZ[2])
-        self.initialVelocity_XYZ[2] = -self.distanceInDepth/self.timeToContact
+        self.distanceAlongZ = math.fabs(self.ballFinalPos_XYZ[2] - self.ballInitialPos_XYZ[2])
+        self.initialVelocity_XYZ[2] = -self.distanceAlongZ/self.timeToContact
 
         #self.horizontalVelocity = math.sqrt(np.power(self.initialVelocity_XYZ[0],2) + np.power(self.initialVelocity_XYZ[2],2))
         #self.ballSpeed = self.gravity * self.timeToContact/(2 * math.fabs(math.sin(self.theta)))
@@ -1680,12 +1701,12 @@ class trial(viz.EventClass):
         self.verticalDistance = self.ballFinalPos_XYZ[1] - self.ballInitialPos_XYZ[1]
         self.initialVelocity_XYZ[1] = ((-0.5 * -self.gravity * self.timeToContact * self.timeToContact) + self.verticalDistance ) / self.timeToContact
 
-        self.totalDistance = math.sqrt(np.power(self.lateralDistance, 2) + np.power(self.distanceInDepth, 2) + np.power(self.verticalDistance, 2))
-        self.beta = math.atan((self.distanceInDepth/self.lateralDistance))*(180.0/np.pi)
+        self.totalDistance = math.sqrt(np.power(self.lateralDistance, 2) + np.power(self.distanceAlongZ, 2) + np.power(self.verticalDistance, 2))
+        self.beta = math.atan((self.distanceAlongZ/self.lateralDistance))*(180.0/np.pi)
         self.theta = (180.0/np.pi)*math.atan((np.power(self.timeToContact,2) * self.gravity)/(2*self.totalDistance))
 
         #print 'V_xyz=[',self.initialVelocity_XYZ,'] theta=',self.theta,' beta=', self.beta
-        #print 'X=', self.lateralDistance, ' R=', self.totalDistance, ' g=', self.gravity, ' Vxz=', self.horizontalVelocity, ' D=', self.distanceInDepth
+        #print 'X=', self.lateralDistance, ' R=', self.totalDistance, ' g=', self.gravity, ' Vxz=', self.horizontalVelocity, ' D=', self.distanceAlongZ
 
     def removeBall(self):
 
@@ -1780,7 +1801,8 @@ class trial(viz.EventClass):
         # Move ball relative to center of launch plane
         print('Initial max/min=[', xMinimumValue, xMaximumValue,']')
 
-        self.ballObj = visEnv.visObj(room,'sphere',self.ballDiameter/2,self.ballInitialPos_XYZ,self.ballColor_RGB)
+        ballDiameter = self.initialBallDiameterM
+        self.ballObj = visEnv.visObj(room,'sphere',ballDiameter/2,self.ballInitialPos_XYZ,self.ballColor_RGB)
 
         #########################################################
         ################### FINAL POSITION ###################
@@ -1789,21 +1811,23 @@ class trial(viz.EventClass):
         self.passingPlane_XYZ = self.room.passingPlane.node3D.getPosition()
 
         ### X VALUE
+        
         xMinimumValue = self.passingPlane_XYZ[0] - self.passingPlaneSize[0]/2.0
         xMaximumValue = self.passingPlane_XYZ[0] + self.passingPlaneSize[0]/2.0
-        self.ballFinalPos_XYZ[0] = xMinimumValue + np.random.random()*(xMaximumValue-xMinimumValue)
+        self.ballFinalPos_XYZ[0] = xMinimumValue + self.passingLocNormX *(xMaximumValue-xMinimumValue)
 
         ### Y VALUE
-        yMinimumValue = self.passingPlane_XYZ[1] - self.passingPlaneSize[1]/2.0
-        yMaximumValue = self.passingPlane_XYZ[1] + self.passingPlaneSize[1]/2.0
-        self.ballFinalPos_XYZ[1] = yMinimumValue + np.random.random()*(yMaximumValue-yMinimumValue)
-
+        self.ballFinalPos_XYZ[1] = self.passingLocY
+        
         #########################################################
         ################### Initial Velocities ##################
 
         self.calculatePhysicalParams()
+        
         print('PlaceBall ==> Vx=', self.initialVelocity_XYZ[0], ' TTC=', self.timeToContact)
-        print('PD = ', self.presentationDuration, ' BD = ', self.blankDur, ' PBD = ', self.postBlankDuration)
+        
+        if self.useBlankDur:
+            print('PD = ', self.presentationDuration, ' BD = ', self.blankDur, ' PBD = ', self.postBlankDuration)
 
         # Setup physics and collision
 
