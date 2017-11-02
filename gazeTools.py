@@ -143,7 +143,7 @@ class calibrationTools():
 		self.minimumAngle = (self.minimumAngle * np.pi)/(60*180) # We want the calibration point subtend 15 arcmin to the subject's eye
 
 		self.localAction = None
-		self.initialValue = 0.02
+		self.initialValue = 0.1
 		self.calibrationSphereRadius = self.initialValue
 		self.calibrationBlockCounter = 900
 		self.calibrationCounter = 0
@@ -213,6 +213,7 @@ class calibrationTools():
 		self.room.wall_NegZ.node3D.visible(viz.TOGGLE)
 		self.room.wall_PosX.node3D.visible(viz.TOGGLE)
 		self.room.wall_NegX.node3D.visible(viz.TOGGLE)
+		viz.clearcolor(viz.GRAY)
 		
 	def checkActionDone(self):
 		distance = np.array(self.calibrationSphere.getPosition()) - np.array([-3.0,0.0,6.0])

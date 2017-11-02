@@ -356,7 +356,9 @@ class Experiment(viz.EventClass):
         self.inHMDGeomCheckMode = False
         self.setEnabled(False)
         self.test_char = None
-
+        
+        self.presentingVORBall = False
+        self.recordingVORQ = False
         self.calibrationFrameCounter = 0
         self.totalCalibrationFrames = 100
 
@@ -369,7 +371,8 @@ class Experiment(viz.EventClass):
         self.viewAct = []
         self.hmdLinkedToView = False
         self.headTracker = []
-
+        self.vorBall = []
+        
         ################################################################
         ################################################################
         # Build block and trial list
@@ -724,8 +727,12 @@ class Experiment(viz.EventClass):
 
         if key == 'e':
             self.callPerForMCalibration()
+        
+  
+        
 
-        if key == 'z':
+        if key == 'z' and self.recordingVORQ == False:
+            
             print('Dynamic Calibration Method is Called')
             self.totalCalibrationFrames = 2000
             self.enableWritingToLog = True
@@ -751,15 +758,17 @@ class Experiment(viz.EventClass):
                 mocapSys.saveRigid('hmd')
             elif key == 'W':
                 self.connectWiiMote()
-            elif key == 'v':
+            elif key == 'b':
                 self.launchKeyDown()
 
-            elif key == 'D':
-                dvrWriter = self.config.writer
-                dvrWriter.toggleOnOff()
-
+            
+            elif key == 'o':
+                self.presentVORBall()
+                
+            elif key == 'v':
+                self.recordVOR()
+                
             elif key == 'r':
-
                 vizconnect.getTracker('rift_tracker').resetHeading()
 
         ##########################################################
@@ -859,13 +868,16 @@ class Experiment(viz.EventClass):
 
         # during calibration only 100 frame durations are recorded for each fixation.
         # TODO: the conditional governing whether to record should be outside the actual function
+        
         self.calibrationFrameCounter += 1
+        
         if calibTools.calibrationInProgress and self.calibrationFrameCounter > self.totalCalibrationFrames:
             self.enableWritingToLog = False
             print('Calibration Frames Recorded:', self.calibrationFrameCounter)
             calibTools.calibrationSphere.color(viz.PURPLE)
             self.calibrationFrameCounter = 0
             return
+
 
         # Gather misc data
         frameNum = viz.getFrameNumber()
@@ -902,6 +914,11 @@ class Experiment(viz.EventClass):
             ballVisible = NaN
             ballMat_4x4 = [NaN] * 16
 
+        if self.recordVOR == True:
+            vorTargetPos_XYZ = self.vorBall.getPosition()
+        else:
+            vorTargetPos_XYZ = [NaN, NaN, NaN]
+            
         # SMI Data
         if currentSample:
             #smiServerTime = self.config.eyeTracker.getServerTime()
@@ -1008,15 +1025,17 @@ class Experiment(viz.EventClass):
             #leftGazeNodeInHead_XYZ = [NaN, NaN, NaN]
 
         if calibTools.calibrationInProgress:
-            tempVar = calibTools.calibrationBlockCounter + calibTools.calibrationCounter
+            adjustedTrialNum = calibTools.calibrationBlockCounter + calibTools.calibrationCounter            
+        elif self.recordingVORQ:
+            adjustedTrialNum = self.trialNumber+10000
         else:
-            tempVar = self.trialNumber
+            adjustedTrialNum = self.trialNumber
 
         # Actual data structuring happens here
         dataDict = dict(
             frameTime = viz.getFrameTime(),
             #smiNsSinceStart = smiServerTime,
-            trialNumber = tempVar,
+            trialNumber = adjustedTrialNum,
             blockNumber = self.blockNumber,
             eventFlag = self.eventFlag.status,
             trialType = self.currentTrial.trialType,
@@ -1031,7 +1050,12 @@ class Experiment(viz.EventClass):
             isCalibratedSMIQ = self.calibrationDoneSMI,
             calibrationCounter = calibTools.calibrationCounter,
             calibrationPos_XYZ = [calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2]],
-
+    
+            # VOR
+            
+            vorTargetPos_XYZ = vorTargetPos_XYZ,
+            inVorQ = self.recordingVORQ,
+            
             # Paddle
             paddlePos_XYZ = [paddlePos_XYZ[0], paddlePos_XYZ[1], paddlePos_XYZ[2]],
             paddleQuat_XYZW = [paddleQuat_XYZW[0], paddleQuat_XYZW[1], paddleQuat_XYZW[2], paddleQuat_XYZW[3]],
@@ -1427,7 +1451,59 @@ class Experiment(viz.EventClass):
             textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = Nan'%(self.trialNumber, self.blockNumber, viz.getFrameTime()))
         return
 
-
+    def presentVORBall(self):
+        
+        if self.vorBall:
+           self.vorBall.remove() 
+           
+        else:
+            self.vorBall = vizshape.addSphere(radius = 0.01)
+            self.vorBall.color(viz.RED)
+            
+            headTracker = vizconnect.getRawTrackerDict()['head_tracker']
+            
+            #self.vorBall.setPosition([0,0,1.5],mode=viz.REL_PARENT)
+            
+            headPos_XYZ = headTracker.getPosition() 
+            headPos_XYZ[2]  +=  2
+            self.vorBall.setPosition(headPos_XYZ)
+            
+        self.presentingVORBall = True
+    
+    
+        
+    def recordVOR(self):
+        
+        if self.vorBall:
+            
+            self.inProgress = True
+            self.enableWritingToLog = True
+            self.eventFlag.setStatus('startVOR')
+            self.vorBall.color(viz.GREEN)
+            self.recordingVORQ = True
+            
+            print('Recording VOR for 30 seconds')
+            
+            def stopRecordingVOR():
+                if self.vorBall:
+                    self.recordingVORQ = False
+                    self.vorBall.remove()
+                    self.vorBall = []
+                    self.eventFlag.setStatus('stopVOR')
+                    def turnOffDataLogging():
+                        self.enableWritingToLog = False
+                    vizact.ontimer2(0,0,turnOffDataLogging)
+            
+            vizact.ontimer2(30,0,stopRecordingVOR)
+            
+        else:
+            print('VORBall not present')
+            
+        
+                
+                
+            
+                
 #	def placeTarget(self):
 #		target = vizshape.addCylinder(0.2,0.5,axis=3,color=viz.GREEN)
 #		target =
@@ -1880,6 +1956,7 @@ cyclopEyeNode.alpha(0.00)
 # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
 calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room)
 calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
+
 if experimentObject.config.sysCfg['use_wiimote']:
     experimentObject.registerWiimoteActions()
 

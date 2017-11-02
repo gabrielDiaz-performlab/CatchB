@@ -197,6 +197,15 @@ class room():
 
         #Create shadow projector
         self.shadowSource = Shadow.ShadowProjector(size=SHADOW_RES,pos=SHADOW_PROJ_POS,area=SHADOW_AREA)
+    
+    def toggleVisibility(self):
+        self.ceiling.node3D.visible(viz.TOGGLE)
+        self.floor.node3D.visible(viz.TOGGLE)
+        self.wall_PosZ.node3D.visible(viz.TOGGLE)
+        self.wall_NegZ.node3D.visible(viz.TOGGLE)
+        self.wall_PosX.node3D.visible(viz.TOGGLE)
+        self.wall_NegX.node3D.visible(viz.TOGGLE)
+        viz.clearcolor(viz.GRAY)
 
 class wall():
     """
