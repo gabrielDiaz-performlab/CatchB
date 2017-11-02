@@ -24,8 +24,8 @@ class physEnv(viz.EventClass):
         #self.world.setCFM(0.00001)
         #self.world.setERP(0.05)
 
-        self.world.setCFM(0.00001)
-        self.world.setERP(0.1)
+        self.world.setCFM(0.0001)
+        self.world.setERP(0.2)
 
         #self.world.setContactSurfaceLayer(0.001)
 
@@ -73,7 +73,7 @@ class physEnv(viz.EventClass):
 
         self.emptyCollisionBuffer()
 
-        numCycles = 10
+        numCycles = 8
 
         timeStep = viz.getFrameElapsed() / numCycles #self.frameRate / numCycles
 
@@ -260,7 +260,7 @@ class physNode():
 
         elif shape == 'sphere':
 
-            #print 'Making sphere physNode'
+            print ('Making sphere physNode')
             # print 'phsEnv.createGeom(): type=sphere expects pos=XYZ, and size=RADIUS'
 
             ################################################################################################
@@ -273,7 +273,7 @@ class physNode():
             # set sphere properties automatically assuming a mass of 1 and self.radius
             mass = 1.0
             self.geomMass.setSphereTotal(mass, size)
-
+    
             self.body = ode.Body(world)
             self.parentWorld = world
             self.body.setMass(self.geomMass) # geomMass or 1 ?

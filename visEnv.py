@@ -213,7 +213,7 @@ class wall():
 
         self.dimensions = dimensions
         self.axisAngle = axisAngle
-        self.position = position
+        self.initialPosition = position
         self.texPath = texPath
         self.texScale = texScale
 
@@ -255,7 +255,7 @@ class visObj(viz.EventClass):
         ## Set variables
         self.elasticity = 1
         self.color_3f = color
-        self.position = position
+        self.initialPosition = position
         self.shape = shape
         self.alpha = alpha
         self.isDynamic = 0
@@ -435,7 +435,7 @@ class visObj(viz.EventClass):
     def enablePhysNode(self):
 
         ## Create physical object
-        self.physNode = self.parentRoom.physEnv.makePhysNode(self.shape,self.position,self.size)
+        self.physNode = self.parentRoom.physEnv.makePhysNode(self.shape,self.initialPosition,self.size)
         self.setVelocity([0,0,0])
         self.physNode.disableMovement()
 

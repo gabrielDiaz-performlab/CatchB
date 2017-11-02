@@ -188,9 +188,9 @@ class calibrationTools():
 
 
 	def create3DCalibrationPositions(self, xRange, yRange, zRange, numberOfGridPoints):
-		x = np.linspace(xRange[0], xRange[1], numberOfGridPoints)
-		y = np.linspace(yRange[0], yRange[1], numberOfGridPoints)
-		z = np.linspace(zRange[0], zRange[1], numberOfGridPoints)
+		x = np.linspace(xRange[0], xRange[1], int(numberOfGridPoints))
+		y = np.linspace(yRange[0], yRange[1], int(numberOfGridPoints))
+		z = np.linspace(zRange[0], zRange[1], int(numberOfGridPoints))
 
 		points = np.empty(shape = (1,3), dtype = float)
 		#points.resize(1,3)

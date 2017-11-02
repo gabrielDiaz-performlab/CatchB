@@ -414,6 +414,9 @@ class Experiment(viz.EventClass):
 
         self.perFrameTimerID = viz.getEventID('perFrameTimerID') # Generates a unique ID.
         self.starttimer(self.perFrameTimerID, viz.FASTEST_EXPIRATION, viz.FOREVER)
+        
+        self.changeBallRadiusID = viz.getEventID('changeBallRadiusID') # Generates a unique ID.
+        self.currentTrial.changeBallRadiusID = self.changeBallRadiusID
 
         # maxFlightDurTimerID times out balls a fixed dur after launch
         self.maxFlightDurTimerID = viz.getEventID('maxFlightDurTimerID')
@@ -436,10 +439,24 @@ class Experiment(viz.EventClass):
     def _timerCallback(self, timerID):
         """
         Add Docstring.
-        """
-
+#        """
+#        ct = self.currentTrial
+#        
+#        if timerID == self.changeBallRadiusID and ct.ballHasHitPaddle == False:
+#            
+#            currentDistance = np.sqrt(np.sum(np.power(np.subtract(ct.ballObj.node3D.getPosition(),ct.ballFinalPos_XYZ),2)))
+#
+#            totalChangeInBallSize = (ct.initialBallRadiusM * ct.expansionRatio) - ct.initialBallRadiusM
+#            
+#            proportionOfFlightTravelled = (ct.ballObj.initialDistance - currentDistance) / ct.ballObj.initialDistance
+#            newRadius = ct.initialBallRadiusM + (totalChangeInBallSize * proportionOfFlightTravelled ) 
+#            print( 'CurDist: %s New Radius: %s' % (str(currentDistance), str(newRadius) ))
+#            ct.setBallRadius(newRadius )
+#            
         if timerID == self.maxFlightDurTimerID:
+            
             print('Removing ball!')
+            
             self.currentTrial.removeBall()
             self.room.standingBox.visible(viz.TOGGLE)
             self.endTrial()
@@ -497,15 +514,15 @@ class Experiment(viz.EventClass):
                     #print 'Ball has hit the ground.'
                     viz.playSound(soundBank.bounce)
 
-                    # Compare pre-bounce flight dur with predicted pre-bounce flight dur
-                    #actualPreBounceFlightDur =  float(viz.getFrameTime()) - self.currentTrial.launchTime
-                    #durationError = self.currentTrial.predictedPreBounceFlightDur - actualPreBounceFlightDur
-                    #self.currentTrial.flightDurationError = durationError
-
-                    #print 'Predicted: ' + str(self.currentTrial.predictedPreBounceFlightDur)
-                    #print 'Actual   : ' + str(actualPreBounceFlightDur)
-
-                    #print 'Flight duration error: ' + str(durationError)
+#                    # Compare pre-bounce flight dur with predicted pre-bounce flight dur
+#                    actualPreBounceFlightDur =  float(viz.getFrameTime()) - self.currentTrial.launchTime
+#                    durationError = self.currentTrial.predictedPreBounceFlightDur - actualPreBounceFlightDur
+#                    self.currentTrial.flightDurationError = durationError
+#
+#                    print ('Predicted: ' + str(self.currentTrial.predictedPreBounceFlightDur))
+#                    print ('Actual   : ' + str(actualPreBounceFlightDur))
+#
+#                    print ( 'Flight duration error: ' + str(durationError))
 
                 # BALL / PADDLE
                 if (self.currentTrial.ballHasHitPaddle == False and
@@ -724,7 +741,9 @@ class Experiment(viz.EventClass):
             self.recordCalibrationData()
 
         if key == 'e':
+            
             self.callPerForMCalibration()
+            
 
         if key == 'z':
             print('Dynamic Calibration Method is Called')
@@ -789,9 +808,14 @@ class Experiment(viz.EventClass):
             self.currentTrial.placeBall(self.room)
 
     def launchKeyUp(self):
-        global calibTools # bad
-        if calibTools.calibrationInProgress:
-            return
+        
+        if( self.config.use_eyeTracking): 
+            
+            global calibTools # bad
+        
+            if calibTools.calibrationInProgress:
+                return
+                
         if self.launchKeyIsCurrentlyDown:
             self.launchKeyIsCurrentlyDown = False
             triggerDuration = viz.tick() - self.timeLaunchKeyWasPressed
@@ -820,6 +844,8 @@ class Experiment(viz.EventClass):
                     self.currentTrial.launchBall()
 
                     self.starttimer(self.maxFlightDurTimerID, self.currentTrial.ballFlightMaxDur)
+                    
+                    self.starttimer(self.changeBallRadiusID,viz.FASTEST_EXPIRATION, self.currentTrial.timeToContact)
                     
                     if self.currentTrial.useBlankDur:
                         self.starttimer(self.ballPreBlankDurTimerID, self.currentTrial.preBlankDur)
@@ -865,24 +891,35 @@ class Experiment(viz.EventClass):
         # during calibration only 100 frame durations are recorded for each fixation.
         # TODO: the conditional governing whether to record should be outside the actual function
         self.calibrationFrameCounter += 1
-        if calibTools.calibrationInProgress and self.calibrationFrameCounter > self.totalCalibrationFrames:
-            self.enableWritingToLog = False
-            print('Calibration Frames Recorded:', self.calibrationFrameCounter)
-            calibTools.calibrationSphere.color(viz.PURPLE)
-            self.calibrationFrameCounter = 0
-            return
-
+        
+        if( self.inCalibrateMode ):
+            
+            calibrationCounter = calibTools.calibrationCounter
+            
+            if calibTools.calibrationInProgress and self.calibrationFrameCounter > self.totalCalibrationFrames:
+                self.enableWritingToLog = False
+                print('Calibration Frames Recorded:', self.calibrationFrameCounter)
+                calibTools.calibrationSphere.color(viz.PURPLE)
+                self.calibrationFrameCounter = 0
+                return
+        else:
+            calibrationCounter = NaN
+        
         # Gather misc data
         frameNum = viz.getFrameNumber()
         viewPos_XYZ = viz.MainView.getPosition(viz.MASTER)
 
-        if calibTools.calibrationSphere:
+        if self.inCalibrateMode and calibTools.calibrationSphere:
+            
             calibrationPoint_XYZ = calibTools.calibrationSphere.getPosition()
         else:
             calibrationPoint_XYZ = [NaN, NaN, NaN]
 
-        # current state of experiment
-        currentSample = self.config.eyeTracker.getLastSample()
+        if self.config.use_eyeTracking:
+            # current state of experiment
+            currentSample = self.config.eyeTracker.getLastSample()
+        else:
+            currentSample = False
 
         # Gather racquet data
         if self.room.paddle:
@@ -1012,7 +1049,7 @@ class Experiment(viz.EventClass):
             #rightGazeNodeInHead_XYZ = [NaN, NaN, NaN]
             #leftGazeNodeInHead_XYZ = [NaN, NaN, NaN]
 
-        if calibTools.calibrationInProgress:
+        if self.config.use_eyeTracking and calibTools.calibrationInProgress:
             tempVar = calibTools.calibrationBlockCounter + calibTools.calibrationCounter
         else:
             tempVar = self.trialNumber
@@ -1041,9 +1078,9 @@ class Experiment(viz.EventClass):
             viewQuat_XYZW = viz.MainView.getQuat(),
 
             # Calibration
-            inCalibrationQ = calibTools.calibrationInProgress,
+            inCalibrationQ = self.inCalibrateMode, #calibTools.calibrationInProgress,
             isCalibratedSMIQ = self.calibrationDoneSMI,
-            calibrationCounter = calibTools.calibrationCounter,
+            calibrationCounter = calibrationCounter, #calibTools.calibrationCounter,
             calibrationPos_XYZ = [calibrationPoint_XYZ[0], calibrationPoint_XYZ[1], calibrationPoint_XYZ[2]],
 
             # Paddle
@@ -1437,12 +1474,15 @@ class Experiment(viz.EventClass):
         theRoom.hangar = model
 
     def updateTextObject(self, textObject):
-        currentSample = self.config.eyeTracker.getLastSample()
-        if (currentSample):
-            textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = %2.2f'%(self.trialNumber, self.blockNumber, viz.getFrameTime(), currentSample.timestamp))
-        else:
-            textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = Nan'%(self.trialNumber, self.blockNumber, viz.getFrameTime()))
-        return
+        
+        if (experimentObject.config.use_eyeTracking):
+                
+            currentSample = self.config.eyeTracker.getLastSample()
+            if currentSample:
+                textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = %2.2f'%(self.trialNumber, self.blockNumber, viz.getFrameTime(), currentSample.timestamp))
+            else:
+                textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = Nan'%(self.trialNumber, self.blockNumber, viz.getFrameTime()))
+            return
 
 
 #	def placeTarget(self):
@@ -1572,6 +1612,9 @@ class trial(viz.EventClass):
         self.trialType = trialType
 
         self.room = room
+        
+        self.changeBallRadiusID = []
+        
         ## State flags
         self.ballInRoom = False # Is ball in room?
         self.ballInInitialState = False # Is ball ready for launch?
@@ -1590,7 +1633,8 @@ class trial(viz.EventClass):
         self.timeSinceLaunch = []
 
         self.ballObj = False
-
+        
+        
         ### Below this is all the code used to generate ball trajectories
         self.ballFlightMaxDur = float(config.expCfg['experiment']['ballFlightMaxDur'])
 
@@ -1601,7 +1645,7 @@ class trial(viz.EventClass):
             print('Using def color')
             self.ballColor_RGB = map(float,config.expCfg['trialTypes']['default']['ballColor_RGB'])
 
-        self.initialBallDiameterM = float(config.expCfg['trialTypes'][self.trialType]['initialBallDiameterM'])
+        self.initialBallRadiusM = float(config.expCfg['trialTypes'][self.trialType]['initialBallRadiusM'])
         
         self.passingLocNormX = float(config.expCfg['trialTypes'][self.trialType]['passingLocNormX'])
         
@@ -1634,7 +1678,9 @@ class trial(viz.EventClass):
         self.passingLocY = []
         
         self.useBlankDur = float(config.expCfg['trialTypes'][self.trialType]['useBlankDur'])
-                    
+        
+        self.expansionRatio = float(config.expCfg['trialTypes'][self.trialType]['expansionRatio'])
+        
         self.timeToContact  = []
         
         if self.useBlankDur :
@@ -1708,6 +1754,8 @@ class trial(viz.EventClass):
         #print 'V_xyz=[',self.initialVelocity_XYZ,'] theta=',self.theta,' beta=', self.beta
         #print 'X=', self.lateralDistance, ' R=', self.totalDistance, ' g=', self.gravity, ' Vxz=', self.horizontalVelocity, ' D=', self.distanceAlongZ
 
+        #self.initialVelocity_XYZ = [2.5,-2,-5]
+        
     def removeBall(self):
 
         print('Removing ball')
@@ -1718,7 +1766,9 @@ class trial(viz.EventClass):
         self.ballInRoom = False
         self.ballInInitialState = False
         self.ballLaunched = False
-
+        
+        self.ballResizeAct.remove()
+        
         print('Cleaned up ball')
 
     def _setValueOrUseDefault(self,config,paramPrefix):
@@ -1801,9 +1851,9 @@ class trial(viz.EventClass):
         # Move ball relative to center of launch plane
         print('Initial max/min=[', xMinimumValue, xMaximumValue,']')
 
-        ballDiameter = self.initialBallDiameterM
-        self.ballObj = visEnv.visObj(room,'sphere',ballDiameter/2,self.ballInitialPos_XYZ,self.ballColor_RGB)
-
+        # Sphere radius is initially 0.5, but later scaled to 
+        self.ballObj = visEnv.visObj(room,'sphere',0.5,self.ballInitialPos_XYZ,self.ballColor_RGB)
+        
         #########################################################
         ################### FINAL POSITION ###################
 
@@ -1835,8 +1885,17 @@ class trial(viz.EventClass):
         self.ballObj.linkToPhysNode()
         self.ballObj.physNode.setBounciness(self.ballElasticity)
         self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
+        
+        self.setBallRadius(self.initialBallRadiusM)
+        self.ballObj.node3D.setVelocity([0,0,0])
+        self.ballObj.physNode.disableMovement()
+        
 
-        self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D) # Costly, in terms of computation
+        #  
+        self.ballObj.initialDistance = np.sqrt(np.sum(np.power(np.subtract(self.ballInitialPos_XYZ,self.ballFinalPos_XYZ),2)))
+        
+        
+        #self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D) # Costly, in terms of computation
 
         # Setup state flags
 
@@ -1845,7 +1904,7 @@ class trial(viz.EventClass):
         self.ballLaunched = False
         self.ballPlacedOnThisFrame = True
 
-
+        
     def launchBall(self):
 
         if( self.ballObj == False ):
@@ -1854,14 +1913,49 @@ class trial(viz.EventClass):
 
         self.ballObj.physNode.enableMovement()
         self.ballObj.setVelocity(self.initialVelocity_XYZ)
-        self.ballObj.node3D.setAngularVelocity([0.25, 0.25, 0.25])
+        #self.ballObj.node3D.setAngularVelocity([0.25, 0.25, 0.25])
         self.myMarkersList
         self.ballInRoom = True
         self.ballInInitialState = False
         self.ballLaunched = True
 
         self.launchTime = viz.getFrameTime()
+        
+        self.ballResizeAct = vizact.onupdate(viz.PRIORITY_PHYSICS-1,self.scaleRadiusByDistance)
+        
+        
+    def setBallRadius(self,radius):
+        
+        # Initial diameter of 1 meterr
+        mat = self.ballObj.node3D.getMatrix()
+        
+        for idx in range(0,11,5):
+            mat[idx] = radius*2.0
+        
+        self.ballObj.node3D.setMatrix(mat)
+        self.ballObj.physNode.geom.setRadius(radius)
+   
+    def scaleRadiusByDistance(self):
+        
+        currentDistance = np.sqrt(np.sum(np.power(np.subtract(self.ballObj.node3D.getPosition(),self.ballFinalPos_XYZ),2)))
 
+        totalChangeInBallSize = (self.initialBallRadiusM * self.expansionRatio) - self.initialBallRadiusM
+        
+        proportionOfFlightTravelled = (self.ballObj.initialDistance - currentDistance) / self.ballObj.initialDistance
+        newRadius = self.initialBallRadiusM + (totalChangeInBallSize * proportionOfFlightTravelled ) 
+        
+        self.setBallRadius(newRadius )
+
+        self.ballObj.physNode.geomMass.setSphereTotal(1, newRadius)
+        self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
+        
+        physRad = self.ballObj.physNode.geom.getRadius()
+#        print( 'Geom pos:  %1.2f , %1.2f, %1.2f' % (self.ballObj.physNode.geom.getPosition()[0],self.ballObj.physNode.geom.getPosition()[1],self.ballObj.physNode.geom.getPosition()[2]))
+#        print( 'Body pos:  %1.2f , %1.2f, %1.2f' % (self.ballObj.physNode.body.getPosition()[0],self.ballObj.physNode.body.getPosition()[1],self.ballObj.physNode.body.getPosition()[2]))
+#        print(' Viz pos: %1.2f, %1.2f, %1.2f\n' % (self.ballObj.node3D.getPosition()[0],self.ballObj.node3D.getPosition()[1],self.ballObj.node3D.getPosition()[2] ))
+        #print( 'Phys Rad:  %1.2f Viz rad: %1.2f' % (physRad, newRadius ))
+        #print( 'CurDist: %s New Radius: %s' % (str(currentDistance), str(newRadius) ))
+        
 ################################################################################################################
 ################################################################################################################
 ################################################################################################################
@@ -1885,53 +1979,53 @@ experimentObject.start()
 
 ####
 
+def initializeEyetracker():
+    
+    eyeTracker = experimentObject.config.eyeTracker
+    headTracker = vizconnect.getRawTrackerDict()['head_tracker']
+    #headTracker.setPosition(0,1,0)
 
-eyeTracker = experimentObject.config.eyeTracker
-headTracker = vizconnect.getRawTrackerDict()['head_tracker']
-#headTracker.setPosition(0,1,0)
+    
 
-dispDict = vizconnect.getRawDisplayDict()
-clientWindowID = dispDict['exp_display']
+    cyclopEyeSphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.GREEN)
+    #both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,sphereColor=viz.GREEN)
+    cyclopEyeSphere.toggleUpdate()
+    cyclopEyeNode = vizshape.addSphere(0.015, color = viz.GREEN)
+    cyclopEyeNode.setParent(headTracker)
+    #cyclopEyeNode.visible(viz.OFF)
+    cyclopEyeNode.alpha(0.00)
 
-cyclopEyeSphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.GREEN)
-#both_sphere = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,sphereColor=viz.GREEN)
-cyclopEyeSphere.toggleUpdate()
-cyclopEyeNode = vizshape.addSphere(0.015, color = viz.GREEN)
-cyclopEyeNode.setParent(headTracker)
-#cyclopEyeNode.visible(viz.OFF)
-cyclopEyeNode.alpha(0.00)
-
-# TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
-calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room)
-calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
-if experimentObject.config.sysCfg['use_wiimote']:
-    experimentObject.registerWiimoteActions()
+    # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
+    calibTools = calibrationTools(cyclopEyeNode, clientWindowID, cyclopEyeSphere, experimentObject.config, experimentObject.room)
+    calibTools.create3DCalibrationPositions(calibTools.calibrationPositionRange_X, calibTools.calibrationPositionRange_Y, calibTools.calibrationPositionRange_Z, calibTools.numberOfCalibrationPoints)
+    if experimentObject.config.sysCfg['use_wiimote']:
+        experimentObject.registerWiimoteActions()
 
 
-IOD = 0.06
-# create a node3D leftEyeNode
-leftEyeNode = vizshape.addSphere(0.005, color = viz.BLUE)
-#leftEyeNode.visible(viz.OFF)
-leftEyeNode.setParent(headTracker)
-leftEyeNode.setPosition(-IOD/2, 0, 0.0,viz.ABS_PARENT)
-left_sphere = gazeSphere(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],sphereColor=viz.YELLOW)
-leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],gazeVectorColor=viz.YELLOW)
-left_sphere.toggleUpdate()
-leftGazeVector.toggleUpdate()
-left_sphere.node3D.alpha(0.7)
-leftEyeNode.alpha(0.01)
+    IOD = 0.06
+    # create a node3D leftEyeNode
+    leftEyeNode = vizshape.addSphere(0.005, color = viz.BLUE)
+    #leftEyeNode.visible(viz.OFF)
+    leftEyeNode.setParent(headTracker)
+    leftEyeNode.setPosition(-IOD/2, 0, 0.0,viz.ABS_PARENT)
+    left_sphere = gazeSphere(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],sphereColor=viz.YELLOW)
+    leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,leftEyeNode,[clientWindowID],gazeVectorColor=viz.YELLOW)
+    left_sphere.toggleUpdate()
+    leftGazeVector.toggleUpdate()
+    left_sphere.node3D.alpha(0.7)
+    leftEyeNode.alpha(0.01)
 
-# create a node3D rightEyeNode
-rightEyeNode = vizshape.addSphere(0.005, color = viz.RED)
-#rightEyeNode.visible(viz.OFF)
-rightEyeNode.setParent(headTracker)
-rightEyeNode.setPosition(IOD/2, 0, 0.0,viz.ABS_PARENT)
-right_sphere = gazeSphere(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],sphereColor=viz.ORANGE)
-rightGazeVector = gazeVector(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],gazeVectorColor=viz.ORANGE)
-right_sphere.toggleUpdate()
-rightGazeVector.toggleUpdate()
-right_sphere.node3D.alpha(0.7)
-rightEyeNode.alpha(0.01)
+    # create a node3D rightEyeNode
+    rightEyeNode = vizshape.addSphere(0.005, color = viz.RED)
+    #rightEyeNode.visible(viz.OFF)
+    rightEyeNode.setParent(headTracker)
+    rightEyeNode.setPosition(IOD/2, 0, 0.0,viz.ABS_PARENT)
+    right_sphere = gazeSphere(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],sphereColor=viz.ORANGE)
+    rightGazeVector = gazeVector(eyeTracker,viz.RIGHT_EYE,rightEyeNode,[clientWindowID],gazeVectorColor=viz.ORANGE)
+    right_sphere.toggleUpdate()
+    rightGazeVector.toggleUpdate()
+    right_sphere.node3D.alpha(0.7)
+    rightEyeNode.alpha(0.01)
 
 
 ###
@@ -1950,7 +2044,7 @@ def labelDisplay():
     text2.setPosition([0.8,0.9,0])
 
 def timeStampOnScreen():
-
+    clientWindowID = dispDict['exp_display']
     experimentTextObject = viz.addText('',viz.SCREEN)
     experimentTextObject.setBackdrop(1)
     experimentTextObject.color(viz.RED)
@@ -1962,6 +2056,10 @@ def timeStampOnScreen():
     textUpdateAction = vizact.onupdate(viz.PRIORITY_INPUT+1,experimentObject.updateTextObject, experimentTextObject)#self.currentTrial.ballObj.node3D
     return experimentTextObject
 
+
+dispDict = vizconnect.getRawDisplayDict()
+clientWindowID = dispDict['exp_display']
+
 textObj = timeStampOnScreen()
 
 
@@ -1970,27 +2068,6 @@ textObj = timeStampOnScreen()
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 
 oT = vizconnect.getRawTracker('rift_tracker')
-
-#with viz.cluster.MaskedContext(1L):#viz.ALLCLIENTS&~viz.MASTER):
-#	myMatrix = viz.Transform()
-#	myMatrix = viz.Transform()
-#	myMatrix.setEuler(0, 45, 0)
-#	myMatrix.setTrans(0, 1, -.2)
-###headTracker.setMatrix( myMatrix )
-#	viz.MainWindow.setViewOffset( myMatrix )
-
-##  Heres how to put a ball in head-centered coordinates
-#newBall = vizshape.addSphere(0.25,color = viz.GREEN)
-#newBall.setParent(headTracker)
-#newBall.setPosition(0,0,3,viz.ABS_PARENT)
-#newBall.renderOnlyToWindows([viz.VizWindow(viz.MASTER)])
-
-#newBall.renderOnlyToWindows([clientWindowID])
-#
-#rt = vizconnect.getTracker('rift_tracker')
-#rtLink = rt.getLink()
-#
-#link
 
 rd = vizconnect.getDisplay('rift_display')
 
@@ -2009,4 +2086,10 @@ def myDemoFunction():
     female.setEuler([180,0,0])
 
 global female, male, piazza
+
 #rdb = vizconnect.getDisplayBase('rift_display')
+
+
+# experimentObject.currentTrial.placeBall(experimentObject.room)
+# experimentObject.currentTrial.setBallRadius(0.4)
+# experimentObject.currentTrial.launchBall()
