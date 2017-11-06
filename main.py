@@ -1244,14 +1244,16 @@ class Experiment(viz.EventClass):
         - position info from mocap
         - orientation from rift
         """
-
+        
+        
         riftOriTracker = vizconnect.getTracker('rift_tracker').getNode3d()
         self.headTracker = vizconnect.getRawTracker('head_tracker')
         ori_xyz = riftOriTracker.getEuler()
         self.headTracker.setEuler( ori_xyz  )
 
         headRigidTracker = self.config.mocap.get_rigidTracker('hmd')
-        self.headTracker.setPosition( headRigidTracker.get_position() )
+        newPos = headRigidTracker.get_position()
+        self.headTracker.setPosition( newPos )
 
 #	def linkObjectsUsingMocap(self):
 #
@@ -1317,14 +1319,17 @@ class Experiment(viz.EventClass):
 #					self.room.paddle.remove()
 
                 # Put a fake stationary paddle in the room
-                paddleSize = [4, 4]
+                paddleSize = [1.25, 1.25]
                 self.room.paddle = visEnv.visObj(self.room,'cylinder_Z',paddleSize)
                 self.room.paddle.enablePhysNode()
-                self.room.paddle.node3D.setPosition([0,1.6,-1])
+                self.room.paddle.node3D.setPosition(self.currentTrial.passingPlanePosition) #([0,1.6,-1])
                 self.room.paddle.node3D.color([0,1,0])
+                self.room.paddle.node3D.alpha(0.5)
 
-                #self.room.paddle.physNode
-
+                self.room.paddle.enablePhysNode()
+                self.room.paddle.physNode.isLinked = 1
+                paddleToPhysLink = viz.link( self.room.paddle.node3D, self.room.paddle.physNode.node3D)
+                
                 return
 
         # If there is a visObj paddle and a paddle rigid, link em up!
@@ -1332,12 +1337,14 @@ class Experiment(viz.EventClass):
             paddleRigid  = mocap.get_rigidTracker('paddle')
             if(paddleRigid ):
 
+                
                 print('Setup paddle')
                 paddle = self.room.paddle
 
                 self.room.paddle.node3D.alpha(0.5)
 
                 paddleRigidTracker = mocap.get_rigidTracker('paddle')
+                
                 paddleRigidTracker.link_pose(paddle.node3D,'preEuler([90,0,0])')
 
                 paddle.enablePhysNode()
@@ -1626,7 +1633,7 @@ class trial(viz.EventClass):
         ## Trial event data
         self.ballOnPaddlePos_XYZ = []
         self.ballOnPaddlePosLoc_XYZ = []
-        self.ballOnPassingPlanePosLoc_XYZ = []
+        #self.ballOnPassingPlanePosLoc_XYZ = []
 
         self.myMarkersList = []
         ## Timer objects
@@ -1886,6 +1893,8 @@ class trial(viz.EventClass):
         self.ballObj.physNode.setBounciness(self.ballElasticity)
         self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
         
+        
+        self.ballObj.radius = self.initialBallRadiusM
         self.setBallRadius(self.initialBallRadiusM)
         self.ballObj.node3D.setVelocity([0,0,0])
         self.ballObj.physNode.disableMovement()
@@ -1921,10 +1930,13 @@ class trial(viz.EventClass):
 
         self.launchTime = viz.getFrameTime()
         
-        self.ballResizeAct = vizact.onupdate(viz.PRIORITY_PHYSICS-1,self.scaleRadiusByDistance)
+        self.ballResizeAct = vizact.onupdate(viz.PRIORITY_PHYSICS-1,self.scaleRadiusByGain)
         
         
     def setBallRadius(self,radius):
+        
+        self.ballObj.size = radius
+        self.ballObj.radius = radius
         
         # Initial diameter of 1 meterr
         mat = self.ballObj.node3D.getMatrix()
@@ -1935,6 +1947,42 @@ class trial(viz.EventClass):
         self.ballObj.node3D.setMatrix(mat)
         self.ballObj.physNode.geom.setRadius(radius)
    
+    def scaleRadiusByGain(self):
+        ###################################
+        ### THIS FUNCTION NOT YET VALIDATED
+        
+        self.expansionGain = 1.2
+        
+        ## Calculate current ball radius in degrees
+        
+        curBallPos_XYZ = self.ballObj.node3D.getPosition()
+        viewPos_xyz = viz.MainView.getPosition()
+        curDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,curBallPos_XYZ)])**2))
+        curAngularRadiusRadians = np.arctan(self.ballObj.radius /curDistFromViewToBall)
+
+        ## Calculate next ball radius in degrees
+        
+        curBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
+        frameRate = viz.getFrameElapsed() #math.floor(viz.getFrameElapsed()*10000) /10000
+        deltaPos_XYZ = [frameRate * val for val in curBallVel_XYZ]
+        
+        nextBallPos_XYZ = [curBallPos_XYZ[0]+deltaPos_XYZ[0],curBallPos_XYZ[1]+deltaPos_XYZ[1],curBallPos_XYZ[2]+deltaPos_XYZ[2]]
+        
+        nextDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,nextBallPos_XYZ)])**2))
+        nextAngularRadiusRadians = np.arctan(self.ballObj.radius /nextDistFromViewToBall)
+        
+        ## Delta degrees 
+        desiredAngularRadiusRads =  curAngularRadiusRadians + (nextAngularRadiusRadians - curAngularRadiusRadians) * self.expansionGain
+        
+        newRadiusM = nextDistFromViewToBall * np.tan(desiredAngularRadiusRads)
+
+        self.setBallRadius(newRadiusM)
+
+        self.ballObj.physNode.geomMass.setSphereTotal(1, newRadiusM)
+        self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
+        
+        physRad = self.ballObj.physNode.geom.getRadius()
+        
     def scaleRadiusByDistance(self):
         
         currentDistance = np.sqrt(np.sum(np.power(np.subtract(self.ballObj.node3D.getPosition(),self.ballFinalPos_XYZ),2)))
@@ -1944,12 +1992,13 @@ class trial(viz.EventClass):
         proportionOfFlightTravelled = (self.ballObj.initialDistance - currentDistance) / self.ballObj.initialDistance
         newRadius = self.initialBallRadiusM + (totalChangeInBallSize * proportionOfFlightTravelled ) 
         
-        self.setBallRadius(newRadius )
+        self.setBallRadius(newRadius)
 
         self.ballObj.physNode.geomMass.setSphereTotal(1, newRadius)
         self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
         
         physRad = self.ballObj.physNode.geom.getRadius()
+        
 #        print( 'Geom pos:  %1.2f , %1.2f, %1.2f' % (self.ballObj.physNode.geom.getPosition()[0],self.ballObj.physNode.geom.getPosition()[1],self.ballObj.physNode.geom.getPosition()[2]))
 #        print( 'Body pos:  %1.2f , %1.2f, %1.2f' % (self.ballObj.physNode.body.getPosition()[0],self.ballObj.physNode.body.getPosition()[1],self.ballObj.physNode.body.getPosition()[2]))
 #        print(' Viz pos: %1.2f, %1.2f, %1.2f\n' % (self.ballObj.node3D.getPosition()[0],self.ballObj.node3D.getPosition()[1],self.ballObj.node3D.getPosition()[2] ))
@@ -1968,6 +2017,7 @@ class trial(viz.EventClass):
 
 ## The experiment class initialization draws the room, sets up physics,
 ## and populates itself with a list of blocks.  Each block contains a list of trials
+
 global calibTools
 
 experimentObject = Experiment(expConfigFileName)
@@ -2093,3 +2143,7 @@ global female, male, piazza
 # experimentObject.currentTrial.placeBall(experimentObject.room)
 # experimentObject.currentTrial.setBallRadius(0.4)
 # experimentObject.currentTrial.launchBall()
+
+experimentObject.room.objects.setPosition([0,0,3],viz.REL_LOCAL)
+
+
