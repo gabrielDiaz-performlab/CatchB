@@ -73,7 +73,7 @@ class physEnv(viz.EventClass):
 
         self.emptyCollisionBuffer()
 
-        numCycles = 8
+        numCycles = 16
 
         timeStep = viz.getFrameElapsed() / numCycles #self.frameRate / numCycles
 
@@ -191,8 +191,25 @@ class physEnv(viz.EventClass):
                         # Ball always seems to be be the first geom
                         physNode1.collisionPosLocal_XYZ = body2.getPosRelPoint(body1.getPosition())
                         print('>>>>>> Collision Detected {', body1, body2, '} <<<<<<<')
+                        return
                         
-                else:
+                for gIdx in range(len(physNode2.stickTo_gIdx)):
+                    
+                    #print('>>>>>> Checking stickiness <<<<<<<')
+                    
+                    # Check if the two objects should stick.
+                    # If yes, the "break" will prevent entering the else statement below
+                    if( physNode2.stickTo_gIdx[gIdx] == geom1 ):
+
+                        physNode2.disableCollisions()
+                        physNode2.disableMovement()
+
+                        # Ball always seems to be be the first geom
+                        physNode2.collisionPosLocal_XYZ = body1.getPosRelPoint(body2.getPosition())
+                        print('>>>>>> Collision Detected {', body2, body1, '} <<<<<<<')
+                        return
+                        
+                        
                     #print('>>>>>> Collision, but no stickiness <<<<<<<')
                     # If there is no stickiness, calc parameters of the bounce
 
@@ -403,6 +420,7 @@ class physNode():
             pass
 
         #print '**************UPDATING THE NODE *****************'
+        
         self.updateNodeAct = vizact.onupdate(viz.PRIORITY_PHYSICS,self.updateNode3D)
 
     def updateNode3D(self):

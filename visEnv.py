@@ -442,13 +442,16 @@ class visObj(viz.EventClass):
         self.updateAction = viz.link( self.physNode.node3D, self.node3D )
 
         #if( self.physNode ):
-            #return vizact.onupdate(viz.PRIORITY_LINKS,self.physNode.linkPose,self.node3D )
+        #    return vizact.onupdate(viz.PRIORITY_LINKS,self.physNode.linkPose,self.node3D )
+      
+        #self.updateAction = vizact.onupdate(viz.PRIORITY_PHYSICS+1,self.physNode.linkPose,self.node3D)
 
     def setBounciness(self,bounciness):
 
         self.physNode.setBounciness(bounciness)
 
     def linkPhysToVis(self):
+        
         self.physNode.isLinked = 1
         self.updateAction = viz.link( self.node3D, self.physNode.node3D)
         self.updateAction.setDstFlag(viz.ABS_GLOBAL)
