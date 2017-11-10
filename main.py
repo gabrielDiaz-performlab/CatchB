@@ -407,7 +407,7 @@ class Experiment(viz.EventClass):
         ##############################################################
         ## Callbacks and timers
 
-        vizact.onupdate(viz.PRIORITY_PHYSICS, self._checkForCollisions)
+        vizact.onupdate(viz.PRIORITY_PHYSICS-1, self._checkForCollisions)
         self.callback(viz.KEYDOWN_EVENT, self.onKeyDown)
         self.callback(viz.KEYUP_EVENT, self.onKeyUp)
         self.callback(viz.TIMER_EVENT, self._timerCallback)
@@ -474,6 +474,8 @@ class Experiment(viz.EventClass):
             self.eventFlag.setStatus('ballRenderOn')
 
     def _checkForCollisions(self):
+        
+            
         """
         Add Docstring.
         """
@@ -497,7 +499,7 @@ class Experiment(viz.EventClass):
 
             # BALL / FLOOR
             if theBall:
-                # TODO: Cleanup this logic - It's currently unreadable.
+                
                 if(self.currentTrial.ballHasBouncedOnFloor == False and
                    (physNode1 == theFloor.physNode and physNode2 == theBall.physNode or
                     physNode1 == theBall.physNode and physNode2 == theFloor.physNode)):
@@ -529,7 +531,6 @@ class Experiment(viz.EventClass):
                         (physNode1 == thePaddle.physNode and physNode2 == theBall.physNode or
                          physNode1 == theBall.physNode and physNode2 == thePaddle.physNode)):
 
-                    #self.eventFlag.setStatus(4)
                     self.eventFlag.setStatus('ballOnPaddle')
                     self.currentTrial.ballHasHitPaddle = True
 
@@ -537,14 +538,22 @@ class Experiment(viz.EventClass):
 
                     # self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
                     if theBall.physNode.queryStickyState(thePaddle.physNode):
+                        
                         # Could also be acheived by turning of physics via the physnode
                         theBall.updateAction.remove()
+                        
+                        if self.currentTrial.ballResizeAct:
+                            self.currentTrial.ballResizeAct.remove()
 
                         theBall.node3D.setParent(thePaddle.node3D)
-                        collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
-                        theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
+                        
+                        collPoint_XYZ = theBall.node3D.getPosition(viz.ABS_PARENT)
+                        #collPoint_XYZ =  theBall.physNode.collisionPosLocal_XYZ
 
-                        print('Collision Location ', collPoint_XYZ)
+                        print('Collision Location: ', collPoint_XYZ)
+                        
+                        #theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
+
                         self.currentTrial.ballOnPaddlePosLoc_XYZ = collPoint_XYZ
 
                         # If you don't set position in this way (on the next frame using vizact.onupdate),
@@ -554,37 +563,6 @@ class Experiment(viz.EventClass):
 
                         vizact.onupdate(viz.PRIORITY_LINKS, theBall.node3D.setPosition, collPoint_XYZ[0], collPoint_XYZ[1], collPoint_XYZ[2], viz.ABS_PARENT)
 
-#				# BALL / PassingPlane
-#				if( type(self.room.passingPlane) is visEnv.visObj and
-#					self.currentTrial.ballHasHitPassingPlane == False
-#					and (physNode1 == thePassingPlane.physNode and physNode2 == theBall.physNode or
-#						 physNode1 == theBall.physNode and physNode2 == thePassingPlane.physNode )):
-#
-#					self.eventFlag.setStatus(8)
-#					self.currentTrial.ballHasHitPassingPlane = True
-#					viz.playSound(soundBank.bubblePop)
-#
-#					#self.currentTrial.myMarkersList.append(vizshape.addCircle(0.02))
-#					#self.currentTrial.myMarkersList[-1].color([1,1,0])
-#					#self.currentTrial.myMarkersList[-1].setPosition(theBall.node3D.getPosition())
-#
-#
-#					# self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
-#					if( theBall.physNode.queryStickyState(thePassingPlane.physNode) ):
-#
-#						theBall.updateAction.remove()
-#						theBall.node3D.setParent(thePassingPlane.node3D)
-#						collPoint_XYZ = theBall.physNode.collisionPosLocal_XYZ
-#						theBall.node3D.setPosition(collPoint_XYZ, viz.ABS_PARENT)
-#
-#						self.currentTrial.ballOnPassingPlanePosLoc_XYZ = collPoint_XYZ
-#
-#						# If you don't set position in this way (on the next frame using vizact.onupdate),
-#						# then it doesn't seem to update correctly.
-#						# My guess is that this is because the ball's position is updated later on this frame using
-#						# visObj.applyPhysToVis()
-#						#print '===============> HI HOO', collPoint_XYZ
-#						vizact.onupdate(viz.PRIORITY_LINKS,theBall.node3D.setPosition,collPoint_XYZ[0],collPoint_XYZ[1],collPoint_XYZ[2])
 
                 if (physNode1 == theBackWall.physNode and physNode2 == theBall.physNode or
                         physNode1 == theBall.physNode and physNode2 == theBackWall.physNode):
@@ -1641,6 +1619,7 @@ class trial(viz.EventClass):
 
         self.ballObj = False
         
+        self.ballResizeAct = []
         
         ### Below this is all the code used to generate ball trajectories
         self.ballFlightMaxDur = float(config.expCfg['experiment']['ballFlightMaxDur'])
@@ -1774,7 +1753,9 @@ class trial(viz.EventClass):
         self.ballInInitialState = False
         self.ballLaunched = False
         
-        self.ballResizeAct.remove()
+        if self.ballResizeAct:
+            
+            self.ballResizeAct.remove()
         
         print('Cleaned up ball')
 
@@ -1891,20 +1872,18 @@ class trial(viz.EventClass):
         self.ballObj.enablePhysNode()
         self.ballObj.linkToPhysNode()
         self.ballObj.physNode.setBounciness(self.ballElasticity)
-        self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
-        
         
         self.ballObj.radius = self.initialBallRadiusM
         self.setBallRadius(self.initialBallRadiusM)
         self.ballObj.node3D.setVelocity([0,0,0])
         self.ballObj.physNode.disableMovement()
         
+        self.ballObj.physNode.setStickUponContact( room.paddle.physNode.geom )
 
         #  
         self.ballObj.initialDistance = np.sqrt(np.sum(np.power(np.subtract(self.ballInitialPos_XYZ,self.ballFinalPos_XYZ),2)))
         
-        
-        #self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D) # Costly, in terms of computation
+        self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D) # Costly, in terms of computation
 
         # Setup state flags
 
@@ -1922,7 +1901,7 @@ class trial(viz.EventClass):
 
         self.ballObj.physNode.enableMovement()
         self.ballObj.setVelocity(self.initialVelocity_XYZ)
-        #self.ballObj.node3D.setAngularVelocity([0.25, 0.25, 0.25])
+        
         self.myMarkersList
         self.ballInRoom = True
         self.ballInInitialState = False
@@ -1930,11 +1909,10 @@ class trial(viz.EventClass):
 
         self.launchTime = viz.getFrameTime()
         
-        self.ballResizeAct = vizact.onupdate(viz.PRIORITY_PHYSICS-1,self.scaleRadiusByGain)
-        
+        #self.ballResizeAct = vizact.onupdate(viz.PRIORITY_PHYSICS,self.scaleRadiusByGain)
         
     def setBallRadius(self,radius):
-        
+         
         self.ballObj.size = radius
         self.ballObj.radius = radius
         
@@ -1948,8 +1926,9 @@ class trial(viz.EventClass):
         self.ballObj.physNode.geom.setRadius(radius)
    
     def scaleRadiusByGain(self):
+        
         ###################################
-        ### THIS FUNCTION NOT YET VALIDATED
+        ### GD: THIS FUNCTION NOT YET VALIDATED
         
         self.expansionGain = 1.2
         
@@ -2144,6 +2123,6 @@ global female, male, piazza
 # experimentObject.currentTrial.setBallRadius(0.4)
 # experimentObject.currentTrial.launchBall()
 
-experimentObject.room.objects.setPosition([0,0,3],viz.REL_LOCAL)
+#experimentObject.room.objects.setPosition([0,0,3],viz.REL_LOCAL)
 
 

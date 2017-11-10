@@ -27,6 +27,7 @@ class room():
         ##################################
         ## Physical environment
         self.physEnv = physEnv.physEnv()
+        
         ##################################
 
         if config==None:
@@ -164,10 +165,6 @@ class room():
             self.standingBox.setParent(self.objects)
             #self.standingBox.disable(viz.CULLING)
             self.standingBox.disable(viz.CULL_FACE)
-
-
-
-
 
     def setLighting(self):
 
