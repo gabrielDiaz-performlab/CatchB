@@ -63,9 +63,7 @@ class room():
             self.wallPos_NegX = -self.roomWidth/2 + self.translateOnX
 
             self.drawStandingBox = config.expCfg['experiment']['drawStandingBox']
-
-            self.isLeftHanded = float(config.expCfg['experiment']['isLeftHanded'])
-
+            
             if self.drawStandingBox:
                 self.standingBoxOffset_X = config.expCfg['room']['standingBoxOffset_X']
                 self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
@@ -153,8 +151,6 @@ class room():
             self.standingBox = vizshape.addBox( boxSizeInfo,color=viz.GREEN,splitFaces = True,back=True)
             self.standingBox.emissive([0,1,0])
             self.standingBox.alpha(0.5)
-
-            if( self.isLeftHanded ): self.standingBoxOffset_X *= -1
 
             self.standingBox.setPosition(float(-self.standingBoxOffset_X), self.standingBoxSize_WHL[1]/2, .01)
 
