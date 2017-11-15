@@ -69,7 +69,7 @@ class soundBank():
         viz.playSound(self.bubblePop, viz.SOUND_PRELOAD)
         viz.playSound(self.highDrip, viz.SOUND_PRELOAD)
         viz.playSound(self.cowbell, viz.SOUND_PRELOAD)
-        viz.playSound(self.cowbell, viz.SOUND_PRELOAD)
+
 
 soundBank = soundBank()
 
@@ -362,13 +362,14 @@ class Experiment(viz.EventClass):
 
         self.calibrationFrameCounter = 0
         self.totalCalibrationFrames = 100
-
+        
         #self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
         ################################################################
         ################################################################
         # Create visual and physical objects (the room)
 
         self.room = visEnv.room(self.config)
+        
         self.viewAct = []
         self.hmdLinkedToView = False
         self.headTracker = []
@@ -407,7 +408,7 @@ class Experiment(viz.EventClass):
         if self.config.sysCfg['use_phasespace']:
             self.linkObjectsUsingMocap()
 
-        self.config.expCfg['maxReach'] = []
+        self.config.expCfg['maxReach'] = False
         self.isLeftHanded = self.config.expCfg['experiment']['isLeftHanded']
         
         if self.config.use_eyeTracking:
@@ -458,7 +459,7 @@ class Experiment(viz.EventClass):
 #            
 #            currentDistance = np.sqrt(np.sum(np.power(np.subtract(ct.ballObj.node3D.getPosition(),ct.ballFinalPos_XYZ),2)))
 #
-#            totalChangeInBallSize = (ct.initialBallRadiusM * ct.expansionRatio) - ct.initialBallRadiusM
+#            totalChangeInBallSize = (ct.initialBallRadiusM * ct.expansionGain) - ct.initialBallRadiusM
 #            
 #            proportionOfFlightTravelled = (ct.ballObj.initialDistance - currentDistance) / ct.ballObj.initialDistance
 #            newRadius = ct.initialBallRadiusM + (totalChangeInBallSize * proportionOfFlightTravelled ) 
@@ -683,7 +684,7 @@ class Experiment(viz.EventClass):
         
         self.calibrationDoneSMI = True
         eyeTracker = experimentObject.config.eyeTracker
-        smiCalibType = np.where(numCalibPoint == np.array([0,3,5,9]))
+        smiCalibType = np.where(numCalibPoint == np.array([0,3,5,9]))[0][0]
         eyeTracker.calibrate(type=smiCalibType) # SMI calibTypes listed at top of smi.py
         print('calibrationDoneSMI ==> ', self.calibrationDoneSMI)
 
@@ -701,8 +702,10 @@ class Experiment(viz.EventClass):
         self.enableWritingToLog = True
         self.calibrationFrameCounter = 0
     
-    def setMaxReach(self):
+    def setMaxReachAndViewHeight(self):
         
+        
+        self.config.viewHeight = viz.MainView.getPosition()[1]
         
         paddle = self.room.paddle
         inverseViewMat = np.reshape(viz.MainView.getMatrix().inverse(),[4,4]).T
@@ -752,7 +755,7 @@ class Experiment(viz.EventClass):
             self.callPerForMCalibration()
             
         if key == 'Z':
-            self.setMaxReach()
+            self.setMaxReachAndViewHeight()
 
         if key == 'z':
             print('Dynamic Calibration Method is Called')
@@ -802,21 +805,21 @@ class Experiment(viz.EventClass):
             self.launchKeyUp()
 
     def launchKeyDown(self):
+        
         if (self.inProgress == True and
                 self.launchKeyIsCurrentlyDown == False and
                 self.currentTrial.ballInRoom == False): # There is not already a ball
-            
-            if( self.config.expCfg['maxReach'] is False):
-                print('Must first set maximum reach.')
-                return
-            
+                        
             # Start timing trigger duration
             # At end of trigger, launch the ball.
             self.launchKeyIsCurrentlyDown = True
             self.timeLaunchKeyWasPressed = viz.tick()
+            
+            self.currentTrial.placeBall(self.room)
+            
             self.room.standingBox.visible(viz.TOGGLE)
 
-            self.currentTrial.placeBall(self.room)
+            
 
     def launchKeyUp(self):
         
@@ -1209,7 +1212,6 @@ class Experiment(viz.EventClass):
                 #oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], 0], target=viz.LINK_ORI_OP, priority=-20)
                 #oriLink.preEuler([-rt_YPR[0], -rt_YPR[1], -rt_YPR[2]], target=viz.LINK_ORI_OP, priority=-20)
 
-            # HACKED by KAMRAN
             vizact.onsensorup(self.config.wiimote,wii.BUTTON_UP,vizconnect.getTracker('rift_tracker').resetHeading)
             #vizact.onsensordown(self.config.wiimote,wii.BUTTON_UP,resetHelmetOrientation)
 
@@ -1457,10 +1459,7 @@ class Experiment(viz.EventClass):
 
         if( self.trialNumber == endOfTrialList ):
 
-            # Increment block
-
-            # arg2 of 1 allows for overwriting eventFlag 6 (new trial)
-            #self.eventFlag.setStatus(7,True)
+            
             self.eventFlag.setStatus('blockEnd')
 
             self.blockNumber += 1
@@ -1697,6 +1696,7 @@ class trial(viz.EventClass):
         self.trialType = trialType
 
         self.room = room
+        self.config = config
         
         self.changeBallRadiusID = []
         
@@ -1764,11 +1764,12 @@ class trial(viz.EventClass):
         self.beta = []
         self.theta = []
         self.initialVelocity_XYZ = []
-        self.passingLocY = []
+        
+        self.passingLocNormY = []
         
         self.useBlankDur = float(config.expCfg['trialTypes'][self.trialType]['useBlankDur'])
         
-        self.expansionRatio = float(config.expCfg['trialTypes'][self.trialType]['expansionRatio'])
+        self.expansionGain = float(config.expCfg['trialTypes'][self.trialType]['expansionGain'])
         
         if self.useBlankDur :
             self.blankDur = float(config.expCfg['trialTypes']['default']['blankDur'])
@@ -1871,7 +1872,7 @@ class trial(viz.EventClass):
         #self.room.launchPlane.collideBox()
         #self.room.launchPlane.disable(viz.DYNAMICS)
         self.room.launchPlane.visible(False)
-        print('Launch Plane Created!')
+        #print('Launch Plane Created!')
 
 
     def placePassingPlane(self):
@@ -1888,13 +1889,18 @@ class trial(viz.EventClass):
         self.room.passingPlane.node3D.alpha(0.3)
         self.room.passingPlane.node3D.visible(False)
 
-        print('Passing Plane Created!')
-
-
+        #print('Passing Plane Created!')
+        
     def placeBall(self, room):
         
-        #########################################################
-        ################### STARTING POSITION ###################
+        if( self.config.expCfg['maxReach'] is False):
+            print('***Must set max reach (shift-z)****')
+            self.room.standingBox.visible(viz.TOGGLE)
+            viz.playSound(soundBank.cowbell)
+            return
+        
+        ##################################################################################################################
+        ################### STARTING POSITION ############################################################################
     
         if( self.isLeftHanded == True):
             launchPlane_XYZ[0] *= -1
@@ -1919,7 +1925,7 @@ class trial(viz.EventClass):
         self.ballInitialPos_XYZ[1] = yMinimumValue + np.random.random()*(yMaximumValue-yMinimumValue)
 
         # Move ball relative to center of launch plane
-        print('Initial max/min=[', xMinimumValue, xMaximumValue,']')
+        #print('Initial max/min=[', xMinimumValue, xMaximumValue,']')
 
         # Sphere radius is initially 0.5, but it is scaled to the correct radius below
         self.ballObj = visEnv.visObj(room,'sphere',0.5,self.ballInitialPos_XYZ,self.ballColor_RGB)
@@ -1928,25 +1934,31 @@ class trial(viz.EventClass):
         ################### FINAL POSITION ###################
         
         ### X VALUE
-        ballFinalPos_XYZ = []
-        
+        self.ballFinalPos_XYZ = [0,0,0]
+
         if( self.isLeftHanded ):
-            ballFinalPos_XYZ = self.room.standingBox.getPosition() + maxReach*self.passingLocNormX
+            self.ballFinalPos_XYZ[0] = self.room.standingBox.getPosition()[0] - self.config.expCfg['maxReach']*self.passingLocNormX
+        else:
+            self.ballFinalPos_XYZ[0] = self.room.standingBox.getPosition()[0] + self.config.expCfg['maxReach']*self.passingLocNormX
         
-        self.ballFinalPos_XYZ[1] = self.passingLocY
-        
+        self.ballFinalPos_XYZ[1] = self.passingLocNormY
+                
         #########################################################
         ################### Initial Velocities ##################
 
         self.calculateTrajectory()
         
-        print('PlaceBall ==> Vx=', self.initialVelocity_XYZ[0], ' TTC=', self.timeToContact)
+        #print('FIXME:  iNITIAL velocity set to 0,0,0')
+        #self.initialVelocity_XYZ = [0,0,0]
+        
+        #print('PlaceBall ==> Vx=', self.initialVelocity_XYZ[0], ' TTC=', self.timeToContact)
         
         if self.useBlankDur:
             print('PD = ', self.presentationDuration, ' BD = ', self.blankDur, ' PBD = ', self.postBlankDuration)
         
         self.ballObj.node3D.setVelocity([0,0,0])
 
+        ### Enable physics
         self.ballObj.enablePhysNode()
         self.ballObj.linkToPhysNode()
         self.ballObj.physNode.setBounciness(self.ballElasticity)
@@ -1957,7 +1969,6 @@ class trial(viz.EventClass):
         ############################################
         ############################################
         ## Set ball radius
-                
         self.ballObj.radius = self.ballObj.size = self.initialBallRadiusM
         self.setBallRadius(self.initialBallRadiusM)
 
@@ -1975,7 +1986,7 @@ class trial(viz.EventClass):
         self.ballPlacedOnThisFrame = True
         
     def calculateTrajectory(self):
-
+        
         # X velocity
         self.lateralDistance = math.fabs(self.ballFinalPos_XYZ[0] - self.ballInitialPos_XYZ[0])
         self.initialVelocity_XYZ[0] = self.lateralDistance/self.timeToContact
@@ -1991,7 +2002,11 @@ class trial(viz.EventClass):
         self.totalDistance = math.sqrt(np.power(self.lateralDistance, 2) + np.power(self.distanceAlongZ, 2) + np.power(self.verticalDistance, 2))
         self.beta = math.atan((self.distanceAlongZ/self.lateralDistance))*(180.0/np.pi)
         self.theta = (180.0/np.pi)*math.atan((np.power(self.timeToContact,2) * self.gravity)/(2*self.totalDistance))
-
+        
+#        print('\nMax reach %1.1f' %(self.config.expCfg['maxReach']) )
+#        print('Passing loc norm, %1.1f'%(self.passingLocNormX))
+#        print('Final position %1.1f, %1.1f, %1.1f \n' %(self.ballFinalPos_XYZ[0],self.ballFinalPos_XYZ[1],self.ballFinalPos_XYZ[2]))
+        
         #print 'V_xyz=[',self.initialVelocity_XYZ,'] theta=',self.theta,' beta=', self.beta
         #print 'X=', self.lateralDistance, ' R=', self.totalDistance, ' g=', self.gravity, ' Vxz=', self.horizontalVelocity, ' D=', self.distanceAlongZ
         
@@ -2011,7 +2026,18 @@ class trial(viz.EventClass):
 
         self.launchTime = viz.getFrameTime()
         
-        self.ballResizeAct = vizact.onupdate(viz.PRIORITY_PHYSICS+1,self.scaleRadiusByGain)
+        # Set "previous" values of ball size, etc
+        self.lastBallPos_XYZ = self.ballObj.node3D.getPosition()
+        self.lastBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
+        
+        viewPos_xyz = viz.MainView.getPosition()
+        curBallPos_XYZ = self.ballObj.node3D.getPosition()
+        curDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,curBallPos_XYZ)])**2))
+        
+        self.lastDistfromViewToBall = curDistFromViewToBall
+        self.lastBallAngularRadiusRadians = np.arctan(self.ballObj.radius /curDistFromViewToBall)
+        
+        self.ballResizeAct = vizact.onupdate(viz.PRIORITY_LAST_UPDATE,self.scaleRadiusByGain)
         
     def setBallRadius(self,radius):
          
@@ -2026,58 +2052,111 @@ class trial(viz.EventClass):
         
         self.ballObj.node3D.setMatrix(mat)
         self.ballObj.physNode.geom.setRadius(radius)
-   
+
     def scaleRadiusByGain(self):
-        
-        ###################################
-        ### GD: THIS FUNCTION NOT YET VALIDATED
         
     
         ## Calculate current ball radius in degrees
         
-        curBallPos_XYZ = self.ballObj.node3D.getPosition()
-        curBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
-        curBallVel = np.sqrt(np.sum([np.array(XYZ)**2 for XYZ in curBallVel_XYZ]))
+        updatedBallPos_XYZ = self.ballObj.node3D.getPosition()
+        updatedBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
+        updatedBallSpeed = np.sqrt(np.sum([np.array(XYZ)**2 for XYZ in updatedBallVel_XYZ]))
         
-        timeToArrival = np.divide(np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(self.ballFinalPos_XYZ,curBallPos_XYZ)])**2)),curBallVel )
-        
-        if( timeToArrival <= self.noExpansionForLastXSeconds):
-            self.ballResizeAct.remove()
-            print('Halted resize')
-            return
-        
-        viewPos_xyz = viz.MainView.getPosition()
-        curDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,curBallPos_XYZ)])**2))
-        curAngularRadiusRadians = np.arctan(self.ballObj.radius /curDistFromViewToBall)
+        timeToArrival = np.divide(np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(self.ballFinalPos_XYZ,updatedBallPos_XYZ)])**2)),updatedBallSpeed )
+#        
+#        if( timeToArrival <= self.noExpansionForLastXSeconds):
+#            self.ballResizeAct.remove()
+#            print('Halted resize')
+#            return
 
-        ## Calculate next ball radius in degrees
+        # Time elapsed
+     #   frameRate = viz.getFrameElapsed() #math.floor(viz.getFrameElapsed()*10000) /10000
         
-        frameRate = viz.getFrameElapsed() #math.floor(viz.getFrameElapsed()*10000) /10000
-        deltaPos_XYZ = [frameRate * val for val in curBallVel_XYZ]
+        # Get angular size if allowed to expand normally
+        updatedViewPos_xyz = viz.MainView.getPosition()
+        updatedDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(updatedViewPos_xyz,updatedBallPos_XYZ)])**2))
+        updatedAngularRadiusRadians = np.arctan(self.ballObj.radius /updatedDistFromViewToBall)
         
-        nextBallPos_XYZ = [curBallPos_XYZ[0]+deltaPos_XYZ[0],curBallPos_XYZ[1]+deltaPos_XYZ[1],curBallPos_XYZ[2]+deltaPos_XYZ[2]]
+        ## Calculate angular 
+        changeInAngularRadiusDuringUpdate = updatedAngularRadiusRadians - self.lastBallAngularRadiusRadians
+        adjustedChangeInAngularSize = self.lastBallAngularRadiusRadians  + changeInAngularRadiusDuringUpdate * self.expansionGain
         
-        nextDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,nextBallPos_XYZ)])**2))
-        nextAngularRadiusRadians = np.arctan(self.ballObj.radius /nextDistFromViewToBall)
-        
-        ## What would the angular radius be on the next frame, if scaled by the gain term?
-        desiredAngularRadiusRads =  curAngularRadiusRadians + (nextAngularRadiusRadians - curAngularRadiusRadians) * self.expansionRatio
+        #For debugging: np.rad2deg(sizeAfterNormalExpansionRad) + np.rad2deg(changeInAngularSizeRadians) * self.expansionGain
         
         ## What physical radius (m) would bring about this angular subtense?
-        newRadiusM = nextDistFromViewToBall * np.tan(desiredAngularRadiusRads)
-
+        #newRadiusM = self.lastDistfromViewToBall * np.tan(adjustedChangeInAngularSize)
+        newRadiusM = updatedDistFromViewToBall * np.tan(adjustedChangeInAngularSize)
+        
         ## Set the ball to this physical radius
         self.setBallRadius(newRadiusM)
         self.ballObj.physNode.geomMass.setSphereTotal(1, newRadiusM)
         self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
         
-        #physRad = self.ballObj.physNode.geom.getRadius()
+#        print('\n Previous size: %1.5f' % self.lastBallAngularRadiusRadians)
+#        print(  '  Updated size: %1.5f' % adjustedChangeInAngularSize)
+#        print(  'New metric rad: %1.5f' % newRadiusM)
+#        print(  '  Updated dist: %1.5f' % updatedDistFromViewToBall)
+#        print(  ' Previous dist: %1.5f' % self.lastDistfromViewToBall )
         
+        # Set "previous" values of ball size, etc
+        self.lastDistfromViewToBall = updatedDistFromViewToBall
+        self.lastBallPos_XYZ = self.ballObj.node3D.getPosition()
+        self.lastBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
+        self.lastBallAngularRadiusRadians = adjustedChangeInAngularSize
+
+        
+        
+#    def scaleRadiusByGain(self):
+#        
+#        ###################################
+#        ### GD: THIS FUNCTION NOT YET VALIDATED
+#        
+#    
+#        ## Calculate current ball radius in degrees
+#        
+#        curBallPos_XYZ = self.ballObj.node3D.getPosition()
+#        curBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
+#        curBallVel = np.sqrt(np.sum([np.array(XYZ)**2 for XYZ in curBallVel_XYZ]))
+#        
+#        timeToArrival = np.divide(np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(self.ballFinalPos_XYZ,curBallPos_XYZ)])**2)),curBallVel )
+#        
+#        if( timeToArrival <= self.noExpansionForLastXSeconds):
+#            self.ballResizeAct.remove()
+#            print('Halted resize')
+#            return
+#        
+#        viewPos_xyz = viz.MainView.getPosition()
+#        curDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,curBallPos_XYZ)])**2))
+#        curAngularRadiusRadians = np.arctan(self.ballObj.radius /curDistFromViewToBall)
+#
+#        ## Calculate next ball radius in degrees
+#        
+#        frameRate = 1/75. #viz.getFrameElapsed() #math.floor(viz.getFrameElapsed()*10000) /10000
+#        deltaPos_XYZ = [frameRate * val for val in curBallVel_XYZ]
+#        
+#        nextBallPos_XYZ = [curBallPos_XYZ[0]+deltaPos_XYZ[0],curBallPos_XYZ[1]+deltaPos_XYZ[1],curBallPos_XYZ[2]+deltaPos_XYZ[2]]
+#        
+#        nextDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,nextBallPos_XYZ)])**2))
+#        nextAngularRadiusRadians = np.arctan(self.ballObj.radius /nextDistFromViewToBall)
+#        
+#        ## What would the angular radius be on the next frame, if scaled by the gain term?
+#        desiredAngularRadiusRads =  curAngularRadiusRadians + (nextAngularRadiusRadians - curAngularRadiusRadians) * self.expansionGain
+#        
+#        ## What physical radius (m) would bring about this angular subtense?
+#        newRadiusM = nextDistFromViewToBall * np.tan(desiredAngularRadiusRads)
+#
+#        ## Set the ball to this physical radius
+#        self.setBallRadius(newRadiusM)
+#        self.ballObj.physNode.geomMass.setSphereTotal(1, newRadiusM)
+#        self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
+#        
+#        #physRad = self.ballObj.physNode.geom.getRadius()
+#        
     def scaleRadiusByDistance(self):
         
         currentDistance = np.sqrt(np.sum(np.power(np.subtract(self.ballObj.node3D.getPosition(),self.ballFinalPos_XYZ),2)))
 
-        totalChangeInBallSize = (self.initialBallRadiusM * self.expansionRatio) - self.initialBallRadiusM
+        totalChangeInBallSize = (self.initialBallRadiusM * self.expansionGain) - self.initialBallRadiusM
         
         proportionOfFlightTravelled = (self.ballObj.initialDistance - currentDistance) / self.ballObj.initialDistance
         newRadius = self.initialBallRadiusM + (totalChangeInBallSize * proportionOfFlightTravelled ) 
@@ -2122,7 +2201,12 @@ textObj = experimentObject.timeStampOnScreen()
 
 # Shouldn't some of this be self-test code?
 
+
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 oT = vizconnect.getRawTracker('rift_tracker')
 rd = vizconnect.getDisplay('rift_display')
 vp = rd.getViewpoint()
+
+        
+vizact.onkeydown('b', viz.window.startRecording, 'test.avi' ) 
+vizact.onkeydown('n', viz.window.stopRecording )
