@@ -72,7 +72,7 @@ class gazeVector():
 class gazeSphere():
 	def __init__(self,eyeTracker,eye,parentNode,renderToWindows = None,sphereColor=viz.RED):
 		
-		self.sizeInDegrees = 0.5
+		self.sizeInDegrees = 1.0
 		self.sphereDistance = 1
 		self.renderToWindows = renderToWindows
 		from math import tan, radians
@@ -176,7 +176,9 @@ class calibrationTools():
 				V2 = self.calibrationSphere.getPosition()
 		else:
 			V2 = [b - a for a, b in zip(node1.getPosition(viz.ABS_GLOBAL), node2.getPosition(viz.ABS_GLOBAL))]
+		
 		self.errorAngle = np.multiply(self.angle(V1,V2), 180/np.pi)
+		
 		#print 'Angular Error = %.2f %c'%(errorAngle, u"\u00b0")
 		#print 'Angular Error = %.2f %c'%(self.errorAngle, u"\u00b0")
 		textObject.message('AE = %.1f %c'%(self.errorAngle, u"\u00b0"))
@@ -304,6 +306,7 @@ class calibrationTools():
 			self.text_object = viz.addText('')
 			self.text_object.setParent(self.calibrationSphere)
 			self.text_object.renderOnlyToWindows([self.renderToWindows])
+			
 			self.localAction = vizact.onupdate(viz.PRIORITY_INPUT+1,self.calculateAngularError, self.cyclopEyeSphere.node3D, 0.0, self.text_object)#self.currentTrial.ballObj.node3D
 
 			print 'Static Calibration Started'

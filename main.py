@@ -361,7 +361,7 @@ class Experiment(viz.EventClass):
         self.test_char = None
 
         self.calibrationFrameCounter = 0
-        self.totalCalibrationFrames = 100
+        self.totalCalibrationFrames = self.config.sysCfg['eyetracker']['recordCalibForNFrames']
         
         #self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
         ################################################################
@@ -416,7 +416,8 @@ class Experiment(viz.EventClass):
         
         if self.config.sysCfg['use_wiimote']:
             self.registerWiimoteActions()
-        
+
+
         ##############################################################
         ##############################################################
         ## Callbacks and timers
@@ -652,7 +653,11 @@ class Experiment(viz.EventClass):
         self.inCalibrateMode = not self.inCalibrateMode
 
         if self.inCalibrateMode:
-            viz.clearcolor(.5, .5, .5)
+
+            disp = vizconnect.getRawDisplayDict()
+            for key in disp:
+                disp['key'].clearcolor(viz.GRAY)
+                
             viz.MainView.setPosition(0, 0, 0)
             viz.MainView.setAxisAngle(0, 1, 0, 0)
             viz.MainView.velocity([0, 0, 0])
@@ -690,8 +695,9 @@ class Experiment(viz.EventClass):
 
     def callPerForMCalibration(self):
         print('Static Calibration Method is Called')
-        self.totalCalibrationFrames = 200
+        self.inCalibrateMode = True
         self.calibTools.staticCalibrationMethod()
+        
 
     def updateCalibrationPoint(self):
         self.calibTools.updateCalibrationPoint()
@@ -740,15 +746,10 @@ class Experiment(viz.EventClass):
         if  key == 'R':
             #riftOriTracker = vizconnect.getTracker('rift').getNode3d()
             pass
-
+        
+            
         if key == 'c' and self.config.eyeTracker:
             self.callSMICalibration()
-
-        if key == 'q':
-            self.updateCalibrationPoint()
-
-        if key == 'k':
-            self.recordCalibrationData()
 
         if key == 'e':
             
@@ -757,11 +758,18 @@ class Experiment(viz.EventClass):
         if key == 'Z':
             self.setMaxReachAndViewHeight()
 
-        if key == 'z':
-            print('Dynamic Calibration Method is Called')
-            self.totalCalibrationFrames = 2000
-            self.enableWritingToLog = True
-            self.calibTools.dynamicCalibrationMethod()
+#        if key == 'z':
+#            
+#            print('Dynamic Calibration Method is Called')
+#            self.enableWritingToLog = True
+#            self.calibTools.dynamicCalibrationMethod()
+
+        if self.inCalibrateMode:
+            if key == 'q':
+                self.updateCalibrationPoint()
+
+            if key == 'k':
+                self.recordCalibrationData()
 
         if not self.inCalibrateMode:
             if key == 'M':
@@ -785,10 +793,6 @@ class Experiment(viz.EventClass):
                 self.connectWiiMote()
             elif key == ' ':
                 self.launchKeyDown()
-
-            elif key == 'D':
-                dvrWriter = self.config.writer
-                dvrWriter.toggleOnOff()
 
             elif key == 'r':
 
@@ -895,18 +899,22 @@ class Experiment(viz.EventClass):
         # values of same type - most recorded data in here is floating point, thus, empty cells
         # must also have some representative value that is also a float.
         # (Why not 0.0? - probably cases where attribute is 0.0, not empty)
-
+        
+        
         # Only write data is the experiment is ongoing
         if self.enableWritingToLog is False or self.inProgress is False:
             return
-
+ 
+        #print('Writing on frame: %1.0f',viz.getFrameNumber())
+        
         # during calibration only 100 frame durations are recorded for each fixation.
         # TODO: the conditional governing whether to record should be outside the actual function
         self.calibrationFrameCounter += 1
         
         if( self.inCalibrateMode ):
             
-            calibrationCounter = calibTools.calibrationCounter
+            
+            calibrationCounter = self.calibTools.calibrationCounter
             
             if self.calibTools.calibrationInProgress and self.calibrationFrameCounter > self.totalCalibrationFrames:
                 self.enableWritingToLog = False
@@ -1426,8 +1434,9 @@ class Experiment(viz.EventClass):
 
         def stopLogging():
             self.enableWritingToLog = False
+            self.stopLogAct.remove()
             
-        vizact.onupdate(viz.PRIORITY_FIRST_UPDATE,stopLogging)
+        self.stopLogAct = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE,stopLogging)
         
         print('End Trial{', self.enableWritingToLog,'}')
 
@@ -1438,13 +1447,15 @@ class Experiment(viz.EventClass):
             recalAfterTrial_idx = self.blocks_bl[self.blockNumber].recalAfterTrial_idx
 
             eyeTracker = experimentObject.config.eyeTracker
+            
             if( recalAfterTrial_idx.count(self.trialNumber ) > 0):
+                
                 self.calibTools.calibrationInProgress = True
                 vizact.ontimer2(0,0,eyeTracker.calibrate(type = smi.CALIBRATION_9_POINT ))
-                calibTools.calibrationInProgress = False
+                
+                self.calibTools.calibrationInProgress = False
                 print('Static Calibration Method is Called after %d trials' %(recalAfterTrial_idx.count(self.trialNumber )))
-                self.totalCalibrationFrames = 100
-                calibTools.staticCalibrationMethod()
+                self.calibTools.staticCalibrationMethod()
 
             # Increment trial
             self.trialNumber += 1
