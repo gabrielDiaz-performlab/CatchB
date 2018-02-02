@@ -122,9 +122,11 @@ class Configuration():
         if self.sysCfg['use_eyetracking']:
             self.use_eyeTracking = True
             self.__connectSMIDK2()
+            
         else:
             self.use_eyeTracking = False
-
+        
+        self.eyeTrackingCal = False
 
         self.writer = None  # Will get initialized later when the system starts
         self.writables = list()
@@ -362,6 +364,7 @@ class Experiment(viz.EventClass):
 
         self.calibrationFrameCounter = 0
         self.totalCalibrationFrames = self.config.sysCfg['eyetracker']['recordCalibForNFrames']
+        self.calibTools = False
         
         #self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
         ################################################################
@@ -620,9 +623,9 @@ class Experiment(viz.EventClass):
         """
         self.setEnabled(True)
 
-    def toggleEyeCalib(self):
+    def startPerForMCalibration(self):
         """
-        Toggles the calibration for eye tracking.
+        Enters the calibration for eye tracking.
         Note, that for this to work, toggling
         # self.config.camera must turn off your world model
         # This is setup in testRoom.init().
@@ -631,45 +634,53 @@ class Experiment(viz.EventClass):
         self.room = viz.addGroup()
         self.model = viz.add('pit.osgb',parent = self.room)
         """
-
+        
+        self.inCalibrateMode = True
+            
+        self.calibTools = calibrationTools(self.gazeNodes.cycGazePoint, clientWindowID, self.gazeNodes.cycEyeBase, self.config, self.room)
+        self.calibTools.create3DCalibrationPositions(self.calibTools.calibrationPositionRange_X, self.calibTools.calibrationPositionRange_Y, self.calibTools.calibrationPositionRange_Z, self.calibTools.numberOfCalibrationPoints)
+        
+        
         if not self.config.sysCfg['use_eyetracking']:
             print('Eyetracker not setup')
             return
 
-        if not self.config.mocap:
-            pass
-        elif self.hmdLinkedToView and self.viewAct.getEnabled():
-
-            self.viewAct.setEnabled(viz.OFF)
-
-        elif self.hmdLinkedToView and self.viewAct.getEnabled() == False:
-
-            self.viewAct.setEnabled(viz.ON)
-
         viz.mouse.setOverride(viz.TOGGLE)
 
-        self.config.eyeTrackingCal.toggleCalib()
+        #self.config.eyeTrackingCal.toggleCalib()
 
-        self.inCalibrateMode = not self.inCalibrateMode
-
-        if self.inCalibrateMode:
-
-            disp = vizconnect.getRawDisplayDict()
-            for key in disp:
-                disp['key'].clearcolor(viz.GRAY)
-                
-            viz.MainView.setPosition(0, 0, 0)
-            viz.MainView.setAxisAngle(0, 1, 0, 0)
-            viz.MainView.velocity([0, 0, 0])
-        else:
-            viz.clearcolor(0, 0, 0)
+        # gray 
+        #with viz.cluster.MaskedContext(viz.MASTER):
+        disp = vizconnect.getRawDisplayDict()
+        
+        for key in disp:
+            disp[key].clearcolor(viz.GRAY)
+#            
+#        viz.MainView.setPosition(0, 0, 0)
+#        viz.MainView.setAxisAngle(0, 1, 0, 0)
+#        viz.MainView.velocity([0, 0, 0])
 
         if self.room:
             self.room.walls.visible(viz.TOGGLE)
             self.room.objects.visible(viz.TOGGLE)
+            self.room.standingBox.visible(viz.TOGGLE)
+            self.room.paddle.node3D.visible(viz.TOGGLE)
+        
+#        self.config.eyeTrackingCal.updateOffset('s')
+#        self.config.eyeTrackingCal.updateOffset('w')
+        self.calibTools.staticCalibrationMethod()
 
-        self.config.eyeTrackingCal.updateOffset('s')
-        self.config.eyeTrackingCal.updateOffset('w')
+    def endPerForMCalibration(self):
+
+        self.inCalibrateMode = False
+        self.calibrationCounter = 0
+        self.calibTools.endCalibration()
+        
+        if self.room:
+            self.room.walls.visible(viz.TOGGLE)
+            self.room.objects.visible(viz.TOGGLE)
+            self.room.standingBox.visible(viz.TOGGLE)
+            self.room.paddle.node3D.visible(viz.TOGGLE)
 
     def createCamera(self):
         """
@@ -689,16 +700,15 @@ class Experiment(viz.EventClass):
         
         self.calibrationDoneSMI = True
         eyeTracker = experimentObject.config.eyeTracker
-        smiCalibType = np.where(numCalibPoint == np.array([0,3,5,9]))[0][0]
+        smiCalibType = np.where(numCalibPoint == np.array([0,1,3,5,9]))[0][0]
         eyeTracker.calibrate(type=smiCalibType) # SMI calibTypes listed at top of smi.py
         print('calibrationDoneSMI ==> ', self.calibrationDoneSMI)
 
-    def callPerForMCalibration(self):
-        print('Static Calibration Method is Called')
-        self.inCalibrateMode = True
-        self.calibTools.staticCalibrationMethod()
+#    def callPerForMCalibration(self):
+#        
+#        print('Static Calibration Method is Called')
+#        self.calibTools.staticCalibrationMethod()
         
-
     def updateCalibrationPoint(self):
         self.calibTools.updateCalibrationPoint()
 
@@ -743,21 +753,7 @@ class Experiment(viz.EventClass):
         ##########################################################
         ##########################################################
         ## Keys used in the default mode
-        if  key == 'R':
-            #riftOriTracker = vizconnect.getTracker('rift').getNode3d()
-            pass
-        
-            
-        if key == 'c' and self.config.eyeTracker:
-            self.callSMICalibration()
-
-        if key == 'e':
-            
-            self.callPerForMCalibration()
-            
-        if key == 'Z':
-            self.setMaxReachAndViewHeight()
-
+   
 #        if key == 'z':
 #            
 #            print('Dynamic Calibration Method is Called')
@@ -765,14 +761,33 @@ class Experiment(viz.EventClass):
 #            self.calibTools.dynamicCalibrationMethod()
 
         if self.inCalibrateMode:
+            
             if key == 'q':
-                self.updateCalibrationPoint()
-
+                
+                if( self.calibTools.calibrationCounter < self.calibTools.numberOfCalibrationPoints-1 ):
+                    self.calibTools.updateCalibrationPoint()
+                else:
+                    self.endPerForMCalibration()
+                    
             if key == 'k':
                 self.recordCalibrationData()
+            
+            if key == 'e':
+                self.endPerForMCalibration()
 
-        if not self.inCalibrateMode:
-            if key == 'M':
+        elif not self.inCalibrateMode:
+  
+            if key == 'c' and self.config.eyeTracker:
+                self.callSMICalibration()
+
+            elif key == 'e':
+                
+                self.startPerForMCalibration()
+                
+            elif key == 'Z':
+                self.setMaxReachAndViewHeight()
+
+            elif key == 'M':
                 # Toggle the link between the HMD and Mainview
                 if self.hmdLinkedToView:
                     if self.viewAct.getEnabled():
@@ -823,34 +838,34 @@ class Experiment(viz.EventClass):
             
             self.room.standingBox.visible(viz.TOGGLE)
 
-            
-
     def launchKeyUp(self):
         
         if( self.config.use_eyeTracking): 
         
-            if self.calibTools.calibrationInProgress:
+            if self.calibTools and self.calibTools.calibrationInProgress:
                 return
                 
         if self.launchKeyIsCurrentlyDown:
+            
             self.launchKeyIsCurrentlyDown = False
             triggerDuration = viz.tick() - self.timeLaunchKeyWasPressed
             ballReadyToLaunch = False
 
-            if (self.currentTrial.ballInRoom == True and
+            if ( self.currentTrial.ballInRoom == True and
                     self.currentTrial.ballInInitialState == True and
                     self.currentTrial.ballLaunched == False):
 
                 # Ball is ready to launch
-                if triggerDuration <= self.minLaunchTriggerDuration:
+                if self.inProgress == False or triggerDuration <= self.minLaunchTriggerDuration:
                     # Trigger not held long enough for a launch
                     viz.playSound(soundBank.cowbell) # need more cowbell
                     self.room.standingBox.visible(viz.TOGGLE)
                     self.currentTrial.removeBall()
-                    print('Launch aborted Because of Timing')
+                    print('Launch aborted')
 
                 if triggerDuration >= self.minLaunchTriggerDuration:
                     # Launch the ball
+                    
                     
                     self.eventFlag.setStatus('trialStart')
                     self.inProgress = True
@@ -871,6 +886,7 @@ class Experiment(viz.EventClass):
 
     # TODO: Move this to logging/recording module
     def addDataToLog(self):
+        
         """
         Writes a string (really a dictionary literal) describing current state of experiment to
         text file.
@@ -1075,7 +1091,7 @@ class Experiment(viz.EventClass):
             #rightGazeNodeInHead_XYZ = [NaN, NaN, NaN]
             #leftGazeNodeInHead_XYZ = [NaN, NaN, NaN]
 
-        if self.config.use_eyeTracking and self.calibTools.calibrationInProgress:
+        if self.config.use_eyeTracking and self.calibTools and self.calibTools.calibrationInProgress:
             tempVar = self.calibTools.calibrationBlockCounter + self.calibTools.calibrationCounter
         else:
             tempVar = self.trialNumber
@@ -1195,7 +1211,7 @@ class Experiment(viz.EventClass):
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_B, self.launchKeyDown)
         vizact.onsensorup(self.config.wiimote, wii.BUTTON_B, self.launchKeyUp)
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_DOWN, self.callSMICalibration)
-        vizact.onsensordown(self.config.wiimote, wii.BUTTON_A, self.callPerForMCalibration)
+        vizact.onsensordown(self.config.wiimote, wii.BUTTON_A, self.startPerForMCalibration)
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_1, self.updateCalibrationPoint)
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_2, self.recordCalibrationData)
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_PLUS, self.config.eyeTracker.acceptCalibrationPoint)
@@ -1239,8 +1255,7 @@ class Experiment(viz.EventClass):
         self.fhandler.flush()
         self.fhandler.close()
 
-        print('End of Trial & Block ==> TxT file Saved & Closed')
-        print('end experiment')
+        print('End of Experiment ==> TxT file Saved & Closed')
         
         self.inProgress = False
         self.enableWritingToLog = False
@@ -1543,8 +1558,8 @@ class Experiment(viz.EventClass):
         self.gazeNodes.cycGazePoint.alpha(0.00)
 
         # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
-        self.calibTools = calibrationTools(self.gazeNodes.cycGazePoint, clientWindowID, self.gazeNodes.cycEyeBase, self.config, self.room)
-        self.calibTools.create3DCalibrationPositions(self.calibTools.calibrationPositionRange_X, self.calibTools.calibrationPositionRange_Y, self.calibTools.calibrationPositionRange_Z, self.calibTools.numberOfCalibrationPoints)
+#        self.calibTools = calibrationTools(self.gazeNodes.cycGazePoint, clientWindowID, self.gazeNodes.cycEyeBase, self.config, self.room)
+#        self.calibTools.create3DCalibrationPositions(self.calibTools.calibrationPositionRange_X, self.calibTools.calibrationPositionRange_Y, self.calibTools.calibrationPositionRange_Z, self.calibTools.numberOfCalibrationPoints)
         
         self.gazeNodes.IOD = IOD = numCalibPoint = self.config.sysCfg['eyetracker']['defaultIOD']
         
@@ -1904,6 +1919,9 @@ class trial(viz.EventClass):
         
     def placeBall(self, room):
         
+#        self.expansionGain = viz.input('Expansion gain?')
+#        print('Expansion gain: %1.2f' %self.expansionGain)
+        
         if( self.config.expCfg['maxReach'] is False):
             print('***Must set max reach (shift-z)****')
             self.room.standingBox.visible(viz.TOGGLE)
@@ -1987,7 +2005,7 @@ class trial(viz.EventClass):
         ###########################################
         
         self.ballObj.initialDistance = np.sqrt(np.sum(np.power(np.subtract(self.ballInitialPos_XYZ,self.ballFinalPos_XYZ),2)))
-        self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D) # Costly, in terms of computation
+        #self.ballObj.projectShadows(self.ballObj.parentRoom.floor.node3D) # Costly, in terms of computation
                
         # Setup state flags
 
@@ -2022,7 +2040,7 @@ class trial(viz.EventClass):
         #print 'X=', self.lateralDistance, ' R=', self.totalDistance, ' g=', self.gravity, ' Vxz=', self.horizontalVelocity, ' D=', self.distanceAlongZ
         
     def launchBall(self):
-
+        
         if( self.ballObj == False ):
             print('No ball present.')
             return
@@ -2040,16 +2058,15 @@ class trial(viz.EventClass):
         # Set "previous" values of ball size, etc
         self.lastBallPos_XYZ = self.ballObj.node3D.getPosition()
         self.lastBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
-        
         viewPos_xyz = viz.MainView.getPosition()
         curBallPos_XYZ = self.ballObj.node3D.getPosition()
-        curDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,curBallPos_XYZ)])**2))
+        self.initialDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,curBallPos_XYZ)])**2))
         
-        self.lastDistfromViewToBall = curDistFromViewToBall
-        self.lastBallAngularRadiusRadians = np.arctan(self.ballObj.radius /curDistFromViewToBall)
         
-        self.ballResizeAct = vizact.onupdate(viz.PRIORITY_LAST_UPDATE,self.scaleRadiusByGain)
+        self.lastUnmodifiedBallAngularRadiusRadians = self.lastBallAngularRadiusRadians = np.arctan(self.ballObj.radius / self.initialDistFromViewToBall )
+        self.ballResizeAct = vizact.onupdate(viz.PRIORITY_SCENEGRAPH-1,self.scaleRadiusByGain)
         
+
     def setBallRadius(self,radius):
          
         self.ballObj.size = radius
@@ -2064,105 +2081,115 @@ class trial(viz.EventClass):
         self.ballObj.node3D.setMatrix(mat)
         self.ballObj.physNode.geom.setRadius(radius)
 
+#    def scaleRadiusByGain(self):
+#        
+#        updatedDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viz.MainView.getPosition(),self.ballObj.node3D.getPosition())])**2))
+#        
+#        # r' = d'*tan(k*atan(r/d))
+#        adjustedChangeInAngularSize = updatedDistFromViewToBall * np.tan( self.expansionGain * np.arctan(self.initialBallRadiusM/self.initialDistFromViewToBall))
+#        newRadiusM = updatedDistFromViewToBall * np.tan(adjustedChangeInAngularSize)
+#        
+#        ## Set the ball to this physical radius
+#        self.setBallRadius(newRadiusM)
+#        self.ballObj.physNode.geomMass.setSphereTotal(1, newRadiusM)
+#        self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
+        
+
+##    def scaleRadiusByGain(self):
+##        ### LINEAR METHOD
+##
+##        # self.initialBallRadiusM
+##        ## Calculate current ball radius in degrees
+##        
+##        updatedBallPos_XYZ = self.ballObj.physNode.body.getPosition()
+##        updatedBallVel_XYZ = self.ballObj.physNode.body.getLinearVel() 
+##        
+##        updatedBallSpeed = np.sqrt(np.sum([np.array(XYZ)**2.0 for XYZ in updatedBallVel_XYZ]))        
+##        timeToArrival = np.divide(np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(self.ballFinalPos_XYZ,updatedBallPos_XYZ)])**2)),updatedBallSpeed )
+##        
+###        if( timeToArrival <= self.noExpansionForLastXSeconds):
+###            self.ballResizeAct.remove()
+###            print('Halted resize')
+###            return
+##        
+##        updatedViewPos_xyz = self.config.mocap.get_rigidTracker('hmd').get_position()
+##        updatedDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(updatedViewPos_xyz,updatedBallPos_XYZ)])**2.0))
+##        
+##        # Get change in angular size for original sized ball
+##        unmodifiedAngularRadiusRadians = np.arctan(self.initialBallRadiusM / updatedDistFromViewToBall)
+##        unmodifiedDeltaRadians = unmodifiedAngularRadiusRadians - self.lastUnmodifiedBallAngularRadiusRadians
+##        
+##        ##################################################################################
+##        ##################################################################################
+##        # ball size on previous frame + modified change in angular size 
+##        modifiedAngularSizeRads = self.lastBallAngularRadiusRadians  + unmodifiedDeltaRadians * self.expansionGain
+##                
+##        ## What physical radius (m) would bring about this angular subtense?
+##        newRadiusM = updatedDistFromViewToBall * np.tan(modifiedAngularSizeRads)
+##        
+##        ## Set the ball to this physical radius
+##        self.setBallRadius(newRadiusM)
+##        self.ballObj.physNode.geomMass.setSphereTotal(1, newRadiusM)
+##        self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
+##
+##        #angSize = np.arctan(newRadiusM/updatedDistFromViewToBall)
+##        #print('   Angular size: %1.5f' % np.rad2deg( angSize ) )
+##        
+##        #print('   Previous size: %1.5f' % np.rad2deg( self.lastUnmodifiedBallAngularRadiusRadians) )
+##        #print('      Delta degs: %1.5f' % np.rad2deg(unmodifiedDeltaRadians))
+##        #print('  New metric rad: %1.5f\n' % newRadiusM)
+##        
+##        self.lastBallAngularRadiusRadians = modifiedAngularSizeRads
+##        self.lastUnmodifiedBallAngularRadiusRadians = unmodifiedAngularRadiusRadians
+        
+        
+    
     def scaleRadiusByGain(self):
+        
+        ###################################
+        ###  EXPONENTIAL METHOD
         
     
         ## Calculate current ball radius in degrees
         
-        updatedBallPos_XYZ = self.ballObj.node3D.getPosition()
-        updatedBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
-        updatedBallSpeed = np.sqrt(np.sum([np.array(XYZ)**2 for XYZ in updatedBallVel_XYZ]))
+        curBallPos_XYZ = self.ballObj.physNode.body.getPosition()
+        curBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
+        curBallVel = np.sqrt(np.sum([np.array(XYZ)**2 for XYZ in curBallVel_XYZ]))
         
-        timeToArrival = np.divide(np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(self.ballFinalPos_XYZ,updatedBallPos_XYZ)])**2)),updatedBallSpeed )
-#        
-#        if( timeToArrival <= self.noExpansionForLastXSeconds):
-#            self.ballResizeAct.remove()
-#            print('Halted resize')
-#            return
+        timeToArrival = np.divide(np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(self.ballFinalPos_XYZ,curBallPos_XYZ)])**2)),curBallVel )
+        
+        if( timeToArrival <= self.noExpansionForLastXSeconds):
+            self.ballResizeAct.remove()
+            print('Halted resize')
+            return
+        
+        viewPos_xyz = viz.MainView.getPosition()
+        curDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,curBallPos_XYZ)])**2))
+        curAngularRadiusRadians = np.arctan(self.ballObj.radius /curDistFromViewToBall)
 
-        # Time elapsed
-     #   frameRate = viz.getFrameElapsed() #math.floor(viz.getFrameElapsed()*10000) /10000
+        ## Calculate next ball radius in degrees
         
-        # Get angular size if allowed to expand normally
-        updatedViewPos_xyz = viz.MainView.getPosition()
-        updatedDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(updatedViewPos_xyz,updatedBallPos_XYZ)])**2))
-        updatedAngularRadiusRadians = np.arctan(self.ballObj.radius /updatedDistFromViewToBall)
+        frameRate = viz.getFrameElapsed() #math.floor(viz.getFrameElapsed()*10000) /10000
+        deltaPos_XYZ = [frameRate * val for val in curBallVel_XYZ]
         
-        ## Calculate angular 
-        changeInAngularRadiusDuringUpdate = updatedAngularRadiusRadians - self.lastBallAngularRadiusRadians
-        adjustedChangeInAngularSize = self.lastBallAngularRadiusRadians  + changeInAngularRadiusDuringUpdate * self.expansionGain
+        nextBallPos_XYZ = [curBallPos_XYZ[0]+deltaPos_XYZ[0],curBallPos_XYZ[1]+deltaPos_XYZ[1],curBallPos_XYZ[2]+deltaPos_XYZ[2]]
         
-        #For debugging: np.rad2deg(sizeAfterNormalExpansionRad) + np.rad2deg(changeInAngularSizeRadians) * self.expansionGain
+        nextDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,nextBallPos_XYZ)])**2))
+        nextAngularRadiusRadians = np.arctan(self.ballObj.radius /nextDistFromViewToBall)
+        
+        ## What would the angular radius be on the next frame, if scaled by the gain term?
+        desiredAngularRadiusRads =  curAngularRadiusRadians + (nextAngularRadiusRadians - curAngularRadiusRadians) * self.expansionGain
         
         ## What physical radius (m) would bring about this angular subtense?
-        #newRadiusM = self.lastDistfromViewToBall * np.tan(adjustedChangeInAngularSize)
-        newRadiusM = updatedDistFromViewToBall * np.tan(adjustedChangeInAngularSize)
-        
+        newRadiusM = nextDistFromViewToBall * np.tan(desiredAngularRadiusRads)
+
         ## Set the ball to this physical radius
         self.setBallRadius(newRadiusM)
         self.ballObj.physNode.geomMass.setSphereTotal(1, newRadiusM)
         self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
         
-#        print('\n Previous size: %1.5f' % self.lastBallAngularRadiusRadians)
-#        print(  '  Updated size: %1.5f' % adjustedChangeInAngularSize)
-#        print(  'New metric rad: %1.5f' % newRadiusM)
-#        print(  '  Updated dist: %1.5f' % updatedDistFromViewToBall)
-#        print(  ' Previous dist: %1.5f' % self.lastDistfromViewToBall )
+        #physRad = self.ballObj.physNode.geom.getRadius()
         
-        # Set "previous" values of ball size, etc
-        self.lastDistfromViewToBall = updatedDistFromViewToBall
-        self.lastBallPos_XYZ = self.ballObj.node3D.getPosition()
-        self.lastBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
-        self.lastBallAngularRadiusRadians = adjustedChangeInAngularSize
-
-        
-        
-#    def scaleRadiusByGain(self):
-#        
-#        ###################################
-#        ### GD: THIS FUNCTION NOT YET VALIDATED
-#        
-#    
-#        ## Calculate current ball radius in degrees
-#        
-#        curBallPos_XYZ = self.ballObj.node3D.getPosition()
-#        curBallVel_XYZ = self.ballObj.physNode.body.getLinearVel()
-#        curBallVel = np.sqrt(np.sum([np.array(XYZ)**2 for XYZ in curBallVel_XYZ]))
-#        
-#        timeToArrival = np.divide(np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(self.ballFinalPos_XYZ,curBallPos_XYZ)])**2)),curBallVel )
-#        
-#        if( timeToArrival <= self.noExpansionForLastXSeconds):
-#            self.ballResizeAct.remove()
-#            print('Halted resize')
-#            return
-#        
-#        viewPos_xyz = viz.MainView.getPosition()
-#        curDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,curBallPos_XYZ)])**2))
-#        curAngularRadiusRadians = np.arctan(self.ballObj.radius /curDistFromViewToBall)
-#
-#        ## Calculate next ball radius in degrees
-#        
-#        frameRate = 1/75. #viz.getFrameElapsed() #math.floor(viz.getFrameElapsed()*10000) /10000
-#        deltaPos_XYZ = [frameRate * val for val in curBallVel_XYZ]
-#        
-#        nextBallPos_XYZ = [curBallPos_XYZ[0]+deltaPos_XYZ[0],curBallPos_XYZ[1]+deltaPos_XYZ[1],curBallPos_XYZ[2]+deltaPos_XYZ[2]]
-#        
-#        nextDistFromViewToBall = np.sqrt(np.sum(np.array([vXYZ - bXYZ for vXYZ, bXYZ in zip(viewPos_xyz,nextBallPos_XYZ)])**2))
-#        nextAngularRadiusRadians = np.arctan(self.ballObj.radius /nextDistFromViewToBall)
-#        
-#        ## What would the angular radius be on the next frame, if scaled by the gain term?
-#        desiredAngularRadiusRads =  curAngularRadiusRadians + (nextAngularRadiusRadians - curAngularRadiusRadians) * self.expansionGain
-#        
-#        ## What physical radius (m) would bring about this angular subtense?
-#        newRadiusM = nextDistFromViewToBall * np.tan(desiredAngularRadiusRads)
-#
-#        ## Set the ball to this physical radius
-#        self.setBallRadius(newRadiusM)
-#        self.ballObj.physNode.geomMass.setSphereTotal(1, newRadiusM)
-#        self.ballObj.physNode.body.setMass(self.ballObj.physNode.geomMass)
-#        
-#        #physRad = self.ballObj.physNode.geom.getRadius()
-#        
     def scaleRadiusByDistance(self):
         
         currentDistance = np.sqrt(np.sum(np.power(np.subtract(self.ballObj.node3D.getPosition(),self.ballFinalPos_XYZ),2)))
@@ -2210,14 +2237,50 @@ dispDict = vizconnect.getRawDisplayDict()
 clientWindowID = dispDict['exp_display']
 textObj = experimentObject.timeStampOnScreen()
 
-# Shouldn't some of this be self-test code?
-
-
 hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
 oT = vizconnect.getRawTracker('rift_tracker')
 rd = vizconnect.getDisplay('rift_display')
 vp = rd.getViewpoint()
 
-        
-vizact.onkeydown('b', viz.window.startRecording, 'test.avi' ) 
-vizact.onkeydown('n', viz.window.stopRecording )
+# Shouldn't some of this be self-test code?
+
+global rot 
+rot = False
+
+#def rotateHead():
+#
+#    global rot 
+#    
+#    if rot:
+#        rot.remove()
+#
+#    hmd = experimentObject.config.mocap.get_rigidTracker('hmd')
+#    oT = vizconnect.getRawTracker('rift_tracker')
+#    rd = vizconnect.getDisplay('rift_display')
+#    vp = rd.getViewpoint()
+#
+#    obj = viz.addGroup()
+#    obj.setMatrix(viz.Matrix(hmd.get_transform()))
+#
+#    opticalYaw = obj.getEuler()[0]
+#    imuYaw = vizconnect.getTracker('rift_tracker').getNode3d().getEuler()[0]
+#
+#    rot = vizconnect.getTracker('rift_tracker').getLink().preEuler([imuYaw - opticalYaw,0,0])
+
+#vizact.onupdate(viz.PRIORITY_LAST_UPDATE,rotateHead)
+
+#mat = np.reshape(viz.Matrix(hmd.get_transform()),[4,4])
+#headDir_XYZW = np.dot(np.array([0,0,1,0]),mat)
+#headDir_XYZ = headDir_XYZW[0:3]
+#headDir_XYZ[1] = 0
+#headDir_XYZ
+
+
+#vizact.onkeydown('b', viz.window.startRecording, 'test.avi' ) 
+#vizact.onkeydown('n', viz.window.stopRecording )
+
+
+
+
+# rot = vizconnect.getTracker('rift_tracker').getLink().postEuler([+10,0,0])
+# rot.remove()

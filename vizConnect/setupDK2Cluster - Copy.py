@@ -115,7 +115,7 @@ def initDisplays(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 			timeWarpEnabled = True
 			
 			#VC: create the raw object
-			import oculus
+			import oculus_08 as oculus
 			try:
 				display = oculus.Rift(window=_window, autoDetectMonitor=autoDetectMonitor)
 				_window.displayNode = display
@@ -170,7 +170,7 @@ def initTrackers(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 			index = 0
 			
 			#VC: create the raw object
-			import oculus
+			import oculus_08 as oculus
 			sensorList = oculus.getSensors()
 			if index < len(sensorList):
 				orientationTracker = sensorList[index]

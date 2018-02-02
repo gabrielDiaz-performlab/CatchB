@@ -322,22 +322,25 @@ class calibrationTools():
 			
 	def updateCalibrationPoint(self):
 		
-		if( self.calibrationInProgress == True ):
-			self.calibrationCounter +=1
-			if( self.calibrationCounter < self.numberOfCalibrationPoints ):
-				newPos = [self.calibrationPositions[self.calibrationCounter,0], self.calibrationPositions[self.calibrationCounter,1], self.calibrationPositions[self.calibrationCounter,2]]
-				self.calibrationSphere.setPosition(newPos[0], newPos[1], newPos[2],viz.ABS_PARENT)
-				self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], 0)
-				print 'Calibratring for Point[%d]' %(self.calibrationCounter), 'at [%f %f %f]' % (newPos[0], newPos[1], newPos[2])
-				print 'Counter', self.calibrationBlockCounter + self.calibrationCounter
-			else:
-				self.calibrationInProgress = False
-				self.calibrationCounter = 0
-				self.calibrationSphere.remove()
-				self.localAction.remove()
-				self.text_object.remove()
-				self.toggleRoomWallsVisibility()
-				print 'Calibration Done Successfully'
+		#if( self.calibrationInProgress == True ):
+			
+		self.calibrationCounter +=1
+		newPos = [self.calibrationPositions[self.calibrationCounter,0], self.calibrationPositions[self.calibrationCounter,1], self.calibrationPositions[self.calibrationCounter,2]]
+		self.calibrationSphere.setPosition(newPos[0], newPos[1], newPos[2],viz.ABS_PARENT)
+		self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], 0)
+		print 'Calibratring for Point[%d]' %(self.calibrationCounter), 'at [%f %f %f]' % (newPos[0], newPos[1], newPos[2])
+		print 'Counter', self.calibrationBlockCounter + self.calibrationCounter
+		return True
+			
+	def endCalibration(self):
+		
+		self.calibrationInProgress = False
+		self.calibrationCounter = 0
+		self.calibrationSphere.remove()
+		self.localAction.remove()
+		self.text_object.remove()
+		self.toggleRoomWallsVisibility()
+		#print 'Calibration Done Successfully'
 		
 	def setSphereRadius(self, eyePos, targetPos, radius):
 

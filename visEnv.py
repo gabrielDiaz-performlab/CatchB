@@ -85,7 +85,7 @@ class room():
 
             ####################################################################
 
-        texScale = 1
+        texScale = 0.5
         wallTexPath = self.texPath + 'Texture_Seamless.jpg'
         floorTexPath = self.texPath + 'tile_wood.jpg'
 

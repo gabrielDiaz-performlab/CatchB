@@ -200,7 +200,10 @@ class VRLabConfig:
 		##  Eyetracking
 		
 		if self.sysCfg['use_eyetracking']:
+
 			self.use_eyeTracking = True
+			self.eyeTrackingCal = False
+			
 			if self.sysCfg['hmd']['type'] == 'nvis':
 			
 				import EyeTrackerCalibrationNVIS_MT
@@ -214,7 +217,7 @@ class VRLabConfig:
 				sys.exit(1)
 		else:
 			self.use_eyeTracking = False
-			self.eyeTrackingCal = None
+			self.eyeTrackingCal = False
 			
 		################################################################
 		##  Mocap

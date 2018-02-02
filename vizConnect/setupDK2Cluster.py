@@ -189,9 +189,6 @@ def initTrackers(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 			_link = vizconnect.getTracker(_name).getLink()
 			#VC: clear link offsets
 			_link.reset(viz.RESET_OPERATORS)
-			
-			#VC: reset orientation
-			_link.preEuler([0, 0, 0], target=viz.LINK_ORI_OP, priority=-20)
 
 	#VC: return values can be modified here
 	return None
