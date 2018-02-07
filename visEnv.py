@@ -27,6 +27,7 @@ class room():
         ##################################
         ## Physical environment
         self.physEnv = physEnv.physEnv()
+        
         ##################################
 
         if config==None:
@@ -62,9 +63,7 @@ class room():
             self.wallPos_NegX = -self.roomWidth/2 + self.translateOnX
 
             self.drawStandingBox = config.expCfg['experiment']['drawStandingBox']
-
-            self.isLeftHanded = float(config.expCfg['experiment']['isLeftHanded'])
-
+            
             if self.drawStandingBox:
                 self.standingBoxOffset_X = config.expCfg['room']['standingBoxOffset_X']
                 self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
@@ -86,7 +85,7 @@ class room():
 
             ####################################################################
 
-        texScale = 1
+        texScale = 0.5
         wallTexPath = self.texPath + 'Texture_Seamless.jpg'
         floorTexPath = self.texPath + 'tile_wood.jpg'
 
@@ -153,8 +152,6 @@ class room():
             self.standingBox.emissive([0,1,0])
             self.standingBox.alpha(0.5)
 
-            if( self.isLeftHanded ): self.standingBoxOffset_X *= -1
-
             self.standingBox.setPosition(float(-self.standingBoxOffset_X), self.standingBoxSize_WHL[1]/2, .01)
 
             self.standingBox.color(1, 0, 0, node='back')
@@ -164,10 +161,6 @@ class room():
             self.standingBox.setParent(self.objects)
             #self.standingBox.disable(viz.CULLING)
             self.standingBox.disable(viz.CULL_FACE)
-
-
-
-
 
     def setLighting(self):
 
@@ -213,7 +206,7 @@ class wall():
 
         self.dimensions = dimensions
         self.axisAngle = axisAngle
-        self.position = position
+        self.initialPosition = position
         self.texPath = texPath
         self.texScale = texScale
 
@@ -255,7 +248,7 @@ class visObj(viz.EventClass):
         ## Set variables
         self.elasticity = 1
         self.color_3f = color
-        self.position = position
+        self.initialPosition = position
         self.shape = shape
         self.alpha = alpha
         self.isDynamic = 0
@@ -435,7 +428,7 @@ class visObj(viz.EventClass):
     def enablePhysNode(self):
 
         ## Create physical object
-        self.physNode = self.parentRoom.physEnv.makePhysNode(self.shape,self.position,self.size)
+        self.physNode = self.parentRoom.physEnv.makePhysNode(self.shape,self.initialPosition,self.size)
         self.setVelocity([0,0,0])
         self.physNode.disableMovement()
 
@@ -445,13 +438,16 @@ class visObj(viz.EventClass):
         self.updateAction = viz.link( self.physNode.node3D, self.node3D )
 
         #if( self.physNode ):
-            #return vizact.onupdate(viz.PRIORITY_LINKS,self.physNode.linkPose,self.node3D )
+        #    return vizact.onupdate(viz.PRIORITY_LINKS,self.physNode.linkPose,self.node3D )
+      
+        #self.updateAction = vizact.onupdate(viz.PRIORITY_PHYSICS+1,self.physNode.linkPose,self.node3D)
 
     def setBounciness(self,bounciness):
 
         self.physNode.setBounciness(bounciness)
 
     def linkPhysToVis(self):
+        
         self.physNode.isLinked = 1
         self.updateAction = viz.link( self.node3D, self.physNode.node3D)
         self.updateAction.setDstFlag(viz.ABS_GLOBAL)

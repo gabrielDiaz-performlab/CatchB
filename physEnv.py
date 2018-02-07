@@ -24,8 +24,8 @@ class physEnv(viz.EventClass):
         #self.world.setCFM(0.00001)
         #self.world.setERP(0.05)
 
-        self.world.setCFM(0.00001)
-        self.world.setERP(0.1)
+        self.world.setCFM(0.0001)
+        self.world.setERP(0.2)
 
         #self.world.setContactSurfaceLayer(0.001)
 
@@ -56,7 +56,7 @@ class physEnv(viz.EventClass):
         ## Contact/collision functions
 
         vizact.onupdate( viz.PRIORITY_PHYSICS, self.stepPhysics)
-        #vizact.onupdate( viz.PRIOR, self.emptyContactGroups)
+        
 
     def makePhysNode(self,type,pos=[0,0,0],size=[]):
 
@@ -73,7 +73,7 @@ class physEnv(viz.EventClass):
 
         self.emptyCollisionBuffer()
 
-        numCycles = 10
+        numCycles = 16
 
         timeStep = viz.getFrameElapsed() / numCycles #self.frameRate / numCycles
 
@@ -177,17 +177,12 @@ class physEnv(viz.EventClass):
                 # <physNode> stickTo_gIdx is a list of pointers to geoms
                 # that the node should stick to via fixed joint
 
-#				## exit without doing anything if the two bodies are connected by a joint
-#				# because this includes type contact joint, thsi prevents multiple contacts/collisions
-#				if( body1 and body2 and ode.areConnected(body1, body2)):
-#					print 'already connected'
-#					return;
-
-
                 for gIdx in range(len(physNode1.stickTo_gIdx)):
+                    
+                    #print('>>>>>> Checking stickiness <<<<<<<')
+                    
                     # Check if the two objects should stick.
                     # If yes, the "break" will prevent entering the else statement below
-
                     if( physNode1.stickTo_gIdx[gIdx] == geom2 ):
 
                         physNode1.disableCollisions()
@@ -195,9 +190,27 @@ class physEnv(viz.EventClass):
 
                         # Ball always seems to be be the first geom
                         physNode1.collisionPosLocal_XYZ = body2.getPosRelPoint(body1.getPosition())
-                        break
                         print('>>>>>> Collision Detected {', body1, body2, '} <<<<<<<')
-                else:
+                        return
+                        
+                for gIdx in range(len(physNode2.stickTo_gIdx)):
+                    
+                    #print('>>>>>> Checking stickiness <<<<<<<')
+                    
+                    # Check if the two objects should stick.
+                    # If yes, the "break" will prevent entering the else statement below
+                    if( physNode2.stickTo_gIdx[gIdx] == geom1 ):
+
+                        physNode2.disableCollisions()
+                        physNode2.disableMovement()
+
+                        # Ball always seems to be be the first geom
+                        physNode2.collisionPosLocal_XYZ = body1.getPosRelPoint(body2.getPosition())
+                        print('>>>>>> Collision Detected {', body2, body1, '} <<<<<<<')
+                        return
+                        
+                        
+                    #print('>>>>>> Collision, but no stickiness <<<<<<<')
                     # If there is no stickiness, calc parameters of the bounce
 
                     # This determines the dynamics of this particular collision / contact
@@ -260,7 +273,7 @@ class physNode():
 
         elif shape == 'sphere':
 
-            #print 'Making sphere physNode'
+            print ('Making sphere physNode')
             # print 'phsEnv.createGeom(): type=sphere expects pos=XYZ, and size=RADIUS'
 
             ################################################################################################
@@ -273,7 +286,7 @@ class physNode():
             # set sphere properties automatically assuming a mass of 1 and self.radius
             mass = 1.0
             self.geomMass.setSphereTotal(mass, size)
-
+    
             self.body = ode.Body(world)
             self.parentWorld = world
             self.body.setMass(self.geomMass) # geomMass or 1 ?
@@ -407,6 +420,7 @@ class physNode():
             pass
 
         #print '**************UPDATING THE NODE *****************'
+        
         self.updateNodeAct = vizact.onupdate(viz.PRIORITY_PHYSICS,self.updateNode3D)
 
     def updateNode3D(self):
@@ -415,34 +429,11 @@ class physNode():
             #print 'Not placeable'
             return
 
-#		if( self.isLinked is False ):
-#			#print 'Not linked'
-#			return
-
-        #print 'Physnode.updateNode3D ' + str(self.geom.getPosition())
-
-        #self.node3D.setQuat( self.getQuaternion() )
-        #self.node3D.setPosition( self.geom.getPosition() )
-
         if( self.isLinked == True ):
             # Linked to a node!
             # Update body/geom using node3D
             self.setQuaternion(self.node3D.getQuat())
             self.setPosition(self.node3D.getPosition())
-
-            # Linked to a node!
-            # Update body/geom using node3D
-            #self.setQuaternion(self.node3D.getQuat())
-            #self.setPosition(self.node3D.getPosition())
-#			print 'linked!'
-#			vizFormQuat = self.node3D.getQuat()
-#			odeFormQuat = [ vizFormQuat[3], vizFormQuat[0], vizFormQuat[1], vizFormQuat[2]]
-#
-#			self.body.setQuaternion(odeFormQuat)
-#			self.geom.setQuaternion(odeFormQuat)
-#
-#			self.body.setPosition(self.node3D.getPosition())
-#			self.geom.setPosition(self.node3D.getPosition())
 
         else:
 
@@ -550,7 +541,6 @@ class physNode():
 
         # Add to the list
         self.stickTo_gIdx.append(geom)
-        pass
 
     def queryStickyState(self, physNodeIn):
 

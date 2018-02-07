@@ -72,7 +72,7 @@ class gazeVector():
 class gazeSphere():
 	def __init__(self,eyeTracker,eye,parentNode,renderToWindows = None,sphereColor=viz.RED):
 		
-		self.sizeInDegrees = 0.5
+		self.sizeInDegrees = 1.0
 		self.sphereDistance = 1
 		self.renderToWindows = renderToWindows
 		from math import tan, radians
@@ -98,19 +98,11 @@ class gazeSphere():
 		def moveGazeSphere():
 			
 			gazeSamp = []
-			
-			#if( self.eye == viz.BOTH_EYE):
-			gazeSamp = self.eyeTracker.getLastSample()
-			
-			if( gazeSamp is None ):
-				return
-				
-			#timestamp = gazeSamp.timestamp
-			
+
 			if( self.eye == viz.LEFT_EYE):
-				gazeSamp = gazeSamp.leftEye;
+				gazeSamp = self.eyeTracker.getLeftGazeDirection();
 			elif( self.eye == viz.RIGHT_EYE ):
-				gazeSamp = gazeSamp.rightEye;
+				gazeSamp = self.eyeTracker.getRightGazeDirection();
 			
 			
 			#3D gaze is provided as a normalized gaze direction vector (gazeDirection) and a gaze base point (gazeBasePoint).
@@ -176,7 +168,9 @@ class calibrationTools():
 				V2 = self.calibrationSphere.getPosition()
 		else:
 			V2 = [b - a for a, b in zip(node1.getPosition(viz.ABS_GLOBAL), node2.getPosition(viz.ABS_GLOBAL))]
+		
 		self.errorAngle = np.multiply(self.angle(V1,V2), 180/np.pi)
+		
 		#print 'Angular Error = %.2f %c'%(errorAngle, u"\u00b0")
 		#print 'Angular Error = %.2f %c'%(self.errorAngle, u"\u00b0")
 		textObject.message('AE = %.1f %c'%(self.errorAngle, u"\u00b0"))
@@ -188,9 +182,9 @@ class calibrationTools():
 
 
 	def create3DCalibrationPositions(self, xRange, yRange, zRange, numberOfGridPoints):
-		x = np.linspace(xRange[0], xRange[1], numberOfGridPoints)
-		y = np.linspace(yRange[0], yRange[1], numberOfGridPoints)
-		z = np.linspace(zRange[0], zRange[1], numberOfGridPoints)
+		x = np.linspace(xRange[0], xRange[1], int(numberOfGridPoints))
+		y = np.linspace(yRange[0], yRange[1], int(numberOfGridPoints))
+		z = np.linspace(zRange[0], zRange[1], int(numberOfGridPoints))
 
 		points = np.empty(shape = (1,3), dtype = float)
 		#points.resize(1,3)
@@ -304,6 +298,7 @@ class calibrationTools():
 			self.text_object = viz.addText('')
 			self.text_object.setParent(self.calibrationSphere)
 			self.text_object.renderOnlyToWindows([self.renderToWindows])
+			
 			self.localAction = vizact.onupdate(viz.PRIORITY_INPUT+1,self.calculateAngularError, self.cyclopEyeSphere.node3D, 0.0, self.text_object)#self.currentTrial.ballObj.node3D
 
 			print 'Static Calibration Started'
@@ -319,22 +314,25 @@ class calibrationTools():
 			
 	def updateCalibrationPoint(self):
 		
-		if( self.calibrationInProgress == True ):
-			self.calibrationCounter +=1
-			if( self.calibrationCounter < self.numberOfCalibrationPoints ):
-				newPos = [self.calibrationPositions[self.calibrationCounter,0], self.calibrationPositions[self.calibrationCounter,1], self.calibrationPositions[self.calibrationCounter,2]]
-				self.calibrationSphere.setPosition(newPos[0], newPos[1], newPos[2],viz.ABS_PARENT)
-				self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], 0)
-				print 'Calibratring for Point[%d]' %(self.calibrationCounter), 'at [%f %f %f]' % (newPos[0], newPos[1], newPos[2])
-				print 'Counter', self.calibrationBlockCounter + self.calibrationCounter
-			else:
-				self.calibrationInProgress = False
-				self.calibrationCounter = 0
-				self.calibrationSphere.remove()
-				self.localAction.remove()
-				self.text_object.remove()
-				self.toggleRoomWallsVisibility()
-				print 'Calibration Done Successfully'
+		#if( self.calibrationInProgress == True ):
+			
+		self.calibrationCounter +=1
+		newPos = [self.calibrationPositions[self.calibrationCounter,0], self.calibrationPositions[self.calibrationCounter,1], self.calibrationPositions[self.calibrationCounter,2]]
+		self.calibrationSphere.setPosition(newPos[0], newPos[1], newPos[2],viz.ABS_PARENT)
+		self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], 0)
+		print 'Calibratring for Point[%d]' %(self.calibrationCounter), 'at [%f %f %f]' % (newPos[0], newPos[1], newPos[2])
+		print 'Counter', self.calibrationBlockCounter + self.calibrationCounter
+		return True
+			
+	def endCalibration(self):
+		
+		self.calibrationInProgress = False
+		self.calibrationCounter = 0
+		self.calibrationSphere.remove()
+		self.localAction.remove()
+		self.text_object.remove()
+		self.toggleRoomWallsVisibility()
+		#print 'Calibration Done Successfully'
 		
 	def setSphereRadius(self, eyePos, targetPos, radius):
 
