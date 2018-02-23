@@ -100,7 +100,7 @@ def initDisplays(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 			vizconnect.getDisplay(_name).setParent(vizconnect.getTracker('head_tracker'))
 
 	#VC: initialize a new display
-	_name = 'vive_display'
+	_name = 'rift_display'
 	if vizconnect.isPendingInit('display', _name, initFlag, initList):
 		#VC: init the raw object
 		if initFlag&vizconnect.INIT_RAW:
@@ -134,41 +134,41 @@ def initDisplays(initFlag=vizconnect.INIT_INDEPENDENT, initList=None):
 	
 		#VC: set the parent of the node
 		if initFlag&vizconnect.INIT_PARENTS:
-			vizconnect.getDisplay(_name).setParent(vizconnect.getRoot())
+			vizconnect.getDisplay(_name).setParent(vizconnect.getTracker('head_tracker'))
 
-#	#VC: initialize a new display
-#	_name = 'exp_display'
-#	if vizconnect.isPendingInit('display', _name, initFlag, initList):
-#		#VC: init the raw object
-#		if initFlag&vizconnect.INIT_RAW:
-#			#VC: set the window for the display
-#			_window = viz.addWindow()
-#			_window.setView(viz.addView())
-#			
-#			#VC: set placement with alignment: free
-#			_window.setPosition(0, 1, mode=viz.WINDOW_NORMALIZED)
-#			_window.setSize(0.2, 0.2, mode=viz.WINDOW_NORMALIZED)
-#			
-#			#VC: set some parameters
-#			VFOV = 60
-#			aspect = viz.AUTO_COMPUTE
-#			stereo = viz.OFF
-#			
-#			#VC: create the raw object
-#			_window.fov(VFOV,aspect)
-#			_window.stereo(stereo)
-#			rawDisplay[_name] = _window
-#	
-#		#VC: init the wrapper (DO NOT EDIT)
-#		if initFlag&vizconnect.INIT_WRAPPERS:
-#			vizconnect.addDisplay(rawDisplay[_name], _name, make='Generic', model='Custom Window')
-#	
-#		#VC: set the parent of the node
-#		if initFlag&vizconnect.INIT_PARENTS:
-#			vizconnect.getDisplay(_name).setParent(vizconnect.getTracker('head_tracker'))
+	#VC: initialize a new display
+	_name = 'exp_display'
+	if vizconnect.isPendingInit('display', _name, initFlag, initList):
+		#VC: init the raw object
+		if initFlag&vizconnect.INIT_RAW:
+			#VC: set the window for the display
+			_window = viz.addWindow()
+			_window.setView(viz.addView())
+			
+			#VC: set placement with alignment: free
+			_window.setPosition(0, 1, mode=viz.WINDOW_NORMALIZED)
+			_window.setSize(0.2, 0.2, mode=viz.WINDOW_NORMALIZED)
+			
+			#VC: set some parameters
+			VFOV = 60
+			aspect = viz.AUTO_COMPUTE
+			stereo = viz.OFF
+			
+			#VC: create the raw object
+			_window.fov(VFOV,aspect)
+			_window.stereo(stereo)
+			rawDisplay[_name] = _window
+	
+		#VC: init the wrapper (DO NOT EDIT)
+		if initFlag&vizconnect.INIT_WRAPPERS:
+			vizconnect.addDisplay(rawDisplay[_name], _name, make='Generic', model='Custom Window')
+	
+		#VC: set the parent of the node
+		if initFlag&vizconnect.INIT_PARENTS:
+			vizconnect.getDisplay(_name).setParent(vizconnect.getTracker('head_tracker'))
 
 	#VC: set the name of the default
-	vizconnect.setDefault('display', 'vive_hmd')
+	vizconnect.setDefault('display', 'rift_display')
 
 	#VC: return values can be modified here
 	return None

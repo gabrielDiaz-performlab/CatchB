@@ -6,6 +6,8 @@ import vizconnect
 import numpy as np
 import math
 
+nan = float('NaN')
+
 class gazeVector():
 	def __init__(self, eyeTracker, eye, parentNode, renderToWindows = None,gazeVectorColor=viz.RED):
 		
@@ -15,7 +17,7 @@ class gazeVector():
 		
 		#Creating a line
 		viz.startLayer(viz.LINES)
-		viz.lineWidth(4)#Set the size of the lines. 
+		viz.lineWidth(7)#Set the size of the lines. 
 		viz.vertex(0,0,0)
 		viz.vertex(0,0,3)
 		viz.vertexColor(gazeVectorColor)
@@ -23,50 +25,25 @@ class gazeVector():
 		self.gazeLine.visible(True)
 		#self.gazeLine.setScale(1,1,1)
 
-		if( self.renderToWindows ):
-			self.gazeLine.renderOnlyToWindows(self.renderToWindows)
+#		if( self.renderToWindows ):
+#			self.gazeLine.renderOnlyToWindows(self.renderToWindows)
+		
 		self.gazeLine.setParent(parentNode)
 		
-
 	def toggleUpdate(self):
 		
 		def moveGazeVector():
 			
-			gazeSamp = []
-			
-			gazeSamp = self.eyeTracker.getLastSample()
-			
-			if( gazeSamp is None ):
-				return
-				
-			if( self.eye == viz.LEFT_EYE):
-				gazeSamp = gazeSamp.leftEye;
-			elif( self.eye == viz.RIGHT_EYE ):
-				gazeSamp = gazeSamp.rightEye;
-			
-			
-			#3D gaze is provided as a normalized gaze direction vector (gazeDirection) and a gaze base point (gazeBasePoint).
-			#Gaze base point is given in mm with respect to the origin of the eyetracker coordinate system.
-			# Note: you must flip X
-			viewPos_XYZ = np.array(viz.MainView.getPosition(), dtype = float)
-			gazeDir_XYZ = np.array([ -gazeSamp.gazeDirection.x, gazeSamp.gazeDirection.y, gazeSamp.gazeDirection.z], dtype = float)
-			pupilPos_XYZ = [-gazeSamp.pupilPosition.x, gazeSamp.pupilPosition.y, gazeSamp.pupilPosition.z]
-			pupilPos_XYZ = np.divide(pupilPos_XYZ, 1000)
+			gazeDirXYZ = False
 
-			# Create a node3D
-			#gazePoint_XYZ = [viewPos_XYZ[0] + gazeDir_XYZ[0], viewPos_XYZ[1] + gazeDir_XYZ[1], viewPos_XYZ[2] + gazeDir_XYZ[2]]
-			gazePoint_XYZ = [gazeDir_XYZ[0], gazeDir_XYZ[1], gazeDir_XYZ[2]]
-			#gazePoint_XYZ = np.multiply(1.0, gazePoint_XYZ)
+			if( self.eye == viz.LEFT_EYE):
+				gazeDirXYZ = self.eyeTracker.getLeftGazeDirection();
+			elif( self.eye == viz.RIGHT_EYE ):
+				gazeDirXYZ = self.eyeTracker.getRightGazeDirection();
 			
-			#self.gazeLine.setVertex(0, pupilPos_XYZ[0], pupilPos_XYZ[1], pupilPos_XYZ[2], viz.ABS_PARENT)
 			self.gazeLine.setVertex(0, 0, 0, viz.ABS_PARENT)
-			self.gazeLine.setVertex(1, gazePoint_XYZ[0], gazePoint_XYZ[1], gazePoint_XYZ[2], viz.ABS_PARENT)
-			
-			#print 'GazePoint=[', gazePoint_XYZ, '],[', pupilPos_XYZ,']' 
-			
-			
-#		self.node3D.enable(viz.RENDERING)
-		
+			self.gazeLine.setVertex(1, gazeDirXYZ[0], gazeDirXYZ[1], gazeDirXYZ[2], viz.ABS_PARENT)
+
 		self.updateAct = vizact.onupdate(viz.PRIORITY_INPUT+1,moveGazeVector)
 
 class gazeSphere():
@@ -97,22 +74,26 @@ class gazeSphere():
 	
 		def moveGazeSphere():
 			
-			gazeSamp = []
+			gazeDirXYZ = False
 
 			if( self.eye == viz.LEFT_EYE):
-				gazeSamp = self.eyeTracker.getLeftGazeDirection();
+				gazeDirXYZ = self.eyeTracker.getLeftGazeDirection();
 			elif( self.eye == viz.RIGHT_EYE ):
-				gazeSamp = self.eyeTracker.getRightGazeDirection();
+				gazeDirXYZ = self.eyeTracker.getRightGazeDirection();
 			
+			if gazeDirXYZ == [nan,nan,nan]:
+				self.node3D.alpha = 0
+			else:
+				self.node3D.alpha = 1
 			
-			#3D gaze is provided as a normalized gaze direction vector (gazeDirection) and a gaze base point (gazeBasePoint).
-			#Gaze base point is given in mm with respect to the origin of the eyetracker coordinate system.
-			# Note: you must flip X
-			gazeDirXYZ = [ -gazeSamp.gazeDirection.x, gazeSamp.gazeDirection.y, gazeSamp.gazeDirection.z]
-			gazePointXYZ = self.sphereDistance * gazeDirXYZ
-			
-			#with viz.cluster.MaskedContext(viz.CLIENT1):# show
-			self.node3D.setPosition( gazePointXYZ,viz.ABS_PARENT)
+				#3D gaze is provided as a normalized gaze direction vector (gazeDirection) and a gaze base point (gazeBasePoint).
+				#Gaze base point is given in mm with respect to the origin of the eyetracker coordinate system.
+				# Note: you must flip X
+				#gazeDirXYZ = [ -gazeSamp.gazeDirection.x, gazeSamp.gazeDirection.y, gazeSamp.gazeDirection.z]
+				gazePointXYZ = self.sphereDistance * gazeDirXYZ
+				
+				#with viz.cluster.MaskedContext(viz.CLIENT1):# show
+				self.node3D.setPosition( gazePointXYZ,viz.ABS_PARENT)
 			
 			
 		self.node3D.enable(viz.RENDERING)
@@ -346,3 +327,4 @@ class calibrationTools():
 		ratio = self.calibrationSphereRadius/self.initialValue
 		self.calibrationSphere.setScale([ratio, ratio, ratio], viz.ABS_PARENT)
 		print 'SetSphere to :',self.calibrationSphereRadius
+

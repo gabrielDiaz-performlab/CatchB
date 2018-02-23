@@ -16,7 +16,6 @@ from ctypes import *  # eyetrackka
 import numpy as np
 import pandas as pd
 
-import oculus_08 as oculus
 import ode
 import physEnv
 import smi
@@ -106,10 +105,10 @@ class Configuration():
         '''
         This is where one can run any system-specific code that vizconnect can't handle
         '''
+        
         dispDict = vizconnect.getRawDisplayDict()
-
         self.clientWindow = dispDict['exp_display']
-        self.riftWindow = dispDict['rift_display']
+        
 
         if self.sysCfg['use_wiimote']:
             # Create wiimote holder
@@ -117,10 +116,12 @@ class Configuration():
             self.__connectWiiMote()
 
         if self.sysCfg['use_hmd'] and self.sysCfg['hmd']['type'] == 'DK2':
+            self.hmdWindow = dispDict['rift_display']
             self.__setupOculusMon()
 
         if self.sysCfg['use_hmd'] and self.sysCfg['hmd']['type'] == 'VIVE':
             import steamvr
+            self.hmdWindow = dispDict['rift_display']
             self.__setupViveMon()
 
         ###  This is one way to implement controller support for the vive
@@ -186,12 +187,13 @@ class Configuration():
         if self.sysCfg['use_eyetracking'] and self.sysCfg['eyetracker']['type'] == 'SMIVIVE':
         
             self.use_eyeTracking = True
-            self.__connectSMIVive()        
+            self.__connectSMIVive()   
 
         elif self.sysCfg['use_eyetracking'] and self.sysCfg['eyetracker']['type'] == 'PUPIL':
             self.use_eyeTracking = True
             self.__connectPUPILVR()
         else:
+            print('Invalid eyetracker type specified in sysconfig')
             self.use_eyeTracking = False
 
         self.eyeTrackingCal = False
@@ -332,7 +334,7 @@ class Configuration():
         THe client enables a mirrored desktop view of what's displays inside the vive
         Note that this does some juggling of monitor numbers for you.
         """
-
+        
         displayList = self.sysCfg['displays']
 
         if len(displayList) < 2:
@@ -433,8 +435,10 @@ class Configuration():
             
         smi = viz.add('smi_vive.dle')
         self.eyeTracker = smi.addEyeTracker()
-        if not eyeTracker:
+        if not self.eyeTracker:
             sys.exit('Eye tracker not detected')
+        else:
+            print('****Using SMI Viveintegration****')
 
     def __connectSMIDK2(self):
 
@@ -534,13 +538,18 @@ class Experiment(viz.EventClass):
 
         if self.config.sysCfg['use_phasespace']:
             self.linkObjectsUsingMocap()
+        
+        elif self.config.sysCfg['use_hmd'] and self.config.sysCfg['hmd']['type'] == 'VIVE':
+            self.setupPaddleVive()
 
         self.config.expCfg['maxReach'] = False
         self.isLeftHanded = self.config.expCfg['experiment']['isLeftHanded']
 
         if self.config.use_eyeTracking:
-            self.showEyeTrack()
-
+            pass
+            #self.showEyeTrack()
+            #self.config.eyeTracker.showPositionalGuidance()
+            
         if self.config.sysCfg['use_wiimote']:
             self.registerWiimoteActions()
 
@@ -867,9 +876,15 @@ class Experiment(viz.EventClass):
         Some are provided here. You'll likely want to add more.
         """
         if self.config.use_phasespace:
+            
             mocapSys = self.config.mocap
-            hmdRigid = mocapSys.returnPointerToRigid('hmd')
             paddleRigid = mocapSys.returnPointerToRigid('paddle')
+
+            if self.config.sysCfg['hmd']['type'] == 'VIVE':
+                hmdTracker = vizconnect.getTracker('head_tracker')
+            else:
+                hmdRigid = mocapSys.returnPointerToRigid('hmd')
+            
         else:
             mocapSys = []
             hmdRigid = []
@@ -1394,7 +1409,7 @@ class Experiment(viz.EventClass):
             print('************************************ DVR IS PAUSED ************************************')
 
     def linkObjectsUsingMocap(self):
-
+        return
         mocap = self.config.mocap
         mocap.start_thread()
 
@@ -1405,10 +1420,7 @@ class Experiment(viz.EventClass):
         if 'rift_tracker' in trackerDict.keys():
             mocap = self.config.mocap
             self.viewAct = vizact.onupdate(viz.PRIORITY_LINKS, self.updateHeadTracker)
-        else:
-            print('*** Experiment:linkObjectsUsingMocap: Rift not enabled as a tracker')
-            return
-
+    
     def updateHeadTracker(self):
         """
         A specailized per-frame function
@@ -1427,55 +1439,6 @@ class Experiment(viz.EventClass):
         newPos = headRigidTracker.get_position()
         self.headTracker.setPosition( newPos )
 
-    #	def linkObjectsUsingMocap(self):
-    #
-    #		mocap = self.config.mocap
-    #		mocap.start_thread()
-    #
-    #		self.setupPaddle()
-    #
-    #		trackerDict = vizconnect.getTrackerDict()
-    #		self.headTracker = vizconnect.getRawTracker('head_tracker')
-    #
-    #		if( 'rift_tracker' in trackerDict.keys() ):
-    #
-    #			mocap = self.config.mocap
-    #			hmd = oculus.Rift()
-    #
-    #			self.orientationNode = viz.addGroup()
-    #			self.viewLink = viz.link(self.orientationNode, self.headTracker)
-    #			self.viewLink.preMultLinkable(hmd.getSensor(),mask=viz.LINK_ORI)
-    #
-    #			self.orientationNode.setPosition([0,2,0])
-    #
-    #			#self.viewAct = vizact.onupdate(viz.PRIORITY_LINKS, self.updateHeadTracker)
-    #
-    #			# Setup navigation node and link to main view
-    #			#viewLink = viz.link(navigationNode, viz.MainView)
-    #			#viewLink.preMultLinkable(hmd.getSensor())
-    #
-    #		else:
-    #			print '*** Experiment:linkObjectsUsingMocap: Rift not enabled as a tracker'
-    #			return
-    ##
-    #	def updateHeadTracker(self):
-    #		"""
-    #		A specailized per-frame function
-    #		That updates an empty viznode with:
-    #		- position info from mocap
-    #		- orientation from rift
-    #
-    #		"""
-    #
-    #		riftOriTracker = vizconnect.getTracker('rift_tracker').getNode3d()
-    #
-    #		#ori_xyz = riftOriTracker.getEuler()
-    #		#self.headTracker.setEuler( ori_xyz  )
-    #
-    #		headRigidTracker = self.config.mocap.get_rigidTracker('hmd')
-    #		self.headTracker.setPosition( headRigidTracker.get_position() )
-    #
-    #
     def setupPaddle(self):
 
         mocap = self.config.mocap
@@ -1532,7 +1495,47 @@ class Experiment(viz.EventClass):
                     print('body' + str(paddle.physNode.body.getPosition()))
 
                     #vizact.ontimer2(0.25,viz.FOREVER,printPaddlePos)
+        
+    def setupPaddleVive(self):
 
+        # If there is a visObj paddle and a paddle rigid, link em up!
+        if any("paddle" in idx for idx in self.room.visObjNames_idx):
+            
+            #paddleRigid  = mocap.get_rigidTracker('paddle')
+            import steamvr
+            
+            viveTracker = False
+            
+            if steamvr.getControllerList():
+                viveTracker = steamvr.getControllerList()[0]
+            else:
+                print('No vive controller found')
+                return 
+            
+            if(viveTracker ):
+
+                paddleVisNode = self.room.paddle
+                self.room.paddle.node3D.alpha(0.5)
+                paddleVisNode.enablePhysNode()
+                paddleVisNode.physNode.isLinked = 1
+                
+                #viveTracker.getPosition()
+                
+                
+                #paddleRigidTracker = mocap.get_rigidTracker('paddle')
+                #paddleRigidTracker.link_pose(paddle.node3D,'preEuler([90,0,0])')
+                viveToPaddleLink = viz.link( viveTracker, paddleVisNode.node3D)
+                viveToPaddleLink.preEuler([90,0,0])
+                paddleToPhysLink = viz.link( paddleVisNode.node3D, self.room.paddle.physNode.node3D)
+
+                def printPaddlePos():
+                    #print 'VIS ' + str(paddle.node3D.getPosition())
+                    print('node ' + str(paddle.physNode.node3D.getPosition()))
+                    print('geom ' + str(paddle.physNode.geom.getPosition()))
+                    print('body' + str(paddle.physNode.body.getPosition()))
+
+                    #vizact.ontimer2(0.25,viz.FOREVER,printPaddlePos)
+                        
     def labelDisplays(self):
 
         winList = viz.getWindowList()
@@ -1659,14 +1662,19 @@ class Experiment(viz.EventClass):
 
         if (experimentObject.config.use_eyeTracking):
 
-            currentSample = self.config.eyeTracker.getLastSample()
-            if currentSample:
-                textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = %2.2f'%(self.trialNumber, self.blockNumber, viz.getFrameTime(), currentSample.timestamp))
+            if self.config.sysCfg['eyetracker']['type'] == 'SMIVIVE':
+                textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = %2.2f'%(self.trialNumber, self.blockNumber, viz.getFrameTime(), self.config.eyeTracker.getTimestamp()))
             else:
-                textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = Nan'%(self.trialNumber, self.blockNumber, viz.getFrameTime()))
-            return
+                # DK2
+                currentSample = self.config.eyeTracker.getLastSample()
+                
+                if currentSample:
+                    textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = %2.2f'%(self.trialNumber, self.blockNumber, viz.getFrameTime(), currentSample.getTimestamp()))
+                else:
+                    textObject.message('Tr# = %d \n B# = %d\n FT = %2.2f\n ET = Nan'%(self.trialNumber, self.blockNumber, viz.getFrameTime()))
+                return
 
-    def showEyeTrack(self):
+    def showEyeTrackVive(self):
 
         eyeTracker = self.config.eyeTracker
         headTracker = vizconnect.getRawTrackerDict()['head_tracker']
@@ -1686,7 +1694,7 @@ class Experiment(viz.EventClass):
         #        self.calibTools = calibrationTools(self.gazeNodes.cycGazePoint, clientWindowID, self.gazeNodes.cycEyeBase, self.config, self.room)
         #        self.calibTools.create3DCalibrationPositions(self.calibTools.calibrationPositionRange_X, self.calibTools.calibrationPositionRange_Y, self.calibTools.calibrationPositionRange_Z, self.calibTools.numberOfCalibrationPoints)
 
-        self.gazeNodes.IOD = IOD = numCalibPoint = self.config.sysCfg['eyetracker']['defaultIOD']
+        self.gazeNodes.IOD = IOD = self.config.sysCfg['eyetracker']['defaultIOD']
 
         # create a node3D self.gazeNodes.leftEyeBase
         self.gazeNodes.leftEyeBase = vizshape.addSphere(0.005, color = viz.BLUE)
@@ -2362,3 +2370,34 @@ dispDict = vizconnect.getRawDisplayDict()
 clientWindowID = dispDict['exp_display']
 textObj = experimentObject.timeStampOnScreen()
 
+
+#
+#
+## Setup SteamVR HMD
+#import steamvr
+#hmd = steamvr.HMD()
+#if not hmd.getSensor():
+#	sys.exit('SteamVR HMD not detected')
+#
+## Setup navigation node and link to main view
+#navigationNode = viz.addGroup()
+#viewLink = viz.link(navigationNode, viz.MainView)
+
+    
+#experimentObject.showEyeTrackVive()
+gazeNodes = viz.addGroup()
+
+import steamvr
+hmd = steamvr.HMD()
+gazeNodes.leftEyeBase = vizshape.addSphere(0.05, color = viz.BLUE)
+vl = viz.link(hmd.getSensor(), gazeNodes.leftEyeBase)
+vl.preTrans([-.06/2, 1, 0.0])
+
+
+gazeNodes.leftEyeGazePoint = gazeSphere(experimentObject.config.eyeTracker,viz.LEFT_EYE,gazeNodes.leftEyeBase,[clientWindowID],sphereColor=viz.YELLOW)
+
+#gazeNodes.leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,gazeNodes.leftEyeBase,[clientWindowID],gazeVectorColor=viz.YELLOW)
+#gazeNodes.leftEyeGazePoint.toggleUpdate()
+#gazeNodes.leftGazeVector.toggleUpdate()
+#gazeNodes.leftEyeGazePoint.node3D.alpha(0.7)
+#gazeNodes.leftEyeBase.alpha(0.01)
