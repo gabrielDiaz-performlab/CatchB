@@ -355,4 +355,14 @@ if __name__ == "__main__":
 	initInterface()
 	viz.add('piazza.osgb')
 	viz.add('piazza_animations.osgb')
+	
+	
+	
+	import vizshape
+	ht = vizconnect.getRawTracker('head_tracker')
+	#mv = viz.MainView
+	r = vizshape.addSphere(0.05, color = viz.RED)
+	r.setParent(ht)
+	r.setPosition([0,0,1])
+
 

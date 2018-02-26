@@ -122,62 +122,11 @@ class Configuration():
         if self.sysCfg['use_hmd'] and self.sysCfg['hmd']['type'] == 'VIVE':
             import steamvr
             self.hmdWindow = dispDict['rift_display']
+            
             self.__setupViveMon()
+            self.__connectViveController()
 
-        ###  This is one way to implement controller support for the vive
-        #            def ControllerTask(controller):
-        #
-        #                while True:
-        #
-        #                    # Wait for trigger to press
-        #                    yield viztask.waitSensorDown(controller, steamvr.BUTTON_TRIGGER)
-        #
-        #                    #get an end point
-        #                    line = controller.model.getLineForward(viz.ABS_GLOBAL, length=300.0)
-        #
-        #                    intersection_info = viz.intersect(line.begin, line.end)
-        #
-        #                    #if intersection_info.valid:
-        #                    #    controller.line.setVertex(1,intersection_info.intersectPoint)
-        #
-        #                    # Start highlighting task
-        #                    #highlightTask = viztask.schedule(showPointer(controller))
-        #                    controller.line.visible(True)
-        #
-        #                    #hmm, couldset line end vertexhere, but might not work as anticipated
-        #
-        #                    # Wait for trigger to release
-        #                    yield viztask.waitSensorUp(controller, steamvr.BUTTON_TRIGGER)
-        #
-        #                    # Stop highlighting task
-        #                    controller.line.visible(False)
-        #
-        #            # Add controllers
-        #            #controller_tracker = vizconnect.getTracker('r_hand_tracker')
-        #            controllerList = steamvr.getControllerList()
-        #            if len(controllerList) > 0:
-        #                controller = steamvr.getControllerList()[0]
-        #
-        #                # Create model for controller
-        #                controller.model = controller.addModel()
-        #                controller.model.disable(viz.INTERSECTION)
-        #                #controller.visible(viz.ON)
-        #                viz.link(controller, controller.model)
-        #
-        #                # Create pointer line for controller
-        #                viz.startLayer(viz.LINES)
-        #                viz.vertexColor(viz.WHITE)
-        #                viz.vertex([0,0,0])
-        #                viz.vertex([0,0,300])
-        #                controller.line = viz.endLayer(parent=controller.model)
-        #                controller.line.dynamic()
-        #                controller.line.disable([viz.INTERSECTION, viz.SHADOW_CASTING])
-        #                controller.line.visible(False)
-        #
-        #                self.controller = controller
-        #
-        #            # Setup task for drawing line
-        #            viztask.schedule(ControllerTask(self.controller))
+
 
         if self.sysCfg['use_eyetracking'] and self.sysCfg['eyetracker']['type'] == 'SMIDK2':
         
@@ -415,6 +364,20 @@ class Configuration():
             viz.window.setFullscreenMonitor(expMon)
             viz.window.setFullscreen(1)
 
+    def __connectViveController(self):
+                
+        import steamvr
+        
+        self.viveController = False
+        
+        if steamvr.getControllerList():
+            self.viveController = steamvr.getControllerList()[0]
+            print('Vive controller connected')
+        else:
+            print('No vive controller found')
+            return 
+            
+        
     def __connectWiiMote(self):
 
         wii = viz.add('wiimote.dle')#Add wiimote extension
@@ -504,7 +467,7 @@ class Experiment(viz.EventClass):
         self.viewAct = []
         self.hmdLinkedToView = False
         self.headTracker = []
-
+        
         ################################################################
         ################################################################
         # Build block and trial list
@@ -1094,11 +1057,11 @@ class Experiment(viz.EventClass):
         else:
             calibrationPoint_XYZ = [NaN, NaN, NaN]
 
-        if self.config.use_eyeTracking:
-            # current state of experiment
-            currentSample = self.config.eyeTracker.getLastSample()
-        else:
-            currentSample = False
+#        if self.config.use_eyeTracking:
+#            # current state of experiment
+#            currentSample = self.config.eyeTracker.getLastSample()
+#        else:
+#            currentSample = False
 
         # Gather racquet data
         if self.room.paddle:
@@ -1126,35 +1089,40 @@ class Experiment(viz.EventClass):
             ballRadiusM = NaN
 
         # SMI Data
-        if currentSample:
+        if self.config.sysCfg['use_eyetracking'] and self.config.sysCfg['eyetracker']['type'] == 'SMIVIVE':
+            
             #smiServerTime = self.config.eyeTracker.getServerTime()
+            et = self.config.eyeTracker
+            
+            rightEyeOnScreen_XY = et.getRightPor()#
+            rightEyeInHead_XYZ = et.getRightGazeDirection() #Eye in head, or eye in world?
+            rightEyeBasePoint_XYZ = et.getRightGazeBasePoint()
+            #rightEyeScreenDistance = currentSample.rightEye.eyeScreenDistance
+            #rightEyeLensDistance = currentSample.rightEye.eyeLensDistance
+            #rightPupilRadius = currentSample.rightEye.pupilRadius
+            #rightPupilPos_XYZ = [currentSample.rightEye.pupilPosition.x, currentSample.rightEye.pupilPosition.y, currentSample.rightEye.pupilPosition.z] # Pixel values
 
-            cycEyeOnScreen_XY = [currentSample.por.x, currentSample.por.y]
-            cycEyeInHead_XYZ = [currentSample.gazeDirection.x, currentSample.gazeDirection.y, currentSample.gazeDirection.z]
-            cycEyeBasePoint_XYZ = [currentSample.gazeBasePoint.x, currentSample.gazeBasePoint.y, currentSample.gazeBasePoint.z]
-
-            rightEyeOnScreen_XY = [currentSample.rightEye.por.x, currentSample.rightEye.por.y]
-            rightEyeInHead_XYZ = [currentSample.rightEye.gazeDirection.x, currentSample.rightEye.gazeDirection.y, currentSample.rightEye.gazeDirection.z]
-            rightEyeBasePoint_XYZ = [currentSample.rightEye.gazeBasePoint.x, currentSample.rightEye.gazeBasePoint.y, currentSample.rightEye.gazeBasePoint.z] # H or W?
-            rightEyeScreenDistance = currentSample.rightEye.eyeScreenDistance
-            rightEyeLensDistance = currentSample.rightEye.eyeLensDistance
-            rightPupilRadius = currentSample.rightEye.pupilRadius
-            rightPupilPos_XYZ = [currentSample.rightEye.pupilPosition.x, currentSample.rightEye.pupilPosition.y, currentSample.rightEye.pupilPosition.z] # Pixel values
-
-            leftEyeOnScreen_XY = [currentSample.leftEye.por.x, currentSample.leftEye.por.y]
-            leftEyeInHead_XYZ = [currentSample.leftEye.gazeDirection.x, currentSample.leftEye.gazeDirection.y, currentSample.leftEye.gazeDirection.z]
-            leftEyeBasePoint_XYZ = [currentSample.leftEye.gazeBasePoint.x, currentSample.leftEye.gazeBasePoint.y, currentSample.leftEye.gazeBasePoint.z] # H or W?
-            leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
-            leftEyeLensDistance = currentSample.leftEye.eyeLensDistance
-            leftPupilRadius = currentSample.leftEye.pupilRadius
-            leftPupilPos_XYZ = [currentSample.leftEye.pupilPosition.x, currentSample.leftEye.pupilPosition.y, currentSample.leftEye.pupilPosition.z] # Pixel values
-
+            leftEyeOnScreen_XY =  et.getLeftPor()#
+            leftEyeInHead_XYZ = et.getLeftGazeDirection()
+            leftEyeBasePoint_XYZ = et.getLeftGazeBasePoint()
+#            leftEyeScreenDistance = currentSample.leftEye.eyeScreenDistance
+#            leftEyeLensDistance = currentSample.leftEye.eyeLensDistance
+#            leftPupilRadius = currentSample.leftEye.pupilRadius
+#            leftPupilPos_XYZ = [currentSample.leftEye.pupilPosition.x, currentSample.leftEye.pupilPosition.y, currentSample.leftEye.pupilPosition.z] # Pixel values
+            
+            
+            cycEyeOnScreen_XY = et.getPor() # PIXEL UNITS
+            cycEyeInHead_XYZ = [(leftEyeInHead_XYZ[0]+rightEyeInHead_XYZ[0])/2.0,
+                (leftEyeInHead_XYZ[1]+rightEyeInHead_XYZ[1])/2.0,
+                (leftEyeInHead_XYZ[2]+rightEyeInHead_XYZ[2])/2.0,]
+            cycEyeBasePoint_XYZ = viz.MainView.getPosition()
+            
             # TODO: Check SMI documentation to make sure forcing timestamp to int (instead of long)
             #  wont cause issues.
             # cast to int to avoid "L" suffix in dict literal str (Python 3 has no Long type)
-            eyeTimeStamp = int(currentSample.timestamp)
-            IOD = currentSample.iod
-            IPD = currentSample.ipd
+            eyeTimeStamp = int(et.getTimestamp()) #3322090794633L
+            #IOD = 0.06
+            IPD = vizconnect.getRawDisplay('rift_display').getIPD()
 
         else:
             #smiServerTime = [NaN]
@@ -1165,25 +1133,25 @@ class Experiment(viz.EventClass):
             rightEyeOnScreen_XY = [NaN, NaN]
             rightEyeInHead_XYZ = [NaN, NaN, NaN]
             rightEyeBasePoint_XYZ = [NaN, NaN, NaN]
-            rightEyeScreenDistance = NaN
-            rightEyeLensDistance = NaN
-            rightPupilRadius = NaN
-            rightPupilPos_XYZ = [NaN, NaN, NaN]
+#            rightEyeScreenDistance = NaN
+#            rightEyeLensDistance = NaN
+#            rightPupilRadius = NaN
+#            rightPupilPos_XYZ = [NaN, NaN, NaN]
 
             leftEyeOnScreen_XY = [NaN, NaN]
             leftEyeInHead_XYZ = [NaN, NaN, NaN]
             leftEyeBasePoint_XYZ = [NaN, NaN, NaN]
-            leftEyeScreenDistance = NaN
-            leftEyeLensDistance = NaN
-            leftPupilRadius = NaN
-            leftPupilPos_XYZ = [NaN, NaN, NaN]
+#            leftEyeScreenDistance = NaN
+#            leftEyeLensDistance = NaN
+#            leftPupilRadius = NaN
+#            leftPupilPos_XYZ = [NaN, NaN, NaN]
 
             eyeTimeStamp = NaN
-            IOD = NaN
+            #IOD = NaN
             IPD = NaN
 
         ##### Eye nodes
-        if currentSample:
+        if self.config.use_eyeTracking and self.calibTools:
 
             cycEyeNodeInWorld_XYZ = viz.MainView.getPosition()
             rightEyeNodeInWorld_XYZ = self.gazeNodes.rightEyeBase.getPosition(viz.ABS_GLOBAL)
@@ -1294,27 +1262,28 @@ class Experiment(viz.EventClass):
 
             # Eye geometry
             eyeTimeStamp = eyeTimeStamp,
-            IOD = IOD,
+            #IOD = IOD,
             IPD = IPD,
 
             # Cyclopean gaze
-            cycEyeOnScreen_XY = cycEyeOnScreen_XY,
-            cycEyeInHead_XYZ = cycEyeInHead_XYZ,
-            cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
-            cycEyeNodeInWorld_XYZ = cycEyeNodeInWorld_XYZ,
-            cycMat_4x4 = cycMat_4x4,
-            cycInverseMat_4x4 = cycInverseMat_4x4,
-            cycGazeNodeInWorld_XYZ = cycGazeNodeInWorld_XYZ,
-            #cycGazeNodeInHead_XYZ = cycGazeNodeInHead_XYZ,
+            #GD: Restore variables
+#            cycEyeOnScreen_XY = cycEyeOnScreen_XY,
+#            cycEyeInHead_XYZ = viz.MainView.getPosition()
+#            cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
+#            cycEyeNodeInWorld_XYZ = cycEyeNodeInWorld_XYZ,
+#            cycMat_4x4 = cycMat_4x4,
+#            cycInverseMat_4x4 = cycInverseMat_4x4,
+#            cycGazeNodeInWorld_XYZ = cycGazeNodeInWorld_XYZ,
+            
 
             # Right gaze
-            rightPupilRadius = rightPupilRadius,
-            rightEyeLensDistance = rightEyeLensDistance,
-            rightEyeScreenDistance = rightEyeScreenDistance,
+#            rightPupilRadius = rightPupilRadius,
+#            rightEyeLensDistance = rightEyeLensDistance,
+#            rightEyeScreenDistance = rightEyeScreenDistance,
+#            rightPupilPos_XYZ = rightPupilPos_XYZ,
             rightEyeBasePoint_XYZ = rightEyeBasePoint_XYZ,
             rightEyeInHead_XYZ =  rightEyeInHead_XYZ,
             rightEyeOnScreen_XY = rightEyeOnScreen_XY,
-            rightPupilPos_XYZ = rightPupilPos_XYZ,
 
             rightEyeNodeInWorld_XYZ = rightEyeNodeInWorld_XYZ,
             rightEyeNodeInHead_XYZ = rightEyeNodeInHead_XYZ,
@@ -1324,13 +1293,14 @@ class Experiment(viz.EventClass):
             #rightGazeNodeInHead_XYZ = rightGazeNodeInHead_XYZ,
 
             # Left gaze
-            leftPupilRadius = leftPupilRadius,
-            leftEyeLensDistance = leftEyeLensDistance,
-            leftEyeScreenDistance = leftEyeScreenDistance,
+#            leftPupilRadius = leftPupilRadius,
+#            leftEyeLensDistance = leftEyeLensDistance,
+#            leftEyeScreenDistance = leftEyeScreenDistance,
+#            leftPupilPos_XYZ = leftPupilPos_XYZ,
             leftEyeBasePoint_XYZ = leftEyeBasePoint_XYZ,
             leftEyeInHead_XYZ =  leftEyeInHead_XYZ,
             leftEyeOnScreen_XY = leftEyeOnScreen_XY,
-            leftPupilPos_XYZ = leftPupilPos_XYZ,
+            
 
             leftEyeNodeInWorld_XYZ = leftEyeNodeInWorld_XYZ,
             leftEyeNodeInHead_XYZ = leftEyeNodeInHead_XYZ,
@@ -1343,11 +1313,27 @@ class Experiment(viz.EventClass):
         # seems redundant to cast as dict again
         logging.info(dict(dataDict))
         return
+    
+    def registerViveControllerActions(self):
+        
+        vc = self.config.viveController
+        
+        import steamvr
 
+        vizact.onsensordown(vc, steamvr.BUTTON_TRIGGER, self.launchKeyDown)
+        vizact.onsensorup(vc, steamvr.BUTTON_TRIGGER, self.launchKeyUp)
+        vizact.onsensordown(vc, steamvr.BUTTON_TRACKPAD, self.setMaxReachAndViewHeight)
+        
+        #vizact.onsensordown(vc, steamvr.BUTTON_TRIGGER, self.startPerForMCalibration)
+        #vizact.onsensordown(vc, steamvr.BUTTON_TRIGGER, self.updateCalibrationPoint)
+        #vizact.onsensordown(vc, steamvr.BUTTON_TRIGGER, self.recordCalibrationData)
+        #vizact.onsensordown(vc, steamvr.BUTTON_TRIGGER, self.config.eyeTracker.acceptCalibrationPoint)
+        
+        
     def registerWiimoteActions(self):
 
         wii = viz.add('wiimote.dle')#Add wiimote extension
-
+        
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_B, self.launchKeyDown)
         vizact.onsensorup(self.config.wiimote, wii.BUTTON_B, self.launchKeyUp)
         vizact.onsensordown(self.config.wiimote, wii.BUTTON_DOWN, self.callSMICalibration)
@@ -1501,19 +1487,11 @@ class Experiment(viz.EventClass):
         # If there is a visObj paddle and a paddle rigid, link em up!
         if any("paddle" in idx for idx in self.room.visObjNames_idx):
             
-            #paddleRigid  = mocap.get_rigidTracker('paddle')
-            import steamvr
-            
-            viveTracker = False
-            
-            if steamvr.getControllerList():
-                viveTracker = steamvr.getControllerList()[0]
-            else:
-                print('No vive controller found')
-                return 
-            
-            if(viveTracker ):
 
+            if(self.config.viveController ):
+
+                viveController = self.config.viveController
+                
                 paddleVisNode = self.room.paddle
                 self.room.paddle.node3D.alpha(0.5)
                 paddleVisNode.enablePhysNode()
@@ -1521,13 +1499,14 @@ class Experiment(viz.EventClass):
                 
                 #viveTracker.getPosition()
                 
-                
                 #paddleRigidTracker = mocap.get_rigidTracker('paddle')
                 #paddleRigidTracker.link_pose(paddle.node3D,'preEuler([90,0,0])')
-                viveToPaddleLink = viz.link( viveTracker, paddleVisNode.node3D)
+                viveToPaddleLink = viz.link( viveController, paddleVisNode.node3D)
                 viveToPaddleLink.preEuler([90,0,0])
                 paddleToPhysLink = viz.link( paddleVisNode.node3D, self.room.paddle.physNode.node3D)
-
+                
+                self.registerViveControllerActions()
+                
                 def printPaddlePos():
                     #print 'VIS ' + str(paddle.node3D.getPosition())
                     print('node ' + str(paddle.physNode.node3D.getPosition()))
@@ -1535,7 +1514,8 @@ class Experiment(viz.EventClass):
                     print('body' + str(paddle.physNode.body.getPosition()))
 
                     #vizact.ontimer2(0.25,viz.FOREVER,printPaddlePos)
-                        
+            else:
+                print('*** No vive controller to attach paddle to.')
     def labelDisplays(self):
 
         winList = viz.getWindowList()
@@ -2383,21 +2363,27 @@ textObj = experimentObject.timeStampOnScreen()
 #navigationNode = viz.addGroup()
 #viewLink = viz.link(navigationNode, viz.MainView)
 
-    
-#experimentObject.showEyeTrackVive()
-gazeNodes = viz.addGroup()
+#    
+##experimentObject.showEyeTrackVive()
+#gazeNodes = viz.addGroup()
+#
+#import steamvr
+#hmd = steamvr.HMD()
+#gazeNodes.leftEyeBase = vizshape.addSphere(0.05, color = viz.BLUE)
+#vl = viz.link(hmd.getSensor(), gazeNodes.leftEyeBase)
+#vl.preTrans([1, 0, 0.0])
+#
+#ht = vizconnect.getRawTracker('head_tracker')
 
-import steamvr
-hmd = steamvr.HMD()
-gazeNodes.leftEyeBase = vizshape.addSphere(0.05, color = viz.BLUE)
-vl = viz.link(hmd.getSensor(), gazeNodes.leftEyeBase)
-vl.preTrans([-.06/2, 1, 0.0])
+#r.setParent(vizconnect.getRawTracker('head_tracker'))
 
-
-gazeNodes.leftEyeGazePoint = gazeSphere(experimentObject.config.eyeTracker,viz.LEFT_EYE,gazeNodes.leftEyeBase,[clientWindowID],sphereColor=viz.YELLOW)
-
+#gazeNodes.leftEyeGazePoint = gazeSphere(experimentObject.config.eyeTracker,viz.LEFT_EYE,gazeNodes.leftEyeBase,[clientWindowID],sphereColor=viz.YELLOW)
 #gazeNodes.leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,gazeNodes.leftEyeBase,[clientWindowID],gazeVectorColor=viz.YELLOW)
 #gazeNodes.leftEyeGazePoint.toggleUpdate()
 #gazeNodes.leftGazeVector.toggleUpdate()
 #gazeNodes.leftEyeGazePoint.node3D.alpha(0.7)
 #gazeNodes.leftEyeBase.alpha(0.01)
+
+ht = vizconnect.getRawTracker('head_tracker')
+mv = viz.MainView
+r = vizshape.addSphere(0.05, color = viz.RED)
