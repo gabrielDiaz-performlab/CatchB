@@ -55,7 +55,6 @@ class gazeSphere():
 		from math import tan, radians
 		
 		self.radius = tan(radians(self.sizeInDegrees)) * self.sphereDistance
-		#with viz.cluster.MaskedContext(viz.CLIENT1):
 		self.node3D = vizshape.addSphere(radius=self.radius, color = sphereColor, alpha = 0.4)
 		
 		if( self.renderToWindows ):
@@ -68,7 +67,6 @@ class gazeSphere():
 		self.eyeTracker = eyeTracker
 		self.eye = eye
 		self.node3D.setParent(parentNode)
-		
 		
 	def toggleUpdate(self):
 	

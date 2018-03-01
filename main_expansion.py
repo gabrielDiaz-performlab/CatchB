@@ -508,9 +508,8 @@ class Experiment(viz.EventClass):
         self.config.expCfg['maxReach'] = False
         self.isLeftHanded = self.config.expCfg['experiment']['isLeftHanded']
 
-        if self.config.use_eyeTracking:
-            pass
-            #self.showEyeTrack()
+        if self.config.use_eyeTracking and self.config.sysCfg['hmd']['type'] == 'VIVE':
+            self.showEyeTrackVive()
             #self.config.eyeTracker.showPositionalGuidance()
             
         if self.config.sysCfg['use_wiimote']:
@@ -1151,7 +1150,7 @@ class Experiment(viz.EventClass):
             IPD = NaN
 
         ##### Eye nodes
-        if self.config.use_eyeTracking and self.calibTools:
+        if self.config.use_eyeTracking:# and self.calibTools:
 
             cycEyeNodeInWorld_XYZ = viz.MainView.getPosition()
             rightEyeNodeInWorld_XYZ = self.gazeNodes.rightEyeBase.getPosition(viz.ABS_GLOBAL)
@@ -1169,8 +1168,8 @@ class Experiment(viz.EventClass):
             leftEyeInverseMat_4x4 = self.gazeNodes.leftEyeBase.getMatrix(viz.ABS_GLOBAL).inverse().data
 
             cycGazeNodeInWorld_XYZ = self.gazeNodes.cycGazePoint.getPosition(viz.ABS_GLOBAL)
-            rightGazeNodeInWorld_XYZ = self.gazeNodes.rightEyeGazePoint.node3D.getPosition(viz.ABS_GLOBAL)
-            leftGazeNodeInWorld_XYZ = self.gazeNodes.leftEyeGazePoint.node3D.getPosition(viz.ABS_GLOBAL)
+            rightGazeNodeInWorld_XYZ = self.gazeNodes.rightEyeGazePoint.getPosition(viz.ABS_GLOBAL)
+            leftGazeNodeInWorld_XYZ = self.gazeNodes.leftEyeGazePoint.getPosition(viz.ABS_GLOBAL)
 
             # cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
             # rightGazeNodeInHead_XYZ = self.gazeNodes.rightEyeGazePoint.node3D.getPosition(viz.ABS_PARENT)
@@ -1655,50 +1654,64 @@ class Experiment(viz.EventClass):
                 return
 
     def showEyeTrackVive(self):
-
-        eyeTracker = self.config.eyeTracker
-        headTracker = vizconnect.getRawTrackerDict()['head_tracker']
-        dispDict = vizconnect.getRawDisplayDict()
-        clientWindowID = dispDict['exp_display']
-
+        
+        clientWindowID = vizconnect.getRawDisplayDict()['exp_display']
         self.gazeNodes = viz.addGroup()
+        
+        # IOD based on optics adjustment in HMD, not eye tracker
+        # This does match the IPD used by Vizard, which is dynamically adjutsed
+        self.gazeNodes.IOD = IOD = self.config.hmdWindow.getIPD()
+        
+        self.gazeNodes.cycEyeBase = vizshape.addSphere(0.02, color = viz.BLUE)
+        self.gazeNodes.cycEyeBase.setReferenceFrame(viz.RF_VIEW)
+        self.gazeNodes.cycEyeBase.alpha(0.00)
+        
+        self.gazeNodes.rightEyeBase = vizshape.addSphere(0.02, color = viz.BLUE)
+        self.gazeNodes.rightEyeBase.setReferenceFrame(viz.RF_VIEW)
+        self.gazeNodes.rightEyeBase.setPosition([IOD/2,0,0])
+        self.gazeNodes.rightEyeBase.alpha(0.00)
 
-        self.gazeNodes.cycEyeBase = gazeSphere(eyeTracker,viz.BOTH_EYE,headTracker,[clientWindowID],viz.GREEN)
-        self.gazeNodes.cycEyeBase.toggleUpdate()
-        self.gazeNodes.cycGazePoint = vizshape.addSphere(0.015, color = viz.GREEN)
-        self.gazeNodes.cycGazePoint.setParent(headTracker)
-        #cyclopEyeNode.visible(viz.OFF)
-        self.gazeNodes.cycGazePoint.alpha(0.00)
+        self.gazeNodes.leftEyeBase = vizshape.addSphere(0.02, color = viz.BLUE)
+        self.gazeNodes.leftEyeBase.setReferenceFrame(viz.RF_VIEW)
+        self.gazeNodes.leftEyeBase.alpha(0.0)
 
-        # TODO: Instead of passing both Eye node and sphere one should be enough (KAMRAN)
-        #        self.calibTools = calibrationTools(self.gazeNodes.cycGazePoint, clientWindowID, self.gazeNodes.cycEyeBase, self.config, self.room)
-        #        self.calibTools.create3DCalibrationPositions(self.calibTools.calibrationPositionRange_X, self.calibTools.calibrationPositionRange_Y, self.calibTools.calibrationPositionRange_Z, self.calibTools.numberOfCalibrationPoints)
+        self.gazeNodes.cycGazePoint = vizshape.addSphere(0.01, color = viz.WHITE)
+        self.gazeNodes.cycGazePoint.emissive(viz.WHITE)
+        self.gazeNodes.cycGazePoint.setReferenceFrame(viz.RF_VIEW)
+        self.gazeNodes.cycGazePoint.renderOnlyToWindows([clientWindowID] )
+        
+        self.gazeNodes.rightEyeGazePoint = vizshape.addSphere(0.01, color = viz.RED)
+        self.gazeNodes.rightEyeGazePoint.emissive(viz.RED)
+        self.gazeNodes.rightEyeGazePoint.setReferenceFrame(viz.RF_VIEW)
+        self.gazeNodes.rightEyeGazePoint.alpha(0.7)
+        self.gazeNodes.rightEyeGazePoint.renderOnlyToWindows([clientWindowID] )
+         
+        self.gazeNodes.leftEyeGazePoint = vizshape.addSphere(0.01, color = viz.GREEN)
+        self.gazeNodes.leftEyeGazePoint.emissive(viz.GREEN)
+        self.gazeNodes.leftEyeGazePoint.setReferenceFrame(viz.RF_VIEW)
+        self.gazeNodes.leftEyeGazePoint.alpha(0.7)
+        self.gazeNodes.leftEyeGazePoint.renderOnlyToWindows([clientWindowID] )
+        
 
-        self.gazeNodes.IOD = IOD = self.config.sysCfg['eyetracker']['defaultIOD']
+        def updateGazeNodes(vecLength = 1):
+             
+            rDir = self.config.eyeTracker.getRightGazeDirection()
+            if np.sum(np.isfinite(rDir))>0:
+                self.gazeNodes.rightEyeGazePoint.setPosition(IOD/2+ rDir[0]*vecLength,rDir[1]*vecLength,rDir[2]*vecLength)
+            
+            lDir = self.config.eyeTracker.getLeftGazeDirection()
+            if np.sum(np.isfinite(lDir))>0:            
+                self.gazeNodes.leftEyeGazePoint.setPosition(-IOD/2 + lDir[0]*vecLength,lDir[1]*vecLength,lDir[2]*vecLength)
+                    
+            #cDir = np.array([(rDir[0]+lDir[0])/2,(rDir[1]+lDir[1])/2,(rDir[2]+lDir[2])/2])
+            #cDir = cDir / np.linalg.norm(cDir)
+            cDir = self.config.eyeTracker.getGazeDirection()
+            if np.sum(np.isfinite(cDir))>0:            
+                cDir = list(cDir)
+                self.gazeNodes.cycGazePoint.setPosition(cDir[0]*vecLength,cDir[1]*vecLength,cDir[2]*vecLength)
 
-        # create a node3D self.gazeNodes.leftEyeBase
-        self.gazeNodes.leftEyeBase = vizshape.addSphere(0.005, color = viz.BLUE)
-        #self.gazeNodes.leftEyeBase.visible(viz.OFF)
-        self.gazeNodes.leftEyeBase.setParent(headTracker)
-        self.gazeNodes.leftEyeBase.setPosition(-IOD/2, 0, 0.0,viz.ABS_PARENT)
-        self.gazeNodes.leftEyeGazePoint = gazeSphere(eyeTracker,viz.LEFT_EYE,self.gazeNodes.leftEyeBase,[clientWindowID],sphereColor=viz.YELLOW)
-        self.gazeNodes.leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,self.gazeNodes.leftEyeBase,[clientWindowID],gazeVectorColor=viz.YELLOW)
-        self.gazeNodes.leftEyeGazePoint.toggleUpdate()
-        self.gazeNodes.leftGazeVector.toggleUpdate()
-        self.gazeNodes.leftEyeGazePoint.node3D.alpha(0.7)
-        self.gazeNodes.leftEyeBase.alpha(0.01)
+        self.gazeNodes.updateAct = vizact.onupdate(viz.PRIORITY_LAST_UPDATE,updateGazeNodes)
 
-        # create a node3D self.gazeNodes.rightEyeBase
-        self.gazeNodes.rightEyeBase = vizshape.addSphere(0.005, color = viz.RED)
-        #self.gazeNodes.rightEyeBase.visible(viz.OFF)
-        self.gazeNodes.rightEyeBase.setParent(headTracker)
-        self.gazeNodes.rightEyeBase.setPosition(IOD/2, 0, 0.0,viz.ABS_PARENT)
-        self.gazeNodes.rightEyeGazePoint = gazeSphere(eyeTracker,viz.RIGHT_EYE,self.gazeNodes.rightEyeBase,[clientWindowID],sphereColor=viz.ORANGE)
-        self.gazeNodes.rightEyeGazeVector = gazeVector(eyeTracker,viz.RIGHT_EYE,self.gazeNodes.rightEyeBase,[clientWindowID],gazeVectorColor=viz.ORANGE)
-        self.gazeNodes.rightEyeGazePoint.toggleUpdate()
-        self.gazeNodes.rightEyeGazeVector.toggleUpdate()
-        self.gazeNodes.rightEyeGazePoint.node3D.alpha(0.7)
-        self.gazeNodes.rightEyeBase.alpha(0.01)
 
     def timeStampOnScreen(self):
         clientWindowID = dispDict['exp_display']
@@ -2351,39 +2364,13 @@ clientWindowID = dispDict['exp_display']
 textObj = experimentObject.timeStampOnScreen()
 
 
+#import vizshape
+#r = vizshape.addSphere(0.05, color = viz.RED)
+#r.setReferenceFrame(viz.RF_VIEW)
+#r.setPosition([0,0,1])
 #
-#
-## Setup SteamVR HMD
-#import steamvr
-#hmd = steamvr.HMD()
-#if not hmd.getSensor():
-#	sys.exit('SteamVR HMD not detected')
-#
-## Setup navigation node and link to main view
-#navigationNode = viz.addGroup()
-#viewLink = viz.link(navigationNode, viz.MainView)
+#import vizshape
+#b = vizshape.addSphere(0.05, color = viz.BLUE)
+#b.setParent(r)
+#b.setPosition([-.1,0,1],viz.ABS_PARENT)
 
-#    
-##experimentObject.showEyeTrackVive()
-#gazeNodes = viz.addGroup()
-#
-#import steamvr
-#hmd = steamvr.HMD()
-#gazeNodes.leftEyeBase = vizshape.addSphere(0.05, color = viz.BLUE)
-#vl = viz.link(hmd.getSensor(), gazeNodes.leftEyeBase)
-#vl.preTrans([1, 0, 0.0])
-#
-#ht = vizconnect.getRawTracker('head_tracker')
-
-#r.setParent(vizconnect.getRawTracker('head_tracker'))
-
-#gazeNodes.leftEyeGazePoint = gazeSphere(experimentObject.config.eyeTracker,viz.LEFT_EYE,gazeNodes.leftEyeBase,[clientWindowID],sphereColor=viz.YELLOW)
-#gazeNodes.leftGazeVector = gazeVector(eyeTracker,viz.LEFT_EYE,gazeNodes.leftEyeBase,[clientWindowID],gazeVectorColor=viz.YELLOW)
-#gazeNodes.leftEyeGazePoint.toggleUpdate()
-#gazeNodes.leftGazeVector.toggleUpdate()
-#gazeNodes.leftEyeGazePoint.node3D.alpha(0.7)
-#gazeNodes.leftEyeBase.alpha(0.01)
-
-ht = vizconnect.getRawTracker('head_tracker')
-mv = viz.MainView
-r = vizshape.addSphere(0.05, color = viz.RED)

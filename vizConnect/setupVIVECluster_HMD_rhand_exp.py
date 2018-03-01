@@ -356,13 +356,31 @@ if __name__ == "__main__":
 	viz.add('piazza.osgb')
 	viz.add('piazza_animations.osgb')
 	
-	
-	
 	import vizshape
-	ht = vizconnect.getRawTracker('head_tracker')
-	#mv = viz.MainView
-	r = vizshape.addSphere(0.05, color = viz.RED)
-	r.setParent(ht)
-	r.setPosition([0,0,1])
+	
+	IPD = viz.MainWindow.getIPD()
+	rightEyeBase = vizshape.addSphere(0.05, color = viz.BLUE)
+	rightEyeBase.setReferenceFrame(viz.RF_VIEW)
+	rightEyeBase.setPosition([IPD/2,0,0])
+	rightEyeBase.alpha(0.00)
+	link = viz.link(viz.MainView,rightEyeBase,viz.PRIORITY_SCENEGRAPH)
+	link.setMask(viz.LINK_ORI)
+	
+	rightGazePoint = vizshape.addSphere(0.05, color = viz.YELLOW)
+	rightGazePoint.setReferenceFrame(viz.RF_VIEW)
+	
+	smi = viz.add('smi_vive.dle')
+	eyeTracker = smi.addEyeTracker()
+
+	IPD = viz.MainWindow.getIPD()
+	
+	def updateGazeNode(vecLength = 1.0):
+		
+		rDir = eyeTracker.getRightGazeDirection()
+		rightGazePoint.setPosition(-IPD/2 + rDir[0]*vecLength,rDir[1]*vecLength,rDir[2]*vecLength)
+		
+	vizact.onupdate(viz.PRIORITY_LAST_UPDATE,updateGazeNode)
+
+
 
 
