@@ -35,7 +35,6 @@ from drawNumberFromDist import *
 from gazeTools import calibrationTools, gazeSphere, gazeVector
 from validate import Validator
 
-
 #expConfigFileName = 'gd_pilot.cfg'
 
 expConfigFileName = 'gdExpansionPilot.cfg'
@@ -488,7 +487,6 @@ class Experiment(viz.EventClass):
             self.blocks_bl.append(block(self.config, bIdx, self.room))
 
         self.currentTrial = self.blocks_bl[self.blockNumber].trials_tr[self.trialNumber]
-
 
         #		################################################################
         #		################################################################
@@ -969,15 +967,17 @@ class Experiment(viz.EventClass):
                     # Launch the ball
 
 
-                    self.eventFlag.setStatus('trialStart')
+                    
                     self.inProgress = True
                     self.enableWritingToLog = True
-                    print('Start Trial {%s}' % str(self.enableWritingToLog))
+                    #print('Start Trial {%s}' % str(self.enableWritingToLog))
+                    
+                    self.eventFlag.setStatus('trialStart')
+                    print('Just launched.  Frame: ' + str(viz.getFrameNumber()) + ' Block: ' + str(self.blockNumber) + ' Trial: ' + str(self.trialNumber))
 
                     self.currentTrial.launchBall()
 
                     self.starttimer(self.maxFlightDurTimerID, self.currentTrial.ballFlightMaxDur)
-
                     self.starttimer(self.changeBallRadiusID,viz.FASTEST_EXPIRATION, self.currentTrial.timeToContact)
 
                     if self.currentTrial.useBlankDur:
@@ -1114,6 +1114,7 @@ class Experiment(viz.EventClass):
             cycEyeInHead_XYZ = [(leftEyeInHead_XYZ[0]+rightEyeInHead_XYZ[0])/2.0,
                 (leftEyeInHead_XYZ[1]+rightEyeInHead_XYZ[1])/2.0,
                 (leftEyeInHead_XYZ[2]+rightEyeInHead_XYZ[2])/2.0,]
+                
             cycEyeBasePoint_XYZ = viz.MainView.getPosition()
             
             # TODO: Check SMI documentation to make sure forcing timestamp to int (instead of long)
@@ -1148,6 +1149,8 @@ class Experiment(viz.EventClass):
             eyeTimeStamp = NaN
             #IOD = NaN
             IPD = NaN
+        
+        
 
         ##### Eye nodes
         if self.config.use_eyeTracking:# and self.calibTools:
@@ -1156,6 +1159,8 @@ class Experiment(viz.EventClass):
             rightEyeNodeInWorld_XYZ = self.gazeNodes.rightEyeBase.getPosition(viz.ABS_GLOBAL)
             leftEyeNodeInWorld_XYZ = self.gazeNodes.leftEyeBase.getPosition(viz.ABS_GLOBAL)
 
+
+            cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
             rightEyeNodeInHead_XYZ = self.gazeNodes.rightEyeBase.getPosition(viz.ABS_PARENT)
             leftEyeNodeInHead_XYZ = self.gazeNodes.leftEyeBase.getPosition(viz.ABS_PARENT)
 
@@ -1170,11 +1175,14 @@ class Experiment(viz.EventClass):
             cycGazeNodeInWorld_XYZ = self.gazeNodes.cycGazePoint.getPosition(viz.ABS_GLOBAL)
             rightGazeNodeInWorld_XYZ = self.gazeNodes.rightEyeGazePoint.getPosition(viz.ABS_GLOBAL)
             leftGazeNodeInWorld_XYZ = self.gazeNodes.leftEyeGazePoint.getPosition(viz.ABS_GLOBAL)
+            
+            
+            xyz  = np.array(viz.MainView.getPosition(),dtype=np.float) - np.array(cycGazeNodeInWorld_XYZ,dtype=np.float)
+            cycGazeDir_XYZ = list(xyz / np.linalg.norm(xyz))
 
-            # cycGazeNodeInHead_XYZ = viz.MainView.getPosition(viz.ABS_PARENT)
-            # rightGazeNodeInHead_XYZ = self.gazeNodes.rightEyeGazePoint.node3D.getPosition(viz.ABS_PARENT)
-            # leftGazeNodeInHead_XYZ = self.gazeNodes.leftEyeGazePoint.node3D.getPosition(viz.ABS_PARENT)
         else:
+            
+            cycGazeDir_XYZ = [NaN, NaN, NaN]
             cycEyeNodeInWorld_XYZ = [NaN, NaN, NaN]
             rightEyeNodeInWorld_XYZ = [NaN, NaN, NaN]
             leftEyeNodeInWorld_XYZ = [NaN, NaN, NaN]
@@ -1198,10 +1206,10 @@ class Experiment(viz.EventClass):
             #rightGazeNodeInHead_XYZ = [NaN, NaN, NaN]
             #leftGazeNodeInHead_XYZ = [NaN, NaN, NaN]
 
-        if self.config.use_eyeTracking and self.calibTools and self.calibTools.calibrationInProgress:
-            tempVar = self.calibTools.calibrationBlockCounter + self.calibTools.calibrationCounter
-        else:
-            tempVar = self.trialNumber
+#        if self.config.use_eyeTracking and self.calibTools and self.calibTools.calibrationInProgress:
+#            tempVar = self.calibTools.calibrationBlockCounter + self.calibTools.calibrationCounter
+#        else:
+#            tempVar = self.trialNumber
 
         if self.currentTrial.useBlankDur:
             preBlankDur = self.currentTrial.preBlankDur
@@ -1212,11 +1220,13 @@ class Experiment(viz.EventClass):
             blankDur  = NaN
             postBlankDur  = NaN
 
+        #print(viz.getFrameNumber())
+        
         # Actual data structuring happens here
         dataDict = dict(
             frameTime = viz.getFrameTime(),
             #smiNsSinceStart = smiServerTime,
-            trialNumber = tempVar,
+            trialNumber = self.trialNumber,
             blockNumber = self.blockNumber,
             eventFlag = self.eventFlag.status,
             trialType = self.currentTrial.trialType,
@@ -1266,20 +1276,14 @@ class Experiment(viz.EventClass):
 
             # Cyclopean gaze
             #GD: Restore variables
-#            cycEyeOnScreen_XY = cycEyeOnScreen_XY,
-#            cycEyeInHead_XYZ = viz.MainView.getPosition()
-#            cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
-#            cycEyeNodeInWorld_XYZ = cycEyeNodeInWorld_XYZ,
-#            cycMat_4x4 = cycMat_4x4,
-#            cycInverseMat_4x4 = cycInverseMat_4x4,
-#            cycGazeNodeInWorld_XYZ = cycGazeNodeInWorld_XYZ,
-            
+            cycEyeNodeInHead_XYZ = viz.MainView.getPosition(),
+            cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
+            cycEyeNodeInWorld_XYZ = cycEyeNodeInWorld_XYZ,
+            cycMat_4x4 = cycMat_4x4,
+            cycInverseMat_4x4 = cycInverseMat_4x4,
+            cycGazeNodeInWorld_XYZ = cycGazeNodeInWorld_XYZ,
+            cycGazeDir_XYZ = cycGazeDir_XYZ,
 
-            # Right gaze
-#            rightPupilRadius = rightPupilRadius,
-#            rightEyeLensDistance = rightEyeLensDistance,
-#            rightEyeScreenDistance = rightEyeScreenDistance,
-#            rightPupilPos_XYZ = rightPupilPos_XYZ,
             rightEyeBasePoint_XYZ = rightEyeBasePoint_XYZ,
             rightEyeInHead_XYZ =  rightEyeInHead_XYZ,
             rightEyeOnScreen_XY = rightEyeOnScreen_XY,
@@ -1289,28 +1293,20 @@ class Experiment(viz.EventClass):
             rightEyeMat_4x4 = rightEyeMat_4x4,
             rightEyeInverseMat_4x4 = rightEyeInverseMat_4x4,
             rightGazeNodeInWorld_XYZ = rightGazeNodeInWorld_XYZ,
-            #rightGazeNodeInHead_XYZ = rightGazeNodeInHead_XYZ,
 
-            # Left gaze
-#            leftPupilRadius = leftPupilRadius,
-#            leftEyeLensDistance = leftEyeLensDistance,
-#            leftEyeScreenDistance = leftEyeScreenDistance,
-#            leftPupilPos_XYZ = leftPupilPos_XYZ,
             leftEyeBasePoint_XYZ = leftEyeBasePoint_XYZ,
             leftEyeInHead_XYZ =  leftEyeInHead_XYZ,
             leftEyeOnScreen_XY = leftEyeOnScreen_XY,
-            
 
             leftEyeNodeInWorld_XYZ = leftEyeNodeInWorld_XYZ,
             leftEyeNodeInHead_XYZ = leftEyeNodeInHead_XYZ,
             leftEyeMat_4x4 = leftEyeMat_4x4,
             leftEyeInverseMat_4x4 = leftEyeInverseMat_4x4,
             leftGazeNodeInWorld_XYZ = leftGazeNodeInWorld_XYZ,
-            #leftGazeNodeInHead_XYZ = leftGazeNodeInHead_XYZ,
         )
 
         # seems redundant to cast as dict again
-        logging.info(dict(dataDict))
+        logging.info(dataDict)
         return
     
     def registerViveControllerActions(self):
@@ -1559,8 +1555,7 @@ class Experiment(viz.EventClass):
             self.stopLogAct.remove()
 
         self.stopLogAct = vizact.onupdate(viz.PRIORITY_FIRST_UPDATE,stopLogging)
-
-        print('End Trial{', self.enableWritingToLog,'}')
+        print('Just ended.  Frame: ' + str(viz.getFrameNumber()) + ' Block: ' + str(self.blockNumber) + ' Trial: ' + str(self.trialNumber))
 
         endOfTrialList = len(self.blocks_bl[self.blockNumber].trials_tr)
 
@@ -1580,7 +1575,11 @@ class Experiment(viz.EventClass):
                 self.calibTools.staticCalibrationMethod()
 
             # Increment trial
-            self.trialNumber += 1
+            def incrementTrial():
+                self.trialNumber += 1
+                
+            vizact.ontimer2(0,0,incrementTrial)
+            
             self.killtimer(self.maxFlightDurTimerID)
 
             if self.currentTrial.useBlankDur:
@@ -1609,7 +1608,7 @@ class Experiment(viz.EventClass):
 
         if( self.inProgress ):
 
-            print('Starting block: ' + str(self.blockNumber) + ' Trial: ' + str(self.trialNumber))
+            # Increments current trial
             self.currentTrial = self.blocks_bl[self.blockNumber].trials_tr[self.trialNumber]
 
 
@@ -1691,7 +1690,6 @@ class Experiment(viz.EventClass):
         self.gazeNodes.leftEyeGazePoint.setReferenceFrame(viz.RF_VIEW)
         self.gazeNodes.leftEyeGazePoint.alpha(0.7)
         self.gazeNodes.leftEyeGazePoint.renderOnlyToWindows([clientWindowID] )
-        
 
         def updateGazeNodes(vecLength = 1):
              
@@ -1706,7 +1704,7 @@ class Experiment(viz.EventClass):
             #cDir = np.array([(rDir[0]+lDir[0])/2,(rDir[1]+lDir[1])/2,(rDir[2]+lDir[2])/2])
             #cDir = cDir / np.linalg.norm(cDir)
             cDir = self.config.eyeTracker.getGazeDirection()
-            if np.sum(np.isfinite(cDir))>0:            
+            if np.sum(np.isfinite(cDir))>0 and np.sum(cDir)>0:
                 cDir = list(cDir)
                 self.gazeNodes.cycGazePoint.setPosition(cDir[0]*vecLength,cDir[1]*vecLength,cDir[2]*vecLength)
 
@@ -1763,7 +1761,9 @@ class eventFlag(viz.EventClass):
         vizact.onupdate(viz.PRIORITY_FIRST_UPDATE,self._resetEventFlag)
 
     def setStatus(self,status,overWriteBool = False):
-
+        
+        print('Set status.  Frame: ' + str(viz.getFrameNumber()) + ' Status: ' + str(status))
+        
         if( self.lastFrameUpdated != viz.getFrameNumber() ):
 
             #print 'Setting status to' + str(status)
@@ -1833,6 +1833,8 @@ class block():
 
             ## Get trial info
             trialObj = trial(config, self.trialTypeList_tr[trialNumber], self.room)
+            trialObj.blockNumber = blockNum
+            trialObj.numTrialInBlock = trialNumber
 
             ##Add the body to the list
             self.trials_tr.append(trialObj)
@@ -1846,7 +1848,9 @@ class trial(viz.EventClass):
         #viz.EventClass.__init__(self)
 
         self.trialType = trialType
-
+        self.trialNumber = False
+        self.blockNumber = False
+        
         self.room = room
         self.config = config
 
@@ -1860,6 +1864,7 @@ class trial(viz.EventClass):
         self.ballHasHitPaddle = False
         self.ballHasHitPassingPlane = False
 
+        
         self.isLeftHanded = config.expCfg['experiment']['isLeftHanded']
 
         ## Trial event data
@@ -1971,8 +1976,6 @@ class trial(viz.EventClass):
 
 
     def removeBall(self):
-
-        print('Removing ball')
 
         self.ballObj.remove()
         self.ballObj = False
@@ -2192,7 +2195,7 @@ class trial(viz.EventClass):
         self.lastUnmodifiedBallAngularRadiusRadians = self.lastBallAngularRadiusRadians = np.arctan(self.ballObj.radius / self.initialDistFromViewToBall )
         self.ballResizeAct = vizact.onupdate(viz.PRIORITY_SCENEGRAPH-1,self.scaleRadiusByGain)
 
-
+        
     def setBallRadius(self,radius):
 
         self.ballObj.size = radius

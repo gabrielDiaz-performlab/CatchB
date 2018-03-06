@@ -85,8 +85,8 @@ class room():
 
             ####################################################################
 
-        texScale = 0.5
-        wallTexPath = self.texPath + 'Texture_Seamless.jpg'
+        texScale = 4
+        wallTexPath = self.texPath + 'tile_gray.jpg'
         floorTexPath = self.texPath + 'tile_wood.jpg'
 
         planeABCD = [0, -1, 0, -self.ceilingHeight]
