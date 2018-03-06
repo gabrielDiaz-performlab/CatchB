@@ -1237,7 +1237,7 @@ class Experiment(viz.EventClass):
 
             # mainView
             viewPos_XYZ = viewPos_XYZ,
-            viewMat_4x4 = viz.MainView.getMatrix().data,
+            viewMat_4x4 = viz.MainView.getMatrix(),
             viewQuat_XYZW = viz.MainView.getQuat(),
 
             # Calibration
@@ -1306,7 +1306,7 @@ class Experiment(viz.EventClass):
         )
 
         # seems redundant to cast as dict again
-        logging.info(dataDict)
+        logging.info(dict(dataDict))
         return
     
     def registerViveControllerActions(self):
