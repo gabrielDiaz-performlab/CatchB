@@ -66,7 +66,17 @@ class gazeSphere():
 		
 		self.eyeTracker = eyeTracker
 		self.eye = eye
-		self.node3D.setParent(parentNode)
+		
+		if self.eye == viz.RIGHT_EYE:
+			
+			self.node3D.setReferenceFrame(viz.RF_VIEW)
+			self.node3D.setPosition([IOD/2,0,0])
+		
+		elif self.eye == viz.LEFT_EYE:
+			
+			self.node3D.setReferenceFrame(viz.RF_VIEW)
+			self.node3D.setPosition([-IOD/2,0,0])			
+
 		
 	def toggleUpdate(self):
 	
@@ -101,7 +111,7 @@ class gazeSphere():
 
 class calibrationTools():
 	
-	def __init__(self, parentNode, renderToWindows = None, cyclopEyeSphere = None, config = None, room = None):
+	def __init__(self, parentNode,cyclopEyeSphere,renderToWindows = None, config = None, room = None):
 
 		self.config = config
 		self.room = room
@@ -109,10 +119,14 @@ class calibrationTools():
 		self.parentNode = parentNode
 		self.renderToWindows = renderToWindows
 		self.calibrationSphere = None
+
 		self.cyclopEyeSphere = cyclopEyeSphere
+		
 		self.minimumAngle = float(self.config.expCfg['room']['minimumStimuliSize'])
 		self.minimumAngle = (self.minimumAngle * np.pi)/(60*180) # We want the calibration point subtend 15 arcmin to the subject's eye
-
+		
+		self.calibTargetSizeDegs = float(self.config.expCfg['room']['calibTargetSizeDegs'])
+		
 		self.localAction = None
 		self.initialValue = 0.02
 		self.calibrationSphereRadius = self.initialValue
@@ -122,10 +136,16 @@ class calibrationTools():
 		self.maximumAngularError = float(self.config.expCfg['room']['maximumAngularError'])
 		self.textObjectPosition = map(float,self.config.expCfg['room']['textObjectPosition'])
 
-		self.calibrationPositionRange_X = map(float,self.config.expCfg['room']['calibrationPointsRange_X'])
-		self.calibrationPositionRange_Y = map(float,self.config.expCfg['room']['calibrationPointsRange_Y'])
-		self.calibrationPositionRange_Z = map(float,self.config.expCfg['room']['calibrationPointsRange_Z'])
-		self.numberOfCalibrationPoints = float(self.config.expCfg['room']['calibrationPointPerPlane'])
+		self.calibrationPositionRange_X = self.config.expCfg['room']['calibrationPointsRange_X']
+		self.calibrationPositionRange_Y = self.config.expCfg['room']['calibrationPointsRange_Y']
+		self.calibrationDepth = self.config.expCfg['room']['calibrationDepth']
+		self.numberOfCalibrationPoints =  float(self.config.expCfg['room']['calibrationPointPerPlane'])
+		
+		self.create3DCalibrationPositions(self.calibrationPositionRange_X, 
+			self.calibrationPositionRange_Y, 
+			self.calibrationDepth,
+			self.numberOfCalibrationPoints)
+
 
 	def dotproduct(self, v1, v2):
 	  return sum((a*b) for a, b in zip(v1, v2))
@@ -137,9 +157,10 @@ class calibrationTools():
 	  return math.acos(self.dotproduct(v1, v2) / (self.length(v1) * self.length(v2)))
 
 	def calculateAngularError(self, node1, node2, textObject):
+		
 		vector1 = node1.getPosition(viz.ABS_PARENT)
-		#V1 = [a - b for a, b in zip(vector1, self.parentNode.getPosition(viz.ABS_GLOBAL))]
 		V1 = vector1
+		
 		if (node2 == 0.0):
 			if ( self.calibrationCounter < 27 ):
 				V2 = self.calibrationPositions[self.calibrationCounter,:]# + self.parentNode.getPosition(viz.ABS_GLOBAL)
@@ -152,31 +173,40 @@ class calibrationTools():
 		
 		#print 'Angular Error = %.2f %c'%(errorAngle, u"\u00b0")
 		#print 'Angular Error = %.2f %c'%(self.errorAngle, u"\u00b0")
+
 		textObject.message('AE = %.1f %c'%(self.errorAngle, u"\u00b0"))
+
 		textObject.setPosition(self.textObjectPosition, viz.ABS_PARENT)
+		
 		if ( self.errorAngle < self.maximumAngularError ):
 			textObject.color(self.errorAngle/self.maximumAngularError, 1 - self.errorAngle/self.maximumAngularError, 0)
 		else:
 			textObject.color(viz.RED)
 
+	
+	def create3DCalibrationPositions(self,xRange,yRange,distance,numberOfGridPoints):
+		#, xRange, yRange, zRange, numberOfGridPoints):
+#		
+#		xRange = 20
+#		yRange = 20
+#		numberOfGridPoints = 9
+#		distance = 3
 
-	def create3DCalibrationPositions(self, xRange, yRange, zRange, numberOfGridPoints):
-		x = np.linspace(xRange[0], xRange[1], int(numberOfGridPoints))
-		y = np.linspace(yRange[0], yRange[1], int(numberOfGridPoints))
-		z = np.linspace(zRange[0], zRange[1], int(numberOfGridPoints))
+		pi = np.pi
 
-		points = np.empty(shape = (1,3), dtype = float)
-		#points.resize(1,3)
-		for k in z:
-			for j in y:
-				for i in x:
-					points = np.vstack((points, [i,j,k]))
+		def calcLoc(xDegs,yDegs,dist):
+			xLoc =  dist * np.sin(np.deg2rad(90.-yDegs)) * np.cos(np.deg2rad(90.-xDegs)) #np.rad2deg(np.sin(np.deg2rad(xDegs)) * dist)
+			zLoc =  dist * np.sin(np.deg2rad(90.-yDegs)) * np.sin(np.deg2rad(90.-xDegs)) 
+			yLoc =  dist * np.cos(np.deg2rad(90.-yDegs)) 
+			return [xLoc,yLoc,zLoc]
+				
+		
+		x = np.tile(np.linspace(-xRange/2, xRange/2, int(np.sqrt(numberOfGridPoints))),3)
+		y = np.repeat(np.linspace(-yRange/2, xRange/2, int(np.sqrt(numberOfGridPoints))),3)
+		y = y-10
 
-		points = np.delete(points, 0, 0) # TODO: The first element is initialized by a random value!!? Why? Should be fixed later (KAMRAN)
-		self.calibrationPositions = points
-		self.numberOfCalibrationPoints = self.calibrationPositions.shape[0]
-		#print 'Number of Calibration Points =', self.numberOfCalibrationPoints
-		#print 'calibration points:\n', points
+		self.calibrationPositions = np.array([calcLoc(xx,yy,dd) for xx,yy,dd in zip(x,y,[distance]*len(x))],dtype=np.float)
+		self.numberOfCalibrationPoints = len(self.calibrationPositions)
 
 	def toggleRoomWallsVisibility(self):
 
@@ -261,24 +291,36 @@ class calibrationTools():
 	def staticCalibrationMethod(self):
 		
 		if ( self.calibrationInProgress == False ):
+			
 			self.calibrationBlockCounter += 100
 			self.toggleRoomWallsVisibility()
 			self.calibrationInProgress = True
 			self.calibrationCounter = 0
 			self.calibrationSphereRadius = self.initialValue
-			self.calibrationSphere = vizshape.addSphere(self.calibrationSphereRadius, color = viz.PURPLE)
+			
+			self.calibrationSphere = vizshape.addSphere(0.5, color = viz.PURPLE)
 			self.calibrationSphere.emissive(viz.PURPLE)
-			self.calibrationSphere.setParent(self.parentNode)
-			self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], 0)
+			#self.calibrationSphere.setParent(self.parentNode)
+	
+			self.calibrationSphere.setReferenceFrame(viz.RF_VIEW)
+			
+		
+			#self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], .5)
+			
 			print 'FirstPos', self.calibrationPositions[self.calibrationCounter,:]
+			
 			newPos = [self.calibrationPositions[self.calibrationCounter,0], self.calibrationPositions[self.calibrationCounter,1], self.calibrationPositions[self.calibrationCounter,2]]
 			self.calibrationSphere.setPosition(newPos[0], newPos[1], newPos[2],viz.ABS_PARENT)
+			
+			scale = 2 * np.arctan( (self.calibTargetSizeDegs/2.0) / self.calibrationDepth ) 
+			print('Set scale to ' + str(scale))
+			self.calibrationSphere.setScale([scale]*3)
 
 			self.text_object = viz.addText('')
 			self.text_object.setParent(self.calibrationSphere)
 			self.text_object.renderOnlyToWindows([self.renderToWindows])
 			
-			self.localAction = vizact.onupdate(viz.PRIORITY_INPUT+1,self.calculateAngularError, self.cyclopEyeSphere.node3D, 0.0, self.text_object)#self.currentTrial.ballObj.node3D
+			self.localAction = vizact.onupdate(viz.PRIORITY_INPUT+1,self.calculateAngularError, self.cyclopEyeSphere, 0.0, self.text_object)#self.currentTrial.ballObj.node3D
 
 			print 'Static Calibration Started'
 		else:
@@ -298,7 +340,9 @@ class calibrationTools():
 		self.calibrationCounter +=1
 		newPos = [self.calibrationPositions[self.calibrationCounter,0], self.calibrationPositions[self.calibrationCounter,1], self.calibrationPositions[self.calibrationCounter,2]]
 		self.calibrationSphere.setPosition(newPos[0], newPos[1], newPos[2],viz.ABS_PARENT)
-		self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], 0)
+		
+		#self.setSphereRadius(self.parentNode.getPosition(viz.ABS_GLOBAL), self.calibrationPositions[self.calibrationCounter,:], 0)
+		
 		print 'Calibratring for Point[%d]' %(self.calibrationCounter), 'at [%f %f %f]' % (newPos[0], newPos[1], newPos[2])
 		print 'Counter', self.calibrationBlockCounter + self.calibrationCounter
 		return True
@@ -313,16 +357,16 @@ class calibrationTools():
 		self.toggleRoomWallsVisibility()
 		#print 'Calibration Done Successfully'
 		
-	def setSphereRadius(self, eyePos, targetPos, radius):
-
-		if ( radius  == 0 ):
-			distance = np.linalg.norm(targetPos)
-			self.calibrationSphereRadius = distance * np.tan(self.minimumAngle)
-			#print 'Radius Changed to ', self.calibrationSphereRadius,' theta = ', 0.5 * 180 * np.arctan( self.calibrationSphereRadius/distance )/np.pi
-		else:
-			self.calibrationSphereRadius = radius
-			#print '==>Radius Changed to ', self.calibrationSphereRadius
-		ratio = self.calibrationSphereRadius/self.initialValue
-		self.calibrationSphere.setScale([ratio, ratio, ratio], viz.ABS_PARENT)
-		print 'SetSphere to :',self.calibrationSphereRadius
-
+#	def setSphereRadius(self, eyePos, targetPos, radius):
+#
+#		if ( radius  == 0 ):
+#			distance = np.linalg.norm(targetPos)
+#			self.calibrationSphereRadius = distance * np.tan(self.minimumAngle)
+#			#print 'Radius Changed to ', self.calibrationSphereRadius,' theta = ', 0.5 * 180 * np.arctan( self.calibrationSphereRadius/distance )/np.pi
+#		else:
+#			self.calibrationSphereRadius = radius
+#			#print '==>Radius Changed to ', self.calibrationSphereRadius
+#		ratio = self.calibrationSphereRadius/self.initialValue
+#		self.calibrationSphere.setScale([ratio, ratio, ratio], viz.ABS_PARENT)
+#		print 'SetSphere to :',self.calibrationSphereRadius
+#

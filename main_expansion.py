@@ -729,10 +729,13 @@ class Experiment(viz.EventClass):
         """
 
         self.inCalibrateMode = True
-
-        self.calibTools = calibrationTools(self.gazeNodes.cycGazePoint, clientWindowID, self.gazeNodes.cycEyeBase, self.config, self.room)
-        self.calibTools.create3DCalibrationPositions(self.calibTools.calibrationPositionRange_X, self.calibTools.calibrationPositionRange_Y, self.calibTools.calibrationPositionRange_Z, self.calibTools.numberOfCalibrationPoints)
-
+        
+        self.calibTools = calibrationTools(parentNode = self.gazeNodes.cycEyeBase,
+            cyclopEyeSphere=self.gazeNodes.cycGazePoint,
+            renderToWindows= clientWindowID,
+            config = self.config, 
+            room = self.room)
+        
 
         if not self.config.sysCfg['use_eyetracking']:
             print('Eyetracker not setup')
@@ -762,6 +765,7 @@ class Experiment(viz.EventClass):
 
         #        self.config.eyeTrackingCal.updateOffset('s')
         #        self.config.eyeTrackingCal.updateOffset('w')
+        
         self.calibTools.staticCalibrationMethod()
 
     def endPerForMCalibration(self):
@@ -878,7 +882,8 @@ class Experiment(viz.EventClass):
         elif not self.inCalibrateMode:
 
             if key == 'c' and self.config.eyeTracker:
-                self.callSMICalibration()
+                #self.callSMICalibration()
+                self.startPerForMCalibration()
 
             elif key == 'e':
 
@@ -1237,7 +1242,7 @@ class Experiment(viz.EventClass):
 
             # mainView
             viewPos_XYZ = viewPos_XYZ,
-            viewMat_4x4 = viz.MainView.getMatrix(),
+            viewMat_4x4 = list(viz.MainView.getMatrix()),
             viewQuat_XYZW = viz.MainView.getQuat(),
 
             # Calibration
@@ -2365,15 +2370,3 @@ experimentObject.start()
 dispDict = vizconnect.getRawDisplayDict()
 clientWindowID = dispDict['exp_display']
 textObj = experimentObject.timeStampOnScreen()
-
-
-#import vizshape
-#r = vizshape.addSphere(0.05, color = viz.RED)
-#r.setReferenceFrame(viz.RF_VIEW)
-#r.setPosition([0,0,1])
-#
-#import vizshape
-#b = vizshape.addSphere(0.05, color = viz.BLUE)
-#b.setParent(r)
-#b.setPosition([-.1,0,1],viz.ABS_PARENT)
-
