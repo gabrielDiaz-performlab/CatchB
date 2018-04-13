@@ -730,7 +730,7 @@ class Experiment(viz.EventClass):
 
         self.inCalibrateMode = True
         
-        self.calibTools = calibrationTools(parentNode = self.gazeNodes.cycEyeBase,
+        self.calibTools = calibrationTools(parentNode = viz.MainView,#self.gazeNodes.cycEyeBase,
             cyclopEyeSphere=self.gazeNodes.cycGazePoint,
             renderToWindows= clientWindowID,
             config = self.config, 

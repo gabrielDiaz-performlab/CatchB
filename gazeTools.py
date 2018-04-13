@@ -203,7 +203,7 @@ class calibrationTools():
 		
 		x = np.tile(np.linspace(-xRange/2, xRange/2, int(np.sqrt(numberOfGridPoints))),3)
 		y = np.repeat(np.linspace(-yRange/2, xRange/2, int(np.sqrt(numberOfGridPoints))),3)
-		y = y-10
+		#y = y-10
 
 		self.calibrationPositions = np.array([calcLoc(xx,yy,dd) for xx,yy,dd in zip(x,y,[distance]*len(x))],dtype=np.float)
 		self.numberOfCalibrationPoints = len(self.calibrationPositions)
