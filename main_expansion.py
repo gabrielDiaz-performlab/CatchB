@@ -455,6 +455,7 @@ class Experiment(viz.EventClass):
         self.calibrationFrameCounter = 0
         self.totalCalibrationFrames = self.config.sysCfg['eyetracker']['recordCalibForNFrames']
         self.calibTools = False
+        
 
         #self.standingBoxSize_WHL = map(float, config.expCfg['room']['standingBoxSize_WHL'])
         ################################################################
@@ -504,7 +505,6 @@ class Experiment(viz.EventClass):
             self.setupPaddleVive()
 
         self.config.expCfg['maxReach'] = False
-        self.isLeftHanded = self.config.expCfg['experiment']['isLeftHanded']
 
         if self.config.use_eyeTracking and self.config.sysCfg['hmd']['type'] == 'VIVE':
             self.showEyeTrackVive()
@@ -828,8 +828,8 @@ class Experiment(viz.EventClass):
         self.config.expCfg['maxReach'] = np.abs(paddlePosInHeadSpace_XYZ[0])
 
         print('*** Max reach set to %1.1f m ***'  %self.config.expCfg['maxReach'])
+        
         if( paddlePosInHeadSpace_XYZ[0] < 0 ):
-            self.isLeftHanded = True
             self.config.expCfg['experiment']['isLeftHanded'] = True
 
 
@@ -1239,6 +1239,7 @@ class Experiment(viz.EventClass):
             # body related
             maxReach = maxReach,
             noExpansionForLastXSeconds = noExpansionForLastXSeconds,
+            isLeftHandedQ = self.config.expCfg['experiment']['isLeftHanded'],
 
             # mainView
             viewPos_XYZ = viewPos_XYZ,
@@ -1580,10 +1581,10 @@ class Experiment(viz.EventClass):
                 self.calibTools.staticCalibrationMethod()
 
             # Increment trial
-            def incrementTrial():
-                self.trialNumber += 1
+            #def incrementTrial():
+            self.trialNumber += 1
                 
-            vizact.ontimer2(0,0,incrementTrial)
+            #vizact.ontimer2(0,0,incrementTrial)
             
             self.killtimer(self.maxFlightDurTimerID)
 
@@ -1799,7 +1800,7 @@ class eventFlag(viz.EventClass):
 
 
 class block():
-    def __init__(self,config = None, blockNum = 1, room = None):
+    def __init__(self,config = None, blockNum = 0, room = None):
 
         # Each block will have a block.trialTypeList
         # This list is a list of strings of each trial type
@@ -1869,9 +1870,7 @@ class trial(viz.EventClass):
         self.ballHasHitPaddle = False
         self.ballHasHitPassingPlane = False
 
-        
-        self.isLeftHanded = config.expCfg['experiment']['isLeftHanded']
-
+    
         ## Trial event data
         self.ballOnPaddlePos_XYZ = []
         self.ballOnPaddlePosLoc_XYZ = []
@@ -2020,7 +2019,7 @@ class trial(viz.EventClass):
         #adds a transparent plane that the ball is being launched from it
         self.room.launchPlane = vizshape.addPlane(size = self.launchPlaneSize , axis=-vizshape.AXIS_Z, cullFace = False)
 
-        if( self.isLeftHanded == True):
+        if( self.config.expCfg['experiment']['isLeftHanded'] == True):
             self.launchPlanePosition[0] *= -1
 
         #shifts the wall to match the edge of the floor
@@ -2040,7 +2039,8 @@ class trial(viz.EventClass):
         #adds a transparent plane that the ball ends up in this plane
         self.room.passingPlane = visEnv.visObj(self.room,'box',size = self.passingPlaneSize)#[0.02, planeSize[0], planeSize[0]]
 
-
+        if( self.config.expCfg['experiment']['isLeftHanded'] == True):
+            self.passingPlanePosition[0] *= -1
 
         self.room.passingPlane.node3D.setPosition(self.passingPlanePosition)#[0, 1.5, 1.0]
 
@@ -2065,16 +2065,20 @@ class trial(viz.EventClass):
         ##################################################################################################################
         ################### STARTING POSITION ############################################################################
 
-        if( self.isLeftHanded == True):
-            launchPlane_XYZ[0] *= -1
-            self.passingPlanePosition[0] *= -1
-            self.launchPlanePosition[0] *= -1
+
 
         self.placeLaunchPlane()
         self.placePassingPlane()
-
+        
         # Put ball in center of launch plane
         launchPlane_XYZ = self.room.launchPlane.getPosition()
+        
+#        if( self.config.expCfg['experiment']['isLeftHanded'] == True):
+#            launchPlane_XYZ[0] *= -1
+#            self.passingPlanePosition[0] *= -1
+#            self.launchPlanePosition[0] *= -1
+            
+        
         self.ballInitialPos_XYZ = launchPlane_XYZ
 
         ### X VALUE
@@ -2099,7 +2103,7 @@ class trial(viz.EventClass):
         ### X VALUE
         self.ballFinalPos_XYZ = [0,0,0]
 
-        if( self.isLeftHanded ):
+        if( self.config.expCfg['experiment']['isLeftHanded'] == True):
             self.ballFinalPos_XYZ[0] = self.room.standingBox.getPosition()[0] - self.config.expCfg['maxReach']*self.passingLocNormX
         else:
             self.ballFinalPos_XYZ[0] = self.room.standingBox.getPosition()[0] + self.config.expCfg['maxReach']*self.passingLocNormX
@@ -2151,7 +2155,8 @@ class trial(viz.EventClass):
     def calculateTrajectory(self):
 
         # X velocity
-        self.lateralDistance = math.fabs(self.ballFinalPos_XYZ[0] - self.ballInitialPos_XYZ[0])
+        #self.lateralDistance = math.fabs(self.ballFinalPos_XYZ[0] - self.ballInitialPos_XYZ[0])
+        self.lateralDistance = self.ballFinalPos_XYZ[0] - self.ballInitialPos_XYZ[0]
         self.initialVelocity_XYZ[0] = self.lateralDistance/self.timeToContact
 
         # Z velocity
