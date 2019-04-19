@@ -1059,9 +1059,12 @@ class Experiment(viz.EventClass):
         # Gather misc data
         frameNum = viz.getFrameNumber()
         viewPos_XYZ = viz.MainView.getPosition(viz.MASTER)
-
         noExpansionForLastXSeconds = self.currentTrial.noExpansionForLastXSeconds
         maxReach = self.config.expCfg['maxReach']
+        
+        ipd = self.config.expCfg['userIPD']
+        ipdRatio = self.currentTrial.ipdRatio
+        
 
         if self.inCalibrateMode and self.calibTools.calibrationSphere:
 
@@ -1164,7 +1167,7 @@ class Experiment(viz.EventClass):
 
             eyeTimeStamp = NaN
             #IOD = NaN
-            IPD = NaN
+            
         
         
 
@@ -1225,14 +1228,7 @@ class Experiment(viz.EventClass):
 #        else:
 #            tempVar = self.trialNumber
 
-        if self.currentTrial.useBlankDur:
-            preBlankDur = self.currentTrial.preBlankDur
-            blankDur = self.currentTrial.blankDur
-            postBlankDur = self.currentTrial.postBlankDur
-        else:
-            preBlankDur = NaN
-            blankDur  = NaN
-            postBlankDur  = NaN
+ 
 
         #print(viz.getFrameNumber())
         
@@ -1245,6 +1241,7 @@ class Experiment(viz.EventClass):
             eventFlag = self.eventFlag.status,
             trialType = self.currentTrial.trialType,
 
+            
             # body related
             maxReach = maxReach,
             noExpansionForLastXSeconds = noExpansionForLastXSeconds,
@@ -1280,7 +1277,6 @@ class Experiment(viz.EventClass):
             ballPosWorldToScreen_XYZ = ballPosWorldToScreen_XYZ,
 
             # Trajectory
-
             preBlankDur = preBlankDur,
             blankDur = blankDur,
             postBlankDur = postBlankDur,
@@ -1288,10 +1284,10 @@ class Experiment(viz.EventClass):
             # Eye geometry
             eyeTimeStamp = eyeTimeStamp,
             #IOD = IOD,
-            IPD = IPD,
-
+            ipd = ipd,
+            ipdRatio = ipdRatio,
+            
             # Cyclopean gaze
-            #GD: Restore variables
             cycEyeNodeInHead_XYZ = viz.MainView.getPosition(),
             cycEyeBasePoint_XYZ = cycEyeBasePoint_XYZ,
             cycEyeNodeInWorld_XYZ = cycEyeNodeInWorld_XYZ,
