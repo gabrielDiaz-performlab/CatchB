@@ -91,7 +91,8 @@ def _loadLibrary():
 	"""Load iViewHMDAPI DLL"""
 
 	try:
-		return ctypes.windll.iViewHMDAPI
+		return ctypes.windll.iViewHMD_HTC_CPP
+		#return ctypes.windll.iViewHMDAPI
 	except:
 
 		# Try searching for it in program files

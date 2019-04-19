@@ -73,9 +73,9 @@ class physEnv(viz.EventClass):
 
         self.emptyCollisionBuffer()
 
-        numCycles = 16
+        numCycles = 32
 
-        timeStep = viz.getFrameElapsed() / numCycles #self.frameRate / numCycles
+        timeStep = viz.getFrameElapsed() / numCycles 
 
         for idx in range(numCycles):
             self.space.collide(self,self.detectCollisions)
